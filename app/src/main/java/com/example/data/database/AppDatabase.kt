@@ -1,0 +1,47 @@
+package com.example.data.database
+
+import android.content.Context
+import androidx.room.Database
+import androidx.room.Room
+import androidx.room.RoomDatabase
+import com.example.data.dao.AppDao
+import com.example.data.model.*
+
+@Database(
+    entities = [
+        Batch::class,
+        Student::class,
+        Attendance::class,
+        FeePayment::class,
+        FinancialTransaction::class,
+        StudyMaterial::class,
+        MessageTemplate::class,
+        Exam::class,
+        ExamQuestion::class,
+        ExamAttempt::class
+    ],
+    version = 5,
+    exportSchema = false
+)
+abstract class AppDatabase : RoomDatabase() {
+    abstract fun appDao(): AppDao
+
+    companion object {
+        @Volatile
+        private var INSTANCE: AppDatabase? = null
+
+        fun getDatabase(context: Context): AppDatabase {
+            return INSTANCE ?: synchronized(this) {
+                val instance = Room.databaseBuilder(
+                    context.applicationContext,
+                    AppDatabase::class.java,
+                    "aspirant_management_db"
+                )
+                .fallbackToDestructiveMigration()
+                .build()
+                INSTANCE = instance
+                instance
+            }
+        }
+    }
+}

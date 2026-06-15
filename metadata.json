@@ -1,0 +1,6 @@
+{
+  "name": "Aspirant Management",
+  "description": "Comprehensive Classroom and Tuition Manager with statistical dashboards, student record tracking, payment logs, digital study materials, and an advanced Gemini doubt solver bot.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
