@@ -32,6 +32,7 @@ class AppRepository(private val appDao: AppDao) {
     val allFeePayments: Flow<List<FeePayment>> = appDao.getAllFeePayments()
     fun getFeePaymentsForStudent(studentId: Long): Flow<List<FeePayment>> = appDao.getFeePaymentsForStudent(studentId)
     suspend fun insertFeePayment(feePayment: FeePayment): Long = appDao.insertFeePayment(feePayment)
+    suspend fun deleteFeePayment(feePayment: FeePayment) = appDao.deleteFeePayment(feePayment)
 
     // === Transactions ===
     val allTransactions: Flow<List<FinancialTransaction>> = appDao.getAllTransactions()
@@ -65,6 +66,20 @@ class AppRepository(private val appDao: AppDao) {
     fun getAttemptsForStudent(studentId: Long): Flow<List<ExamAttempt>> = appDao.getAttemptsForStudent(studentId)
     fun getAttemptsForExam(examId: Long): Flow<List<ExamAttempt>> = appDao.getAttemptsForExam(examId)
     suspend fun insertExamAttempt(attempt: ExamAttempt): Long = appDao.insertExamAttempt(attempt)
+
+    // === Material Quizzes ===
+    fun getQuizzesForMaterial(studyMaterialId: Long): Flow<List<MaterialQuiz>> = appDao.getQuizzesForMaterial(studyMaterialId)
+    suspend fun insertMaterialQuiz(quiz: MaterialQuiz): Long = appDao.insertMaterialQuiz(quiz)
+    suspend fun deleteMaterialQuiz(quiz: MaterialQuiz) = appDao.deleteMaterialQuiz(quiz)
+
+    // === Material Quiz Questions ===
+    fun getQuestionsForQuiz(quizId: Long): Flow<List<MaterialQuizQuestion>> = appDao.getQuestionsForQuiz(quizId)
+    suspend fun insertMaterialQuizQuestion(question: MaterialQuizQuestion): Long = appDao.insertMaterialQuizQuestion(question)
+    suspend fun insertMaterialQuizQuestionsBulk(questions: List<MaterialQuizQuestion>) = appDao.insertMaterialQuizQuestionsBulk(questions)
+
+    // === Material Quiz Attempts ===
+    fun getAttemptsForQuiz(quizId: Long): Flow<List<MaterialQuizAttempt>> = appDao.getAttemptsForQuiz(quizId)
+    suspend fun insertMaterialQuizAttempt(attempt: MaterialQuizAttempt): Long = appDao.insertMaterialQuizAttempt(attempt)
 
     // === Cloud Backup & Restoration ===
     val allAttendanceList: Flow<List<Attendance>> = appDao.getAllAttendance()

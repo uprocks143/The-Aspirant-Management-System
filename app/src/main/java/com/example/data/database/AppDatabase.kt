@@ -18,9 +18,12 @@ import com.example.data.model.*
         MessageTemplate::class,
         Exam::class,
         ExamQuestion::class,
-        ExamAttempt::class
+        ExamAttempt::class,
+        MaterialQuiz::class,
+        MaterialQuizQuestion::class,
+        MaterialQuizAttempt::class
     ],
-    version = 5,
+    version = 8,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

@@ -16,7 +16,8 @@ data class Batch(
     val maxCapacity: Int = 30,
     val isActive: Boolean = true,
     val feesAmount: Double = 1000.0,
-    val subject: String = "Mathematics"
+    val subject: String = "Mathematics",
+    val instituteEmail: String = "" // SaaS partition column
 )
 
 @Entity(
@@ -52,7 +53,8 @@ data class Student(
     val customField3: String = "",
     val profilePhotoPath: String? = null,
     val documentAttachments: String? = null, // Path or comma-separated list of local URIs
-    val familyId: String = "" // Linking mechanism to group siblings together
+    val familyId: String = "", // Linking mechanism to group siblings together
+    val isAlumni: Boolean = false
 )
 
 @Entity(
@@ -110,7 +112,8 @@ data class FinancialTransaction(
     val amount: Double,
     val category: String, // custom Income heads / Expense heads
     val description: String,
-    val date: Long = System.currentTimeMillis()
+    val date: Long = System.currentTimeMillis(),
+    val instituteEmail: String = "" // SaaS partition column
 )
 
 @Entity(tableName = "study_materials")
@@ -208,3 +211,70 @@ data class ExamAttempt(
     val timeSpentSeconds: Int = 0,
     val attemptDate: Long = System.currentTimeMillis()
 )
+
+@Entity(
+    tableName = "material_quizzes",
+    foreignKeys = [
+        ForeignKey(
+            entity = StudyMaterial::class,
+            parentColumns = ["id"],
+            childColumns = ["studyMaterialId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index(value = ["studyMaterialId"])]
+)
+data class MaterialQuiz(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val studyMaterialId: Long,
+    val title: String,
+    val description: String = "",
+    val durationMinutes: Int = 15
+)
+
+@Entity(
+    tableName = "material_quiz_questions",
+    foreignKeys = [
+        ForeignKey(
+            entity = MaterialQuiz::class,
+            parentColumns = ["id"],
+            childColumns = ["quizId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index(value = ["quizId"])]
+)
+data class MaterialQuizQuestion(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val quizId: Long,
+    val type: String, // "MULTIPLE_CHOICE", "FILL_IN_THE_BLANKS", "SHORT_ANSWER"
+    val questionText: String,
+    val optionA: String = "",
+    val optionB: String = "",
+    val optionC: String = "",
+    val optionD: String = "",
+    val correctAnswer: String // text exact match or "A", "B", "C", "D"
+)
+
+@Entity(
+    tableName = "material_quiz_attempts",
+    foreignKeys = [
+        ForeignKey(
+            entity = MaterialQuiz::class,
+            parentColumns = ["id"],
+            childColumns = ["quizId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index(value = ["quizId"])]
+)
+data class MaterialQuizAttempt(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val studentId: Long, // Can also store generic roll-number / generic mapping
+    val quizId: Long,
+    val score: Int,
+    val totalQuestions: Int,
+    val attemptDate: Long = System.currentTimeMillis(),
+    val feedbackJson: String = "" // auto feedback response
+)
+

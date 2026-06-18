@@ -169,6 +169,7 @@ object FirebaseService {
                 "phone" to student.phone,
                 "parentPhone" to student.parentPhone,
                 "startDate" to student.startDate,
+                "isAlumni" to student.isAlumni,
                 "lastSynced" to System.currentTimeMillis()
             )
             db?.collection("students")?.document(student.id.toString())?.set(studentMap)?.await()
@@ -317,6 +318,7 @@ object FirebaseService {
                 item.put("rollNumber", it.rollNumber)
                 item.put("parentName", it.parentName)
                 item.put("dateOfBirth", it.dateOfBirth)
+                item.put("isAlumni", it.isAlumni)
                 studentsArr.put(item)
             }
             rootObj.put("students", studentsArr)
@@ -456,7 +458,8 @@ object FirebaseService {
                             startDate = o.optString("startDate", ""),
                             rollNumber = o.optString("rollNumber", "R-${o.optLong("id", 0)}"),
                             parentName = o.optString("parentName", "Guardian"),
-                            dateOfBirth = o.optString("dateOfBirth", "2000-01-01")
+                            dateOfBirth = o.optString("dateOfBirth", "2000-01-01"),
+                            isAlumni = o.optBoolean("isAlumni", false)
                         )
                     )
                 }

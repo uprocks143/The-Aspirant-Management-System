@@ -58,6 +58,9 @@ interface AppDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertFeePayment(feePayment: FeePayment): Long
 
+    @Delete
+    suspend fun deleteFeePayment(feePayment: FeePayment)
+
     // === Transactions (Ledger or accounts) ===
     @Query("SELECT * FROM transactions ORDER BY date DESC")
     fun getAllTransactions(): Flow<List<FinancialTransaction>>
@@ -160,4 +163,31 @@ interface AppDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExamAttempt(attempt: ExamAttempt): Long
+
+    // === Material Quizzes ===
+    @Query("SELECT * FROM material_quizzes WHERE studyMaterialId = :studyMaterialId ORDER BY id DESC")
+    fun getQuizzesForMaterial(studyMaterialId: Long): Flow<List<MaterialQuiz>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMaterialQuiz(quiz: MaterialQuiz): Long
+
+    @Delete
+    suspend fun deleteMaterialQuiz(quiz: MaterialQuiz)
+
+    // === Material Quiz Questions ===
+    @Query("SELECT * FROM material_quiz_questions WHERE quizId = :quizId ORDER BY id ASC")
+    fun getQuestionsForQuiz(quizId: Long): Flow<List<MaterialQuizQuestion>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMaterialQuizQuestion(question: MaterialQuizQuestion): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMaterialQuizQuestionsBulk(questions: List<MaterialQuizQuestion>)
+
+    // === Material Quiz Attempts ===
+    @Query("SELECT * FROM material_quiz_attempts WHERE quizId = :quizId ORDER BY attemptDate DESC")
+    fun getAttemptsForQuiz(quizId: Long): Flow<List<MaterialQuizAttempt>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMaterialQuizAttempt(attempt: MaterialQuizAttempt): Long
 }

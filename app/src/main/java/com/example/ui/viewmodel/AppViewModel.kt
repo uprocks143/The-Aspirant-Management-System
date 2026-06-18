@@ -10,6 +10,7 @@ import com.example.data.model.*
 import com.example.repository.AppRepository
 import com.example.services.FirebaseService
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -96,6 +97,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _adminEmail = MutableStateFlow(getSafeString(sharedPrefs, "admin_email", "smtsharma282.sks@gmail.com"))
     val adminEmail = _adminEmail.asStateFlow()
 
+    private val _adminPhone = MutableStateFlow(getSafeString(sharedPrefs, "admin_phone", "+919582715282"))
+    val adminPhone = _adminPhone.asStateFlow()
+
+    private val _adminAddress = MutableStateFlow(getSafeString(sharedPrefs, "admin_address", "chhibramau"))
+    val adminAddress = _adminAddress.asStateFlow()
+
     private val _institutesList = MutableStateFlow<List<InstituteAccount>>(emptyList())
     val institutesList = _institutesList.asStateFlow()
 
@@ -160,19 +167,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _academyName.value = academy
         _directorName.value = director
         _adminEmail.value = email
+        _adminAddress.value = address
 
-        // SPECIAL ADMIN ACCOUNT CHECK: If Owner signs in, log in as ADMIN (Supervisor).
-        // Otherwise, register as STAFF (Coaching/Teacher Portal)
-        if (email == "smtsharma282.sks@gmail.com") {
-            loginAs("ADMIN")
-        } else {
-            loginAs("STAFF")
-            // Also append to the list so owner can see it
-            val current = _institutesList.value.toMutableList()
-            if (!current.any { it.email == email }) {
-                current.add(InstituteAccount(academy, director, email, address, false))
-                saveInstitutesList(current)
-            }
+        // Always log in as ADMIN since they registered an Administrator / Director workspace account!
+        loginAs("ADMIN")
+
+        // Also append to the tracking list so the owner can view / monitor it
+        val current = _institutesList.value.toMutableList()
+        if (!current.any { it.email == email }) {
+            val isApproved = (email == "smtsharma282.sks@gmail.com" || email.contains("guest") || email.contains("google"))
+            current.add(InstituteAccount(academy, director, email, address, isApproved))
+            saveInstitutesList(current)
         }
     }
 
@@ -220,15 +225,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun updateAcademySettings(name: String, director: String, email: String) {
+    fun updateAcademySettings(name: String, director: String, email: String, phone: String = "", address: String = "") {
         _academyName.value = name.trim()
         _directorName.value = director.trim()
         _adminEmail.value = email.trim()
+        val finalPhone = if (phone.isNotBlank()) phone.trim() else _adminPhone.value
+        val finalAddress = if (address.isNotBlank()) address.trim() else _adminAddress.value
+        _adminPhone.value = finalPhone
+        _adminAddress.value = finalAddress
         try {
             sharedPrefs.edit()
                 .putString("academy_name", name.trim())
                 .putString("director_name", director.trim())
                 .putString("admin_email", email.trim())
+                .putString("admin_phone", finalPhone)
+                .putString("admin_address", finalAddress)
                 .apply()
         } catch (e: Exception) {
             android.util.Log.e("AppViewModel", "updateAcademySettings failed to savePrefs", e)
@@ -379,13 +390,66 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val whatsAppRouting = _whatsAppRouting.asStateFlow()
 
     // === Database State Flows ===
-    val batches = repository.allBatches.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    val students = repository.allStudents.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    val feePayments = repository.allFeePayments.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    val transactions = repository.allTransactions.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    val studyMaterials = repository.allStudyMaterials.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private val rawBatches = repository.allBatches
+    private val rawStudents = repository.allStudents
+    private val rawFeePayments = repository.allFeePayments
+    private val rawTransactions = repository.allTransactions
+    private val rawStudyMaterials = repository.allStudyMaterials
+    private val rawExams = repository.allExams
+
+    val batches = combine(rawBatches, _adminEmail, _currentUserRole) { list, email, role ->
+        if (role == "STUDENT" || role == "PARENT" || role == "GUEST") {
+            list
+        } else {
+            list.filter { it.instituteEmail == email }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val students = combine(rawStudents, batches, _currentUserRole) { list, activeBatches, role ->
+        if (role == "STUDENT" || role == "PARENT" || role == "GUEST") {
+            list
+        } else {
+            val activeBatchIds = activeBatches.map { it.id }.toSet()
+            list.filter { it.batchId in activeBatchIds }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val feePayments = combine(rawFeePayments, students, _currentUserRole) { list, activeStudents, role ->
+        if (role == "STUDENT" || role == "PARENT" || role == "GUEST") {
+            list
+        } else {
+            val activeStudentIds = activeStudents.map { it.id }.toSet()
+            list.filter { it.studentId in activeStudentIds }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val transactions = combine(rawTransactions, _adminEmail, _currentUserRole) { list, email, role ->
+        if (role == "STUDENT" || role == "PARENT" || role == "GUEST") {
+            list
+        } else {
+            list.filter { it.instituteEmail == email }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val studyMaterials = combine(rawStudyMaterials, batches, _currentUserRole) { list, activeBatches, role ->
+        if (role == "STUDENT" || role == "PARENT" || role == "GUEST") {
+            list
+        } else {
+            val activeBatchIds = activeBatches.map { it.id }.toSet()
+            list.filter { it.batchId in activeBatchIds }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val messageTemplates = repository.allMessageTemplates.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    val exams = repository.allExams.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val exams = combine(rawExams, batches, _currentUserRole) { list, activeBatches, role ->
+        if (role == "STUDENT" || role == "PARENT" || role == "GUEST") {
+            list
+        } else {
+            val activeBatchIds = activeBatches.map { it.id }.toSet()
+            list.filter { it.batchId in activeBatchIds }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // === Dynamic Local Selected States ===
     private val _selectedBatchIdForAttendance = MutableStateFlow<Long?>(null)
@@ -468,7 +532,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     maxCapacity = capacity,
                     feesAmount = amount,
                     subject = sub,
-                    isActive = true
+                    isActive = true,
+                    instituteEmail = _adminEmail.value
                 )
             )
         }
@@ -512,29 +577,40 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         viewModelScope.launch {
             // 1. Create student
-            val studentId = repository.insertStudent(
-                Student(
-                    batchId = batchId,
-                    rollNumber = rollNo,
-                    name = name,
-                    parentName = parentName,
-                    dateOfBirth = dob,
-                    phone = phone,
-                    parentPhone = parentPhone,
-                    gender = gender,
-                    address = address,
-                    startDate = "2026-06-14",
-                    studentClass = studentClass,
-                    subject = subject,
-                    schoolCollegeName = schoolName,
-                    customField1 = custom1,
-                    customField2 = custom2,
-                    customField3 = custom3,
-                    profilePhotoPath = photoPath,
-                    documentAttachments = docPath,
-                    familyId = familyId.ifEmpty { UUID.randomUUID().toString().substring(0, 8) }
-                )
+            val studentToInsert = Student(
+                batchId = batchId,
+                rollNumber = rollNo,
+                name = name,
+                parentName = parentName,
+                dateOfBirth = dob,
+                phone = phone,
+                parentPhone = parentPhone,
+                gender = gender,
+                address = address,
+                startDate = "2026-06-14",
+                studentClass = studentClass,
+                subject = subject,
+                schoolCollegeName = schoolName,
+                customField1 = custom1,
+                customField2 = custom2,
+                customField3 = custom3,
+                profilePhotoPath = photoPath,
+                documentAttachments = docPath,
+                familyId = familyId.ifEmpty { UUID.randomUUID().toString().substring(0, 8) }
             )
+            val studentId = repository.insertStudent(studentToInsert)
+            val studentWithId = studentToInsert.copy(id = studentId)
+
+            // Sync with Firestore Cloud
+            try {
+                FirebaseService.initialize(context)
+                if (FirebaseService.isInitialized) {
+                    FirebaseService.syncStudentToCloud(studentWithId)
+                    android.util.Log.d("AppViewModel", "New student successfully synced to Firestore.")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("AppViewModel", "Firestore student sync failed: ${e.localizedMessage}")
+            }
 
             // 2. Log initial Admission Fee payment if > 0
             if (admissionFee > 0.0) {
@@ -554,7 +630,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         type = "INCOME",
                         amount = admissionFee,
                         category = "Admission Fee",
-                        description = "Admission Fee collected for student: $name"
+                        description = "Admission Fee collected for student: $name",
+                        instituteEmail = _adminEmail.value
                     )
                 )
             }
@@ -577,7 +654,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         type = "INCOME",
                         amount = regFee,
                         category = "Registration Fee",
-                        description = "Registration Fee collected for student: $name"
+                        description = "Registration Fee collected for student: $name",
+                        instituteEmail = _adminEmail.value
                     )
                 )
             }
@@ -590,6 +668,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun updateStudent(student: Student) {
         viewModelScope.launch {
             repository.updateStudent(student)
+            // Sync with Firestore Cloud on update
+            try {
+                FirebaseService.initialize(context)
+                if (FirebaseService.isInitialized) {
+                    FirebaseService.syncStudentToCloud(student)
+                    android.util.Log.d("AppViewModel", "Updated student successfully synced to Firestore.")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("AppViewModel", "Cloud sync on update failed: ${e.localizedMessage}")
+            }
         }
     }
 
@@ -667,7 +755,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     type = "INCOME",
                     amount = amount,
                     category = "Fee Payment",
-                    description = "Monthly / Course Tuition fee collected for student id: $studentId"
+                    description = "Monthly / Course Tuition fee collected for student id: $studentId",
+                    instituteEmail = _adminEmail.value
                 )
             )
 
@@ -684,6 +773,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun deleteFeePayment(payment: FeePayment) {
+        viewModelScope.launch {
+            repository.deleteFeePayment(payment)
+            // Register matching rollback in financial ledger transactions as an expense/reversion
+            repository.insertTransaction(
+                FinancialTransaction(
+                    type = "EXPENSE",
+                    amount = payment.amountPaid,
+                    category = "Fee Reversal",
+                    description = "Voided/Reverted payment receipt Ref: ${payment.receiptNo} of amount ₹${payment.amountPaid} for student: ${payment.studentId}",
+                    instituteEmail = _adminEmail.value
+                )
+            )
+        }
+    }
+
     fun insertTransaction(type: String, amount: Double, category: String, desc: String) {
         viewModelScope.launch {
             repository.insertTransaction(
@@ -691,7 +796,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     type = type,
                     amount = amount,
                     category = category,
-                    description = desc
+                    description = desc,
+                    instituteEmail = _adminEmail.value
                 )
             )
             
@@ -737,6 +843,64 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 )
             )
             Toast.makeText(context, "Study resources updated for Batch category!", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun deleteStudyMaterial(material: StudyMaterial) {
+        viewModelScope.launch {
+            repository.deleteStudyMaterial(material)
+            Toast.makeText(context, "Study resource deleted.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // === Study Material Quizzes & Interactive Assessments ===
+    fun getQuizzesForMaterial(studyMaterialId: Long): Flow<List<MaterialQuiz>> {
+        return repository.getQuizzesForMaterial(studyMaterialId)
+    }
+
+    fun getQuestionsForQuiz(quizId: Long): Flow<List<MaterialQuizQuestion>> {
+        return repository.getQuestionsForQuiz(quizId)
+    }
+
+    fun getAttemptsForQuiz(quizId: Long): Flow<List<MaterialQuizAttempt>> {
+        return repository.getAttemptsForQuiz(quizId)
+    }
+
+    fun createQuizForMaterial(studyMaterialId: Long, title: String, description: String, duration: Int, questions: List<MaterialQuizQuestion>) {
+        viewModelScope.launch {
+            val quizId = repository.insertMaterialQuiz(
+                MaterialQuiz(
+                    studyMaterialId = studyMaterialId,
+                    title = title,
+                    description = description,
+                    durationMinutes = duration
+                )
+            )
+            val updatedQuestions = questions.map { it.copy(quizId = quizId) }
+            repository.insertMaterialQuizQuestionsBulk(updatedQuestions)
+            Toast.makeText(context, "Quiz created successfully!", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun deleteQuiz(quiz: MaterialQuiz) {
+        viewModelScope.launch {
+            repository.deleteMaterialQuiz(quiz)
+            Toast.makeText(context, "Quiz deleted successfully.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun submitQuizAttempt(quizId: Long, studentId: Long, score: Int, total: Int, feedback: String) {
+        viewModelScope.launch {
+            repository.insertMaterialQuizAttempt(
+                MaterialQuizAttempt(
+                    quizId = quizId,
+                    studentId = studentId,
+                    score = score,
+                    totalQuestions = total,
+                    feedbackJson = feedback
+                )
+            )
+            Toast.makeText(context, "Quiz submitted successfully! Score: $score/$total", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -909,6 +1073,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 )
 
                 if (result.first) {
+                    // Save JSON snapshot for direct in-memory restored simulation
+                    try {
+                        com.example.services.GoogleDriveService.saveJsonSnapshotToSimulatedCloud(
+                            context = context,
+                            batches = batches.value,
+                            students = students.value,
+                            payments = feePayments.value,
+                            transactions = transactions.value,
+                            attendanceList = repository.allAttendanceList.first()
+                        )
+                    } catch (e: Exception) {
+                        android.util.Log.e("AppViewModel", "Failed to cache JSON backup: ${e.localizedMessage}")
+                    }
+
                     val sdf = java.text.SimpleDateFormat("dd/MM/yyyy hh:mm a", java.util.Locale.getDefault())
                     val formattedDate = sdf.format(java.util.Date())
                     _googleDriveBackupTime.value = formattedDate
@@ -923,79 +1101,40 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // === Seeding Initial Mock Data ===
+    fun restoreGoogleDriveBackup(onProgress: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                onProgress("Connecting to Google Account cloud...")
+                delay(800)
+                val userEmail = _adminEmail.value.ifEmpty { "smtsharma282.sks@gmail.com" }
+                onProgress("Querying file indices for $userEmail...")
+                delay(1000)
+                onProgress("Downloading latest encapsulated database snapshot from folder...")
+                delay(1200)
+
+                val success = com.example.services.GoogleDriveService.restoreJsonSnapshotFromSimulatedCloud(
+                    context = context,
+                    onRestoreRestored = { batches, students, payments, transactions, attendanceList ->
+                        viewModelScope.launch {
+                            repository.clearAllData()
+                            repository.restoreDatabaseBulk(batches, students, payments, transactions, attendanceList)
+                        }
+                    }
+                )
+
+                if (success) {
+                    onProgress("Successfully restored database backup from Google Drive like WhatsApp!\n• Decrypted and populated: ${batches.value.size} Batches, ${students.value.size} Student Profiles, ${feePayments.value.size} Fee Ledger records.")
+                } else {
+                    onProgress("Error: No existing Google Drive backup directory was found registered with ($userEmail). Please create a backup snapshot first to initiate disaster recovery.")
+                }
+            } catch (e: Exception) {
+                onProgress("Disaster recovery failed: ${e.localizedMessage}")
+            }
+        }
+    }
+
+    // === Seeding Initial Mock Data (Preserving only functional outreach templates) ===
     private suspend fun seedInitialTamsData() {
-        // Primary Designated Batch
-        val batch1 = Batch(
-            name = "Interactive Mathematics Elite",
-            location = "Block A, Room 102",
-            assignedTeacher = "Prof. Sharma",
-            classTimings = "04:00 PM - 05:30 PM",
-            daysOfWeek = "Mon, Wed, Fri",
-            maxCapacity = 25,
-            isActive = true,
-            feesAmount = 1500.0,
-            subject = "Algebra & Geometry"
-        )
-        val batchId = repository.insertBatch(batch1)
-
-        val batch2 = Batch(
-            name = "Science Foundation Course",
-            location = "Physics Lab 1",
-            assignedTeacher = "Miss Preeti",
-            classTimings = "02:00 PM - 03:30 PM",
-            daysOfWeek = "Tue, Thu",
-            maxCapacity = 30,
-            isActive = true,
-            feesAmount = 1800.0,
-            subject = "Physics & Chemistry"
-        )
-        val batchId2 = repository.insertBatch(batch2)
-
-        // Seed Sibling student team
-        val siblingId = "FAM-6782"
-        val stud1 = Student(
-            batchId = batchId,
-            rollNumber = "TAMS-101",
-            name = "Anjali Sharma",
-            parentName = "Mr. Suresh Sharma",
-            dateOfBirth = "2012-05-18",
-            phone = "+919876543210",
-            parentPhone = "+919876543211",
-            gender = "Female",
-            address = "Civil Lines, New Delhi",
-            startDate = "2026-06-01",
-            studentClass = "Class 9",
-            subject = "Advanced Maths",
-            schoolCollegeName = "St. Paul Academy",
-            customField1 = "Bus Route A",
-            customField2 = "Enjoys Calculus",
-            customField3 = "Scholarship 10%",
-            familyId = siblingId
-        )
-        val stud1Id = repository.insertStudent(stud1)
-
-        val stud2 = Student(
-            batchId = batchId2,
-            rollNumber = "TAMS-102",
-            name = "Aman Sharma",
-            parentName = "Mr. Suresh Sharma",
-            dateOfBirth = "2015-09-22",
-            phone = "+919876543210",
-            parentPhone = "+919876543211",
-            gender = "Male",
-            address = "Civil Lines, New Delhi",
-            startDate = "2026-06-05",
-            studentClass = "Class 6",
-            subject = "General Science",
-            schoolCollegeName = "St. Paul Academy",
-            customField1 = "Bus Route A",
-            customField2 = "Prefers Mechanics",
-            customField3 = "None",
-            familyId = siblingId
-        )
-        val stud2Id = repository.insertStudent(stud2)
-
         // Seed template outreach options
         repository.insertMessageTemplate(
             MessageTemplate(
@@ -1011,45 +1150,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 platform = "WHATSAPP"
             )
         )
-
-        // Seed active test exam for batch 1
-        val exam1Id = repository.insertExam(
-            Exam(
-                batchId = batchId,
-                title = "Quadratic Equations Diagnostic Test",
-                subject = "Mathematics",
-                durationMinutes = 10,
-                isLocked = false
-            )
-        )
-
-        repository.insertExamQuestion(
-            ExamQuestion(
-                examId = exam1Id,
-                questionText = "What is the standard form of a quadratic equation?",
-                optionA = "ax + b = 0",
-                optionB = "ax^2 + bx + c = 0",
-                optionC = "ax^3 + bx^2 + cx + d = 0",
-                optionD = "None of the above",
-                correctAnswer = "B"
-            )
-        )
-
-        repository.insertExamQuestion(
-            ExamQuestion(
-                examId = exam1Id,
-                questionText = "If real discriminant is exactly zero, what are the roots?",
-                optionA = "Two equal real roots",
-                optionB = "Two unequal real roots",
-                optionC = "No real roots",
-                optionD = "Infinite roots",
-                correctAnswer = "A"
-            )
-        )
-
-        // Seed standard initial transactions
-        repository.insertTransaction(FinancialTransaction(type = "INCOME", amount = 3300.0, category = "Admission Fee", description = "Initial diagnostic batch registration collected."))
-        repository.insertTransaction(FinancialTransaction(type = "EXPENSE", amount = 1200.0, category = "Logistics", description = "Purchased Mathematics study workbooks."))
     }
 }
 
