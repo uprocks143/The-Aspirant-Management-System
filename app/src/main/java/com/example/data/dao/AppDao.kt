@@ -190,4 +190,23 @@ interface AppDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMaterialQuizAttempt(attempt: MaterialQuizAttempt): Long
+
+    // === Community Chats ===
+    @Query("SELECT * FROM chat_channels ORDER BY createdDate ASC")
+    fun getAllChatChannels(): Flow<List<ChatChannel>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertChatChannel(channel: ChatChannel): Long
+
+    @Query("SELECT * FROM chat_messages WHERE channelId = :channelId ORDER BY timestamp ASC")
+    fun getMessagesForChannel(channelId: Long): Flow<List<ChatMessage>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertChatMessage(message: ChatMessage): Long
+
+    @Query("DELETE FROM chat_messages WHERE channelId = :channelId")
+    suspend fun clearMessagesForChannel(channelId: Long)
+
+    @Query("DELETE FROM chat_channels WHERE id = :channelId")
+    suspend fun deleteChatChannel(channelId: Long)
 }

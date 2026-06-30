@@ -1239,6 +1239,102 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         sharedPrefs.edit().putString("personal_material_notes_json", obj.toString()).apply()
     }
 
+    // === Community Chat Features ===
+    val chatChannels: StateFlow<List<ChatChannel>> = repository.allChatChannels
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _currentChannelId = MutableStateFlow<Long?>(null)
+    val currentChannelId = _currentChannelId.asStateFlow()
+
+    private var messagesJob: kotlinx.coroutines.Job? = null
+    private val _currentChannelMessages = MutableStateFlow<List<ChatMessage>>(emptyList())
+    val currentChannelMessages = _currentChannelMessages.asStateFlow()
+
+    fun selectChannel(channelId: Long?) {
+        _currentChannelId.value = channelId
+        messagesJob?.cancel()
+        if (channelId != null) {
+            messagesJob = viewModelScope.launch {
+                repository.getMessagesForChannel(channelId).collect {
+                    _currentChannelMessages.value = it
+                }
+            }
+        } else {
+            _currentChannelMessages.value = emptyList()
+        }
+    }
+
+    fun createChatChannel(name: String, description: String, isGroup: Boolean, isPrivate: Boolean = false, firstUserId: String = "", secondUserId: String = "") {
+        viewModelScope.launch {
+            val channel = ChatChannel(
+                name = name,
+                description = description,
+                isGroup = isGroup,
+                isPrivate = isPrivate,
+                firstUserId = firstUserId,
+                secondUserId = secondUserId
+            )
+            repository.insertChatChannel(channel)
+        }
+    }
+
+    fun deleteChannel(channelId: Long) {
+        viewModelScope.launch {
+            repository.deleteChatChannel(channelId)
+            if (_currentChannelId.value == channelId) {
+                selectChannel(null)
+            }
+        }
+    }
+
+    fun clearChannelMessages(channelId: Long) {
+        viewModelScope.launch {
+            repository.clearMessagesForChannel(channelId)
+        }
+    }
+
+    fun sendChatMessage(
+        channelId: Long,
+        senderId: String,
+        senderName: String,
+        senderRole: String,
+        messageText: String,
+        attachmentPath: String? = null,
+        attachmentType: String? = null,
+        attachmentName: String? = null
+    ) {
+        viewModelScope.launch {
+            val msg = ChatMessage(
+                channelId = channelId,
+                senderId = senderId,
+                senderName = senderName,
+                senderRole = senderRole,
+                messageText = messageText,
+                timestamp = System.currentTimeMillis(),
+                attachmentPath = attachmentPath,
+                attachmentType = attachmentType,
+                attachmentName = attachmentName
+            )
+            repository.insertChatMessage(msg)
+        }
+    }
+
+    fun seedDefaultChatChannels() {
+        viewModelScope.launch {
+            val current = repository.allChatChannels.first()
+            if (current.isEmpty()) {
+                val channels = listOf(
+                    ChatChannel(name = "📢 Announcements", description = "Official updates and academic news from Teachers & Admins"),
+                    ChatChannel(name = "🧮 Mathematics Discussion", description = "Share solutions, algebra tricks, calculus doubts, and formulas"),
+                    ChatChannel(name = "🧪 Science & Physics Doubt-Solving", description = "Interact about mechanics, thermodynamics, chemistry experiments"),
+                    ChatChannel(name = "💬 General Chit-Chat", description = "Casual student-teacher space for everyday knowledge sharing"),
+                    ChatChannel(name = "💡 UPSC/Competitive Exam Prep", description = "Tips, syllabus review, strategies, and general knowledge Q&As")
+                )
+                channels.forEach { repository.insertChatChannel(it) }
+            }
+        }
+    }
+
     fun updateCustomGeminiApiKey(key: String) {
         _customGeminiApiKey.value = key.trim()
         sharedPrefs.edit().putString("custom_gemini_api_key", key.trim()).apply()
@@ -2187,6 +2283,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         seedInitialTamsData()
                     }
                 }
+                seedDefaultChatChannels()
             } catch (e: Exception) {
                 android.util.Log.e("AppViewModel", "seedInitialTamsData query or insert failed", e)
             }

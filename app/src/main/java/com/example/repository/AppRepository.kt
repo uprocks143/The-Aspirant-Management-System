@@ -103,4 +103,17 @@ class AppRepository(private val appDao: AppDao) {
         appDao.insertTransactionsBulk(transactions)
         appDao.insertAttendanceBulk(attendanceList)
     }
+
+    // === Community Chats ===
+    val allChatChannels: Flow<List<ChatChannel>> = appDao.getAllChatChannels()
+    
+    suspend fun insertChatChannel(channel: ChatChannel): Long = appDao.insertChatChannel(channel)
+    
+    fun getMessagesForChannel(channelId: Long): Flow<List<ChatMessage>> = appDao.getMessagesForChannel(channelId)
+    
+    suspend fun insertChatMessage(message: ChatMessage): Long = appDao.insertChatMessage(message)
+    
+    suspend fun clearMessagesForChannel(channelId: Long) = appDao.clearMessagesForChannel(channelId)
+    
+    suspend fun deleteChatChannel(channelId: Long) = appDao.deleteChatChannel(channelId)
 }

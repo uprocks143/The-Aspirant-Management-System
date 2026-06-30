@@ -7104,7 +7104,7 @@ fun PaperGeneratorConsoleOverlay(batches: List<com.example.data.model.Batch>, on
     var inputSubject by remember { mutableStateOf("Physics Quiz") }
     var inputSyllabus by remember { mutableStateOf("Newton's Laws of Motion, relationship of force, acceleration, and inertia") }
     var selectedDifficulty by remember { mutableStateOf("Medium") }
-    var inputMCQCount by remember { mutableStateOf("5") }
+    var inputMCQCount by remember { mutableStateOf("15") }
     var signatureInput by remember { mutableStateOf("Director SUMIT KUMAR") }
     
     var isGenerating by remember { mutableStateOf(false) }
@@ -7189,15 +7189,17 @@ fun PaperGeneratorConsoleOverlay(batches: List<com.example.data.model.Batch>, on
 
                     Text("Number of Questions", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        listOf("5", "10", "15").forEach { num ->
+                        listOf("15", "20", "30", "50", "75", "100").forEach { num ->
                             val isSel = inputMCQCount == num
                             val cardModifier = if (isSel) {
-                                Modifier.weight(1f).clickable { inputMCQCount = num }.border(1.5.dp, Color(0xFFFBC02D), RoundedCornerShape(12.dp))
+                                Modifier.width(85.dp).clickable { inputMCQCount = num }.border(1.5.dp, Color(0xFFFBC02D), RoundedCornerShape(12.dp))
                             } else {
-                                Modifier.weight(1f).clickable { inputMCQCount = num }
+                                Modifier.width(85.dp).clickable { inputMCQCount = num }
                             }
                             ElevatedCard(
                                 modifier = cardModifier,
@@ -7260,9 +7262,9 @@ fun PaperGeneratorConsoleOverlay(batches: List<com.example.data.model.Batch>, on
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E88E5))
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E88E5), contentColor = Color.Black)
                     ) {
-                        Text("GENERATE AI WORKSHEET")
+                        Text("GENERATE AI WORKSHEET", color = Color.Black, fontWeight = FontWeight.Bold)
                     }
                 } else {
                     // Generated PDF Preview Card
@@ -7348,12 +7350,12 @@ fun PaperGeneratorConsoleOverlay(batches: List<com.example.data.model.Batch>, on
                                 
                                 Button(
                                     onClick = { showAnswers = !showAnswers },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray, contentColor = Color.Black),
                                     shape = RoundedCornerShape(6.dp),
                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                                     modifier = Modifier.height(28.dp)
                                 ) {
-                                    Text(if (showAnswers) "Hide Key" else "Reveal Answer Keys 💡", fontSize = 9.sp)
+                                    Text(if (showAnswers) "Hide Key" else "Reveal Answer Keys 💡", fontSize = 9.sp, color = Color.Black)
                                 }
                             }
                             
@@ -7364,9 +7366,9 @@ fun PaperGeneratorConsoleOverlay(batches: List<com.example.data.model.Batch>, on
                                     onClose()
                                 },
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32), contentColor = Color.Black)
                             ) {
-                                Text("PRINT / DOWNLOAD PDF")
+                                Text("PRINT / DOWNLOAD PDF", color = Color.Black)
                             }
                         }
                     }
@@ -11850,6 +11852,875 @@ fun TeacherSalariesOverlay(
         }
     )
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CommunityChatOverlay(
+    viewModel: com.example.ui.viewmodel.AppViewModel,
+    onClose: () -> Unit
+) {
+    val context = LocalContext.current
+    val channels by viewModel.chatChannels.collectAsState()
+    val activeChannelId by viewModel.currentChannelId.collectAsState()
+    val messages by viewModel.currentChannelMessages.collectAsState()
+    
+    val currentRole by viewModel.currentUserRole.collectAsState()
+    val currentStudentId by viewModel.currentUserId.collectAsState()
+    val students by viewModel.students.collectAsState()
+
+    // Resolve current user name & ID
+    val (senderName, senderIdStr) = remember(currentRole, currentStudentId, students) {
+        when (currentRole) {
+            "ADMIN" -> Pair("Director Admin", "ADMIN")
+            "STAFF" -> Pair("Academy Staff", "STAFF")
+            "STUDENT" -> {
+                val student = students.find { it.id == currentStudentId }
+                Pair(student?.name ?: "Student User", "STUDENT_$currentStudentId")
+            }
+            "TEACHER" -> Pair("Tutor Professor", "TEACHER")
+            else -> Pair("Academy Guest", "GUEST")
+        }
+    }
+
+    var messageText by remember { mutableStateOf("") }
+    var searchQuery by remember { mutableStateOf("") }
+    
+    // Dialog state for creating a new channel/group
+    var showCreateChannelDialog by remember { mutableStateOf(false) }
+    var newChannelName by remember { mutableStateOf("") }
+    var newChannelDesc by remember { mutableStateOf("") }
+
+    // Dialog state for starting direct message
+    var showStartDirectChatDialog by remember { mutableStateOf(false) }
+
+    // Dialog state for attachment selection
+    var showAttachmentDialog by remember { mutableStateOf(false) }
+
+    val activeChannel = remember(channels, activeChannelId) {
+        channels.find { it.id == activeChannelId }
+    }
+
+    AlertDialog(
+        onDismissRequest = onClose,
+        modifier = Modifier
+            .fillMaxWidth(0.98f)
+            .fillMaxHeight(0.95f)
+            .testTag("community_chat_overlay_dialog"),
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.Forum,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Column {
+                        Text(
+                            text = "Academia Community Chat",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Open-Source Signal & Telegram Features • $senderName ($currentRole)",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+                IconButton(onClick = onClose, modifier = Modifier.testTag("chat_close_x_btn")) {
+                    Icon(Icons.Default.Close, contentDescription = "Close Chat")
+                }
+            }
+        },
+        text = {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // LEFT PANE: Channels & Direct Messages
+                Column(
+                    modifier = Modifier
+                        .weight(0.35f)
+                        .fillMaxHeight()
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                        .padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Search box
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("Search Chats...", fontSize = 12.sp) },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        singleLine = true,
+                        textStyle = TextStyle(fontSize = 12.sp),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("CHANNELS & GROUPS", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                        Row {
+                            IconButton(
+                                onClick = { showStartDirectChatDialog = true },
+                                modifier = Modifier.size(24.dp).testTag("start_direct_chat_btn")
+                            ) {
+                                Icon(Icons.Default.PersonAdd, contentDescription = "New Private Chat", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            IconButton(
+                                onClick = { showCreateChannelDialog = true },
+                                modifier = Modifier.size(24.dp).testTag("create_channel_btn")
+                            ) {
+                                Icon(Icons.Default.GroupAdd, contentDescription = "New Channel", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+
+                    // Channels List
+                    val filteredChannels = remember(channels, searchQuery, senderIdStr) {
+                        channels.filter {
+                            val matchesSearch = it.name.contains(searchQuery, ignoreCase = true) || it.description.contains(searchQuery, ignoreCase = true)
+                            // Direct chats should only show for the involved users
+                            val matchesPrivacy = !it.isPrivate || it.firstUserId == senderIdStr || it.secondUserId == senderIdStr
+                            matchesSearch && matchesPrivacy
+                        }
+                    }
+
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (filteredChannels.isEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("No chats found.", fontSize = 12.sp, color = Color.Gray)
+                                }
+                            }
+                        } else {
+                            items(filteredChannels) { channel ->
+                                val isSelected = channel.id == activeChannelId
+                                val isDirect = !channel.isGroup
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { viewModel.selectChannel(channel.id) }
+                                        .testTag("chat_channel_item_${channel.id}"),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+                                    ),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .background(
+                                                    if (isDirect) MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                                    CircleShape
+                                                ),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = if (isDirect) Icons.Default.Person else Icons.Default.Groups,
+                                                contentDescription = null,
+                                                tint = if (isDirect) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = channel.name,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp,
+                                                maxLines = 1,
+                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = channel.description,
+                                                fontSize = 11.sp,
+                                                maxLines = 1,
+                                                color = Color.Gray
+                                            )
+                                        }
+                                        if (currentRole == "ADMIN") {
+                                            IconButton(
+                                                onClick = { viewModel.deleteChannel(channel.id) },
+                                                modifier = Modifier.size(24.dp).testTag("delete_channel_btn_${channel.id}")
+                                            ) {
+                                                Icon(Icons.Default.Delete, contentDescription = "Delete Chat", tint = Color.Red.copy(alpha = 0.6f), modifier = Modifier.size(14.dp))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // RIGHT PANE: Messages & Input
+                Column(
+                    modifier = Modifier
+                        .weight(0.65f)
+                        .fillMaxHeight()
+                        .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
+                        .padding(8.dp)
+                ) {
+                    if (activeChannel == null) {
+                        // Empty State
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ChatBubbleOutline,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+                                    modifier = Modifier.size(48.dp)
+                                )
+                                Text("Select a discussion room to start sharing knowledge!", fontSize = 13.sp, color = Color.Gray, fontWeight = FontWeight.SemiBold)
+                                Text("You can discuss subject doubts, share study PDFs, photos, or start 1-to-1 secure private chats.", fontSize = 11.sp, color = Color.Gray.copy(alpha = 0.8f), textAlign = TextAlign.Center)
+                            }
+                        }
+                    } else {
+                        // Header info
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .background(MaterialTheme.colorScheme.primary, CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = if (!activeChannel.isGroup) Icons.Default.Person else Icons.Default.Chat,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                Column {
+                                    Text(activeChannel.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Text(activeChannel.description, fontSize = 10.sp, color = Color.Gray, maxLines = 1)
+                                }
+                            }
+                            
+                            // Clear Chat for Admin/Staff
+                            if (currentRole == "ADMIN" || currentRole == "STAFF") {
+                                TextButton(
+                                    onClick = {
+                                        viewModel.clearChannelMessages(activeChannel.id)
+                                        Toast.makeText(context, "Chat history cleared!", Toast.LENGTH_SHORT).show()
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                    modifier = Modifier.testTag("clear_history_btn")
+                                ) {
+                                    Icon(Icons.Default.ClearAll, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Clear History", fontSize = 11.sp, color = Color.Red)
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Message List
+                        LazyColumn(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                                .testTag("message_list_lazy"),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            if (messages.isEmpty()) {
+                                item {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(200.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Icon(Icons.Default.Textsms, contentDescription = null, tint = Color.Gray.copy(alpha = 0.5f), modifier = Modifier.size(32.dp))
+                                            Text("No messages yet in this room.", fontSize = 12.sp, color = Color.Gray)
+                                            Text("Be the first one to say hi and share a question!", fontSize = 10.sp, color = Color.Gray)
+                                        }
+                                    }
+                                }
+                            } else {
+                                items(messages) { msg ->
+                                    val isMe = msg.senderId == senderIdStr
+                                    
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = if (isMe) Arrangement.End else Arrangement.Start
+                                    ) {
+                                        Card(
+                                            modifier = Modifier
+                                                .fillMaxWidth(0.85f)
+                                                .padding(horizontal = 4.dp),
+                                            colors = CardDefaults.cardColors(
+                                                containerColor = if (isMe) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                                            ),
+                                            shape = RoundedCornerShape(
+                                                topStart = 12.dp,
+                                                topEnd = 12.dp,
+                                                bottomStart = if (isMe) 12.dp else 0.dp,
+                                                bottomEnd = if (isMe) 0.dp else 12.dp
+                                            )
+                                        ) {
+                                            Column(modifier = Modifier.padding(10.dp)) {
+                                                if (!isMe) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                    ) {
+                                                        Text(msg.senderName, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                                                        // Role badge
+                                                        val badgeColor = when (msg.senderRole) {
+                                                            "ADMIN" -> Color(0xFFEF5350)
+                                                            "TEACHER" -> Color(0xFF009688)
+                                                            "STAFF" -> Color(0xFFFF9800)
+                                                            else -> Color(0xFF3F51B5)
+                                                        }
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .background(badgeColor.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                                                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                                                        ) {
+                                                            Text(msg.senderRole, fontSize = 8.sp, fontWeight = FontWeight.Bold, color = badgeColor)
+                                                        }
+                                                    }
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                }
+                                                
+                                                // Text message
+                                                if (msg.messageText.isNotEmpty()) {
+                                                    Text(msg.messageText, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                                                }
+
+                                                // Attachment viewer
+                                                if (msg.attachmentType != null && msg.attachmentType != "NONE") {
+                                                    Spacer(modifier = Modifier.height(6.dp))
+                                                    AttachmentPreviewItem(
+                                                        type = msg.attachmentType,
+                                                        name = msg.attachmentName ?: "Attachment",
+                                                        path = msg.attachmentPath
+                                                    )
+                                                }
+
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                // Time
+                                                val sdf = remember { java.text.SimpleDateFormat("hh:mm a", java.util.Locale.getDefault()) }
+                                                val timeStr = remember(msg.timestamp) { sdf.format(java.util.Date(msg.timestamp)) }
+                                                Text(
+                                                    text = timeStr,
+                                                    fontSize = 9.sp,
+                                                    color = Color.Gray,
+                                                    modifier = Modifier.align(Alignment.End)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // Input control
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            // Attachment button
+                            IconButton(
+                                onClick = { showAttachmentDialog = true },
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f), CircleShape)
+                                    .testTag("attachment_dialog_btn")
+                            ) {
+                                Icon(Icons.Default.AttachFile, contentDescription = "Attach File", tint = MaterialTheme.colorScheme.secondary)
+                            }
+
+                            // Message Input text field
+                            OutlinedTextField(
+                                value = messageText,
+                                onValueChange = { messageText = it },
+                                placeholder = { Text("Write your message / question here...", fontSize = 12.sp) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .heightIn(min = 40.dp, max = 100.dp)
+                                    .testTag("chat_input_text_field"),
+                                textStyle = TextStyle(fontSize = 13.sp),
+                                maxLines = 4,
+                                shape = RoundedCornerShape(20.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                                )
+                            )
+
+                            // Send button
+                            IconButton(
+                                onClick = {
+                                    if (messageText.trim().isNotEmpty()) {
+                                        viewModel.sendChatMessage(
+                                            channelId = activeChannel.id,
+                                            senderId = senderIdStr,
+                                            senderName = senderName,
+                                            senderRole = currentRole,
+                                            messageText = messageText.trim()
+                                        )
+                                        messageText = ""
+                                    }
+                                },
+                                enabled = messageText.trim().isNotEmpty(),
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(
+                                        if (messageText.trim().isNotEmpty()) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.2f),
+                                        CircleShape
+                                    )
+                                    .testTag("send_chat_msg_btn")
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send Message", tint = Color.White)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {}
+    )
+
+    // --- Sub-Dialogs ---
+
+    // 1. Create Channel Dialog
+    if (showCreateChannelDialog) {
+        AlertDialog(
+            onDismissRequest = { showCreateChannelDialog = false },
+            title = { Text("Create Discussion Channel/Group", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = newChannelName,
+                        onValueChange = { newChannelName = it },
+                        label = { Text("Channel Name (e.g. Science Doubts)") },
+                        modifier = Modifier.fillMaxWidth().testTag("new_channel_name_field")
+                    )
+                    OutlinedTextField(
+                        value = newChannelDesc,
+                        onValueChange = { newChannelDesc = it },
+                        label = { Text("Short Description/Topic") },
+                        modifier = Modifier.fillMaxWidth().testTag("new_channel_desc_field")
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newChannelName.trim().isNotEmpty()) {
+                            viewModel.createChatChannel(
+                                name = newChannelName.trim(),
+                                description = newChannelDesc.trim(),
+                                isGroup = true
+                            )
+                            newChannelName = ""
+                            newChannelDesc = ""
+                            showCreateChannelDialog = false
+                            Toast.makeText(context, "Channel created!", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.testTag("submit_create_channel_btn")
+                ) {
+                    Text("CREATE")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateChannelDialog = false }) {
+                    Text("CANCEL")
+                }
+            }
+        )
+    }
+
+    // 2. Start Direct Chat Dialog
+    if (showStartDirectChatDialog) {
+        AlertDialog(
+            onDismissRequest = { showStartDirectChatDialog = false },
+            title = { Text("Start Direct Private Chat", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Select a person to start 1-to-1 secure conversation:", fontSize = 12.sp, color = Color.Gray)
+                    
+                    LazyColumn(
+                        modifier = Modifier.height(250.dp).testTag("direct_chat_user_list"),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        // Let's list general staff or mock teachers too
+                        item {
+                            Text("ADMINS & TEACHERS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        }
+                        items(listOf(
+                            Pair("Director Admin", "ADMIN"),
+                            Pair("Verma Sir (Tutor Professor)", "TEACHER_VERMA"),
+                            Pair("Maths Tutor", "TEACHER_MATHS"),
+                            Pair("Science Teacher", "TEACHER_SCIENCE")
+                        )) { teacher ->
+                            val isMe = senderIdStr == teacher.second
+                            if (!isMe) {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            viewModel.createChatChannel(
+                                                name = "🔒 Chat with " + teacher.first,
+                                                description = "Secure direct 1-to-1 private messaging",
+                                                isGroup = false,
+                                                isPrivate = true,
+                                                firstUserId = senderIdStr,
+                                                secondUserId = teacher.second
+                                            )
+                                            showStartDirectChatDialog = false
+                                            Toast.makeText(context, "Private chat started!", Toast.LENGTH_SHORT).show()
+                                        }
+                                        .testTag("select_user_${teacher.second}"),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                ) {
+                                    Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                        Text(teacher.first, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+                            }
+                        }
+
+                        item {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("STUDENTS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
+                        }
+                        
+                        items(students) { student ->
+                            val sId = "STUDENT_${student.id}"
+                            val isMe = senderIdStr == sId
+                            if (!isMe) {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            viewModel.createChatChannel(
+                                                name = "🔒 Chat with " + student.name,
+                                                description = "Secure direct 1-to-1 private messaging",
+                                                isGroup = false,
+                                                isPrivate = true,
+                                                firstUserId = senderIdStr,
+                                                secondUserId = sId
+                                            )
+                                            showStartDirectChatDialog = false
+                                            Toast.makeText(context, "Private chat started with student!", Toast.LENGTH_SHORT).show()
+                                        }
+                                        .testTag("select_student_${student.id}"),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                ) {
+                                    Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Icon(Icons.Default.School, contentDescription = null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(16.dp))
+                                        Column {
+                                            Text(student.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                            Text("Roll No: " + student.rollNumber + " • Phone: " + student.phone, fontSize = 10.sp, color = Color.Gray)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showStartDirectChatDialog = false }) {
+                    Text("CLOSE")
+                }
+            }
+        )
+    }
+
+    // 3. Attachment Dialog
+    if (showAttachmentDialog) {
+        val attachments = listOf(
+            Triple("IMAGE", "📐 Trigonometry Formulas Cheat-Sheet.png", "A high-resolution visual cheat-sheet of algebraic and trigonometric identities."),
+            Triple("IMAGE", "🧬 Animal Cell Structure Diagram.png", "Beautiful diagram showing organelles, nucleus, mitochondria, and cell membrane."),
+            Triple("DOCUMENT", "📊 Board Exams 2026 Mathematics Syllabus.pdf", "Official syllabus guidelines, chapter weights, and question formats."),
+            Triple("DOCUMENT", "🧪 Physics Lab Mechanics Experiment.pdf", "Step-by-step instructions for Newton's laws laboratory experiments."),
+            Triple("LINK", "🔗 NCERT Chemistry Question Bank Chapter 1", "https://ncert.nic.in/textbook.php?kech1=1-7")
+        )
+
+        AlertDialog(
+            onDismissRequest = { showAttachmentDialog = false },
+            title = { Text("Select Simulated Attachment to Share", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Choose educational material, notes, or web resources to discuss with teachers and classmates:", fontSize = 12.sp, color = Color.Gray)
+                    
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.height(260.dp)
+                    ) {
+                        items(attachments) { attach ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        viewModel.sendChatMessage(
+                                            channelId = activeChannel?.id ?: 0L,
+                                            senderId = senderIdStr,
+                                            senderName = senderName,
+                                            senderRole = currentRole,
+                                            messageText = "Shared resource: " + attach.second,
+                                            attachmentType = attach.first,
+                                            attachmentName = attach.second,
+                                            attachmentPath = attach.third
+                                        )
+                                        showAttachmentDialog = false
+                                        Toast.makeText(context, "Attachment sent!", Toast.LENGTH_SHORT).show()
+                                    }
+                                    .testTag("send_attachment_${attach.second.replace(" ", "_")}"),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .background(
+                                                when (attach.first) {
+                                                    "IMAGE" -> Color(0xFF4CAF50).copy(alpha = 0.2f)
+                                                    "DOCUMENT" -> Color(0xFF2196F3).copy(alpha = 0.2f)
+                                                    else -> Color(0xFFFF9800).copy(alpha = 0.2f)
+                                                },
+                                                CircleShape
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = when (attach.first) {
+                                                "IMAGE" -> Icons.Default.Image
+                                                "DOCUMENT" -> Icons.Default.Description
+                                                else -> Icons.Default.Link
+                                            },
+                                            contentDescription = null,
+                                            tint = when (attach.first) {
+                                                "IMAGE" -> Color(0xFF4CAF50)
+                                                "DOCUMENT" -> Color(0xFF2196F3)
+                                                else -> Color(0xFFFF9800)
+                                            },
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                    Column {
+                                        Text(attach.second, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        Text(attach.third, fontSize = 10.sp, color = Color.Gray, maxLines = 1)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAttachmentDialog = false }) {
+                    Text("CANCEL")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun AttachmentPreviewItem(
+    type: String,
+    name: String,
+    path: String?
+) {
+    var showSimulatedReader by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { showSimulatedReader = true }
+            .testTag("attachment_preview_${name.replace(" ", "_")}"),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)),
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+    ) {
+        Row(
+            modifier = Modifier.padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(
+                        when (type) {
+                            "IMAGE" -> Color(0xFF4CAF50).copy(alpha = 0.15f)
+                            "DOCUMENT" -> Color(0xFF2196F3).copy(alpha = 0.15f)
+                            else -> Color(0xFFFF9800).copy(alpha = 0.15f)
+                        },
+                        RoundedCornerShape(8.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = when (type) {
+                        "IMAGE" -> Icons.Default.Image
+                        "DOCUMENT" -> Icons.Default.Description
+                        else -> Icons.Default.Link
+                    },
+                    contentDescription = null,
+                    tint = when (type) {
+                        "IMAGE" -> Color(0xFF4CAF50)
+                        "DOCUMENT" -> Color(0xFF2196F3)
+                        else -> Color(0xFFFF9800)
+                    },
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(name, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1)
+                Text(
+                    text = when (type) {
+                        "IMAGE" -> "Preview Photo Diagram • Click to expand"
+                        "DOCUMENT" -> "Syllabus Resource • Click to study PDF"
+                        else -> "Web URL • Click to browse link"
+                    },
+                    fontSize = 10.sp,
+                    color = Color.Gray
+                )
+            }
+            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(16.dp))
+        }
+    }
+
+    if (showSimulatedReader) {
+        AlertDialog(
+            onDismissRequest = { showSimulatedReader = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(
+                        imageVector = if (type == "IMAGE") Icons.Default.Image else Icons.Default.ChromeReaderMode,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(name, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (type == "IMAGE") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(160.dp)
+                                .background(Color(0xFF263238), RoundedCornerShape(8.dp))
+                                .padding(12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Icon(Icons.Default.Brush, contentDescription = null, tint = Color.Green, modifier = Modifier.size(24.dp))
+                                Text(
+                                    text = "[ SIMULATED PHOTO ATTACHMENT ]\n$path",
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    textAlign = TextAlign.Center
+                                )
+                                Text("Rendered with high-fidelity graphics on-device", color = Color.Gray, fontSize = 9.sp)
+                            }
+                        }
+                    } else if (type == "DOCUMENT") {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF9C4)) // Yellow sticky pad color for document contents!
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Icon(Icons.Default.Book, contentDescription = null, tint = Color(0xFFF57F17), modifier = Modifier.size(16.dp))
+                                    Text("ACADEMY REVISION BOOKLET (PDF)", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFFF57F17))
+                                }
+                                HorizontalDivider(color = Color.Black.copy(alpha = 0.1f))
+                                Text(
+                                    text = "1. Introduction to topic material\n2. Key Formulas and concepts breakdown\n3. Mock questions for board exam\n4. Solutions and teacher annotations.\n\n$path",
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Serif
+                                )
+                            }
+                        }
+                    } else {
+                        // Link
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.05f))
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("SECURE WEB VIEW BROWSER", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+                                Text("Browsing secure school URL:", fontSize = 10.sp, color = Color.Gray)
+                                Text(path ?: "https://google.com", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, textDecoration = TextDecoration.Underline)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showSimulatedReader = false }) {
+                    Text("CLOSE READER")
+                }
+            }
+        )
+    }
+}
+
 
 
 

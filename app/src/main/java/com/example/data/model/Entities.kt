@@ -278,3 +278,30 @@ data class MaterialQuizAttempt(
     val feedbackJson: String = "" // auto feedback response
 )
 
+@Entity(tableName = "chat_channels")
+data class ChatChannel(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val description: String,
+    val isGroup: Boolean = true, // true for public channel/group, false for direct 1-to-1 chat
+    val isPrivate: Boolean = false, // direct messages or private groups
+    val firstUserId: String = "", // for direct chat (sender rollNo or role, etc.)
+    val secondUserId: String = "", // for direct chat (receiver rollNo or role, etc.)
+    val createdDate: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "chat_messages")
+data class ChatMessage(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val channelId: Long,
+    val senderId: String, // Unique user identifier (e.g. name, role, email or phone)
+    val senderName: String,
+    val senderRole: String, // "ADMIN", "STAFF", "STUDENT", "TEACHER"
+    val messageText: String,
+    val timestamp: Long = System.currentTimeMillis(),
+    val attachmentPath: String? = null, // Path/Uri for attachment or mock content
+    val attachmentType: String? = null, // "IMAGE", "DOCUMENT", "LINK", "NONE"
+    val attachmentName: String? = null
+)
+
+

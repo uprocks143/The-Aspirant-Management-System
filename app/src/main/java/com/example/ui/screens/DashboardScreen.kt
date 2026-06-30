@@ -192,6 +192,7 @@ fun DashboardScreen(viewModel: AppViewModel) {
 
     // Active screen switcher flow to match photographs
     var currentScreenFlow by remember { mutableStateOf("SPLASH") } // "SPLASH", "PORTAL_SELECT", "ADMIN_LOGIN", "STUDENT_LOGIN", "MAIN_APP"
+    var lastBackPressTime by remember { mutableStateOf(0L) }
     var activeBottomNavTab by remember { mutableStateOf("DASHBOARD") } // "DASHBOARD", "MY_ACCOUNT"
 
     // Active Tab in current Portal
@@ -240,6 +241,7 @@ fun DashboardScreen(viewModel: AppViewModel) {
     var showNextGenEngagementDialog by remember { mutableStateOf(false) }
     var showNextGenSecurityDialog by remember { mutableStateOf(false) }
     var showNextGenSocialFlyerDialog by remember { mutableStateOf(false) }
+    var showCommunityChatDialog by remember { mutableStateOf(false) }
 
     // Custom side drawer dialogs
     var showMotivationalDialog by remember { mutableStateOf(false) }
@@ -251,14 +253,15 @@ fun DashboardScreen(viewModel: AppViewModel) {
             val backEnabled = currentScreenFlow != "SPLASH" ||
                     showHelpSupportDialog || showDoubtSolverBot || showQrAttendanceScanner || showPerformanceReportDialog ||
                     showEnquiryManagerDialog || showStaffManagerDialog || showTeacherSalariesDialog || showLibraryCenterDialog || showReportsConsoleDialog || showHomeworkAssignDialog ||
-                    showTodoTaskDialog || showPaperGeneratorDialog || showNotificationsDialog ||
+                    showTodoTaskDialog || showPaperGeneratorDialog || showNotificationsDialog || showCommunityChatDialog ||
                     showNextGenAILearningDialog || showNextGenEdTechDialog || showNextGenInsightsDialog ||
                     showNextGenMonetizationDialog || showNextGenEngagementDialog || showNextGenSecurityDialog ||
                     showNextGenSocialFlyerDialog || showMotivationalDialog || showAboutAppDialog || showOtherAppsDialog ||
                     activeAdminTab != "Dashboard" || activeBottomNavTab != "DASHBOARD"
 
             BackHandler(enabled = backEnabled) {
-                if (showNextGenAILearningDialog) { showNextGenAILearningDialog = false }
+                if (showCommunityChatDialog) { showCommunityChatDialog = false }
+                else if (showNextGenAILearningDialog) { showNextGenAILearningDialog = false }
                 else if (showNextGenEdTechDialog) { showNextGenEdTechDialog = false }
                 else if (showNextGenInsightsDialog) { showNextGenInsightsDialog = false }
                 else if (showNextGenMonetizationDialog) { showNextGenMonetizationDialog = false }
@@ -293,7 +296,13 @@ fun DashboardScreen(viewModel: AppViewModel) {
                             currentScreenFlow = "PORTAL_SELECT"
                         }
                         "MAIN_APP" -> {
-                            Toast.makeText(context, "Please use the Logout action in the side menu to switch accounts.", Toast.LENGTH_SHORT).show()
+                            val currentTime = System.currentTimeMillis()
+                            if (currentTime - lastBackPressTime < 2000) {
+                                (context as? android.app.Activity)?.finish()
+                            } else {
+                                lastBackPressTime = currentTime
+                                Toast.makeText(context, "Press back again to exit", Toast.LENGTH_SHORT).show()
+                            }
                         }
                         "PORTAL_SELECT" -> {
                             currentScreenFlow = "SPLASH"
@@ -567,78 +576,87 @@ fun DashboardScreen(viewModel: AppViewModel) {
                             },
 
                         bottomBar = {
-                            // Bottom Persistent navigation bar that mirrors Image 7 
-                            NavigationBar(
-                                containerColor = MaterialTheme.colorScheme.surface,
+                            // Beautiful, ultra-premium custom persistent bottom navigation bar
+                            Surface(
+                                color = MaterialTheme.colorScheme.surface,
                                 tonalElevation = 8.dp,
-                                modifier = Modifier.height(88.dp)
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
                             ) {
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().navigationBarsPadding(),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .navigationBarsPadding()
+                                        .height(76.dp)
+                                        .padding(horizontal = 8.dp),
                                     horizontalArrangement = Arrangement.SpaceAround,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     // Left: Dashboard tab
-                                    IconButton(
-                                        onClick = { activeBottomNavTab = "DASHBOARD" },
-                                        modifier = Modifier.weight(1f)
+                                    Column(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clickable { activeBottomNavTab = "DASHBOARD" }
+                                            .padding(vertical = 8.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
                                     ) {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Icon(
-                                                imageVector = Icons.Default.Dashboard,
-                                                contentDescription = "Dashboard",
-                                                tint = if (activeBottomNavTab == "DASHBOARD") MaterialTheme.colorScheme.primary else Color.Gray,
-                                                modifier = Modifier.size(24.dp)
-                                            )
-                                            Text(
-                                                text = "Dashboard",
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (activeBottomNavTab == "DASHBOARD") MaterialTheme.colorScheme.primary else Color.Gray
-                                            )
-                                        }
+                                        Icon(
+                                            imageVector = Icons.Default.Dashboard,
+                                            contentDescription = "Dashboard",
+                                            tint = if (activeBottomNavTab == "DASHBOARD") MaterialTheme.colorScheme.primary else Color.Gray,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "Dashboard",
+                                            fontSize = 12.sp,
+                                            fontWeight = if (activeBottomNavTab == "DASHBOARD") FontWeight.Bold else FontWeight.Medium,
+                                            color = if (activeBottomNavTab == "DASHBOARD") MaterialTheme.colorScheme.primary else Color.Gray
+                                        )
                                     }
 
                                     // Center floating Action Button for Instant QR Scanner Check-in
-                                    Surface(
-                                        onClick = { showQrAttendanceScanner = true },
-                                        color = Color(0xFF0D47A1),
-                                        shape = CircleShape,
+                                    Box(
                                         modifier = Modifier
-                                            .offset(y = (-10).dp)
                                             .size(56.dp)
-                                            .border(4.dp, Color.White, CircleShape),
-                                        shadowElevation = 8.dp
+                                            .offset(y = (-12).dp)
+                                            .background(Color(0xFF0D47A1), CircleShape)
+                                            .border(4.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                                            .clickable { showQrAttendanceScanner = true },
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                            Icon(
-                                                imageVector = Icons.Default.QrCodeScanner,
-                                                contentDescription = "QR Attendance",
-                                                tint = Color.White,
-                                                modifier = Modifier.size(24.dp)
-                                            )
-                                        }
+                                        Icon(
+                                            imageVector = Icons.Default.QrCodeScanner,
+                                            contentDescription = "QR Attendance",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(26.dp)
+                                        )
                                     }
 
                                     // Right: My Account tab
-                                    IconButton(
-                                        onClick = { activeBottomNavTab = "MY_ACCOUNT" },
-                                        modifier = Modifier.weight(1f)
+                                    Column(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clickable { activeBottomNavTab = "MY_ACCOUNT" }
+                                            .padding(vertical = 8.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
                                     ) {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Icon(
-                                                imageVector = Icons.Default.Person,
-                                                contentDescription = "My Account",
-                                                tint = if (activeBottomNavTab == "MY_ACCOUNT") MaterialTheme.colorScheme.primary else Color.Gray,
-                                                modifier = Modifier.size(24.dp)
-                                            )
-                                            Text(
-                                                text = "My Account",
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (activeBottomNavTab == "MY_ACCOUNT") MaterialTheme.colorScheme.primary else Color.Gray
-                                            )
-                                        }
+                                        Icon(
+                                            imageVector = Icons.Default.Person,
+                                            contentDescription = "My Account",
+                                            tint = if (activeBottomNavTab == "MY_ACCOUNT") MaterialTheme.colorScheme.primary else Color.Gray,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "My Account",
+                                            fontSize = 12.sp,
+                                            fontWeight = if (activeBottomNavTab == "MY_ACCOUNT") FontWeight.Bold else FontWeight.Medium,
+                                            color = if (activeBottomNavTab == "MY_ACCOUNT") MaterialTheme.colorScheme.primary else Color.Gray
+                                        )
                                     }
                                 }
                             }
@@ -901,6 +919,9 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                                         },
                                                         ShortcutItem("Physical Library", Icons.Default.Book, Color(0xFF6366F1)) {
                                                             showLibraryCenterDialog = true
+                                                         },
+                                                         ShortcutItem("Community Chat", Icons.Default.Forum, Color(0xFF2196F3)) {
+                                                             showCommunityChatDialog = true
                                                          },
                                                          ShortcutItem("Help & Support", Icons.Default.Help, Color(0xFFFF7043)) {
                                                              showHelpSupportDialog = true
@@ -1584,7 +1605,8 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                                             selectedMaterialForQuiz = it
                                                             showQuizDialog = true
                                                         },
-                                                        onLaunchQRScanner = { showQrAttendanceScanner = true }
+                                                        onLaunchQRScanner = { showQrAttendanceScanner = true },
+                                                         onLaunchCommunityChat = { showCommunityChatDialog = true }
                                                     )
                                                 }
                                                 activeStudentTab == "Child Standing" || activeStudentTab == "Tuition & Fees" || activeStudentTab == "Academic Progress" || activeStudentTab == "Contact Teachers" -> {
@@ -1656,6 +1678,10 @@ fun DashboardScreen(viewModel: AppViewModel) {
 
             if (showTeacherSalariesDialog) {
                 com.example.ui.screens.TeacherSalariesOverlay(viewModel = viewModel, onClose = { showTeacherSalariesDialog = false })
+            }
+
+            if (showCommunityChatDialog) {
+                com.example.ui.screens.CommunityChatOverlay(viewModel = viewModel, onClose = { showCommunityChatDialog = false })
             }
 
             if (showLibraryCenterDialog) {
@@ -3037,7 +3063,8 @@ fun StudentWorkspace(
     activeExamPracticeSession: Exam?,
     onActiveExamPracticeSession: (Exam?) -> Unit,
     onQuizClick: (StudyMaterial) -> Unit,
-    onLaunchQRScanner: () -> Unit
+    onLaunchQRScanner: () -> Unit,
+    onLaunchCommunityChat: () -> Unit
 ) {
     val context = LocalContext.current
     val currentStudentId by viewModel.currentUserId.collectAsState()
@@ -3358,6 +3385,59 @@ fun StudentWorkspace(
             "Home Workspace" -> {
                 item {
                     Text("YOUR SCHOLISTIC STANDINGS", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary, fontFamily = FontFamily.Monospace)
+                }
+
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onLaunchCommunityChat() }
+                            .testTag("student_workspace_chat_card"),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .background(MaterialTheme.colorScheme.primary, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Forum,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "💬 Academy Community Chat & Doubts forum",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Text(
+                                    text = "Discuss questions with teachers and classmates, share study PDFs, formulas, diagrams, and chat securely.",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                 }
 
                 // Family pending aggregate fees details card
