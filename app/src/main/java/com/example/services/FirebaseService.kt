@@ -34,8 +34,31 @@ object FirebaseService {
     // Saved Configured Settings for Firebase
     var firebaseApiKey = ""
     var firebaseAppId = ""
-    var firebaseProjectId = ""
+    var firebaseProjectId = "1039749549760" // Defaulting to the user's project
     var firebaseStorageBucket = ""
+
+    /**
+     * Saves Firebase credentials to SharedPreferences and reinitializes.
+     */
+    fun saveFirebaseConfiguration(
+        context: Context,
+        apiKey: String,
+        appId: String,
+        projectId: String,
+        storageBucket: String
+    ) {
+        val sharedPrefs = context.getSharedPreferences("tams_settings", Context.MODE_PRIVATE)
+        sharedPrefs.edit()
+            .putString("fb_api_key", apiKey.trim())
+            .putString("fb_app_id", appId.trim())
+            .putString("fb_project_id", projectId.trim())
+            .putString("fb_storage_bucket", storageBucket.trim())
+            .apply()
+        
+        // Reset initialization so it can be re-run
+        isInitialized = false
+        initialize(context)
+    }
 
     /**
      * Initializes Firebase programmatically. If standard google-services.json is missing,
@@ -62,11 +85,17 @@ object FirebaseService {
                 return true
             }
 
-            // Fallback manual configurations
-            val key = apiKey.ifEmpty { firebaseApiKey }
-            val appIdStr = appId.ifEmpty { firebaseAppId }
-            val projectStr = projectId.ifEmpty { firebaseProjectId }
-            val bucketStr = storageBucket.ifEmpty { firebaseStorageBucket }
+            // Fallback manual configurations with SharedPreferences fallback
+            val sharedPrefs = context.getSharedPreferences("tams_settings", Context.MODE_PRIVATE)
+            val spApiKey = sharedPrefs.getString("fb_api_key", "") ?: ""
+            val spAppId = sharedPrefs.getString("fb_app_id", "") ?: ""
+            val spProjectId = sharedPrefs.getString("fb_project_id", "1039749549760") ?: "1039749549760"
+            val spStorageBucket = sharedPrefs.getString("fb_storage_bucket", "") ?: ""
+
+            val key = apiKey.ifEmpty { spApiKey.ifEmpty { firebaseApiKey } }
+            val appIdStr = appId.ifEmpty { spAppId.ifEmpty { firebaseAppId } }
+            val projectStr = projectId.ifEmpty { spProjectId.ifEmpty { firebaseProjectId } }
+            val bucketStr = storageBucket.ifEmpty { spStorageBucket.ifEmpty { firebaseStorageBucket } }
 
             if (key.isNotEmpty() && appIdStr.isNotEmpty() && projectStr.isNotEmpty()) {
                 val builder = FirebaseOptions.Builder()
@@ -118,6 +147,31 @@ object FirebaseService {
             true
         } catch (e: Exception) {
             Log.e(TAG, "Firebase sign-in error: ${e.localizedMessage}")
+            throw e
+        }
+    }
+
+    suspend fun firebaseLoginWithGoogle(idToken: String): Boolean {
+        if (!isInitialized) return false
+        return try {
+            val credential = com.google.firebase.auth.GoogleAuthProvider.getCredential(idToken, null)
+            auth?.signInWithCredential(credential)?.await()
+            Log.d(TAG, "Firebase logged in with Google credential successfully.")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Firebase Google login error: ${e.localizedMessage}")
+            throw e
+        }
+    }
+
+    suspend fun firebaseResetPassword(emailStr: String): Boolean {
+        if (!isInitialized) return false
+        return try {
+            auth?.sendPasswordResetEmail(emailStr)?.await()
+            Log.d(TAG, "Firebase reset email sent to $emailStr")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Firebase password reset error: ${e.localizedMessage}")
             throw e
         }
     }
@@ -176,6 +230,75 @@ object FirebaseService {
             Log.d(TAG, "Student ${student.name} synced to Firestore.")
         } catch (e: Exception) {
             Log.e(TAG, "Error syncing student to cloud: ${e.localizedMessage}")
+        }
+    }
+
+    /**
+     * Upload register / admin user accounts (institutes) to Firestore col "institutes"
+     */
+    suspend fun syncInstituteToCloud(inst: com.example.ui.viewmodel.InstituteAccount) {
+        if (!isInitialized) return
+        try {
+            val instMap = hashMapOf(
+                "academyName" to inst.academyName,
+                "directorName" to inst.directorName,
+                "email" to inst.email,
+                "address" to inst.address,
+                "isApproved" to inst.isApproved,
+                "subscriptionActive" to inst.subscriptionActive,
+                "expiryDate" to inst.expiryDate,
+                "lastPaymentAmount" to inst.lastPaymentAmount,
+                "lastUpiTxRef" to inst.lastUpiTxRef,
+                "profileType" to inst.profileType,
+                "gstNumber" to inst.gstNumber,
+                "businessProofId" to inst.businessProofId,
+                "libraryCapacity" to inst.libraryCapacity,
+                "libraryCategory" to inst.libraryCategory,
+                "tuitionSubject" to inst.tuitionSubject,
+                "tuitionStandard" to inst.tuitionStandard,
+                "schoolCode" to inst.schoolCode,
+                "lastSynced" to System.currentTimeMillis()
+            )
+            db?.collection("institutes")?.document(inst.email)?.set(instMap)?.await()
+            Log.d(TAG, "Institute ${inst.academyName} (${inst.email}) synced to Firestore.")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error syncing institute to cloud: ${e.localizedMessage}")
+        }
+    }
+
+    /**
+     * Retrieve a registered institute's account details from Firestore col "institutes"
+     */
+    suspend fun fetchInstituteFromCloud(email: String): com.example.ui.viewmodel.InstituteAccount? {
+        if (!isInitialized) return null
+        return try {
+            val doc = db?.collection("institutes")?.document(email)?.get()?.await()
+            if (doc != null && doc.exists()) {
+                com.example.ui.viewmodel.InstituteAccount(
+                    academyName = doc.getString("academyName") ?: "TAMS Academy",
+                    directorName = doc.getString("directorName") ?: "Admin Director",
+                    email = doc.getString("email") ?: email,
+                    address = doc.getString("address") ?: "Main Campus",
+                    isApproved = doc.getBoolean("isApproved") ?: true,
+                    subscriptionActive = doc.getBoolean("subscriptionActive") ?: true,
+                    expiryDate = doc.getString("expiryDate") ?: "2027-06-30",
+                    lastPaymentAmount = doc.getDouble("lastPaymentAmount") ?: 0.0,
+                    lastUpiTxRef = doc.getString("lastUpiTxRef") ?: "",
+                    profileType = doc.getString("profileType") ?: "COACHING_OWNER",
+                    gstNumber = doc.getString("gstNumber") ?: "",
+                    businessProofId = doc.getString("businessProofId") ?: "",
+                    libraryCapacity = doc.getString("libraryCapacity") ?: "",
+                    libraryCategory = doc.getString("libraryCategory") ?: "",
+                    tuitionSubject = doc.getString("tuitionSubject") ?: "",
+                    tuitionStandard = doc.getString("tuitionStandard") ?: "",
+                    schoolCode = doc.getString("schoolCode") ?: ""
+                )
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetching institute: ${e.localizedMessage}")
+            null
         }
     }
 

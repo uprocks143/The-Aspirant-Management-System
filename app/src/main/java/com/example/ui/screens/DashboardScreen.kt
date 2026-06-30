@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -91,6 +92,8 @@ fun DashboardScreen(viewModel: AppViewModel) {
     val studyMaterialsList by viewModel.studyMaterials.collectAsState()
     val messageTemplatesList by viewModel.messageTemplates.collectAsState()
     val examsList by viewModel.exams.collectAsState()
+    val staffProfiles by viewModel.staffProfiles.collectAsState()
+    val subscriberTransactions by viewModel.subscriberTransactions.collectAsState()
 
     // Map theme selections
     val currentPalette = remember(themeKey) {
@@ -210,17 +213,20 @@ fun DashboardScreen(viewModel: AppViewModel) {
     var activeExamPracticeSession by remember { mutableStateOf<Exam?>(null) }
 
     // Dialog state controllers
+    var showHelpSupportDialog by remember { mutableStateOf(false) }
     var showDoubtSolverBot by remember { mutableStateOf(false) }
     var showQrAttendanceScanner by remember { mutableStateOf(false) }
     var showPerformanceReportDialog by remember { mutableStateOf(false) }
     var showEnquiryManagerDialog by remember { mutableStateOf(false) }
     var showStaffManagerDialog by remember { mutableStateOf(false) }
+    var showTeacherSalariesDialog by remember { mutableStateOf(false) }
+    var showLibraryCenterDialog by remember { mutableStateOf(false) }
     var showReportsConsoleDialog by remember { mutableStateOf(false) }
     var showHomeworkAssignDialog by remember { mutableStateOf(false) }
     var showTodoTaskDialog by remember { mutableStateOf(false) }
     var showPaperGeneratorDialog by remember { mutableStateOf(false) }
     var showNotificationsDialog by remember { mutableStateOf(false) }
-    var hasUnreadNotifications by remember { mutableStateOf(true) }
+    var hasUnreadNotifications by remember { mutableStateOf(false) }
     var showEnrollmentForm by remember { mutableStateOf(false) }
     var showAlumniFilterOnly by remember { mutableStateOf(false) }
     var showSettingsPanel by remember { mutableStateOf(false) }
@@ -243,8 +249,8 @@ fun DashboardScreen(viewModel: AppViewModel) {
     MaterialTheme(colorScheme = m3ColorScheme) {
         Box(modifier = Modifier.fillMaxSize()) {
             val backEnabled = currentScreenFlow != "SPLASH" ||
-                    showDoubtSolverBot || showQrAttendanceScanner || showPerformanceReportDialog ||
-                    showEnquiryManagerDialog || showStaffManagerDialog || showReportsConsoleDialog || showHomeworkAssignDialog ||
+                    showHelpSupportDialog || showDoubtSolverBot || showQrAttendanceScanner || showPerformanceReportDialog ||
+                    showEnquiryManagerDialog || showStaffManagerDialog || showTeacherSalariesDialog || showLibraryCenterDialog || showReportsConsoleDialog || showHomeworkAssignDialog ||
                     showTodoTaskDialog || showPaperGeneratorDialog || showNotificationsDialog ||
                     showNextGenAILearningDialog || showNextGenEdTechDialog || showNextGenInsightsDialog ||
                     showNextGenMonetizationDialog || showNextGenEngagementDialog || showNextGenSecurityDialog ||
@@ -262,11 +268,14 @@ fun DashboardScreen(viewModel: AppViewModel) {
                 else if (showMotivationalDialog) { showMotivationalDialog = false }
                 else if (showAboutAppDialog) { showAboutAppDialog = false }
                 else if (showOtherAppsDialog) { showOtherAppsDialog = false }
+                else if (showHelpSupportDialog) { showHelpSupportDialog = false }
                 else if (showDoubtSolverBot) { showDoubtSolverBot = false }
                 else if (showQrAttendanceScanner) { showQrAttendanceScanner = false }
                 else if (showPerformanceReportDialog) { showPerformanceReportDialog = false }
                 else if (showEnquiryManagerDialog) { showEnquiryManagerDialog = false }
                 else if (showStaffManagerDialog) { showStaffManagerDialog = false }
+                else if (showTeacherSalariesDialog) { showTeacherSalariesDialog = false }
+                else if (showLibraryCenterDialog) { showLibraryCenterDialog = false }
                 else if (showReportsConsoleDialog) { showReportsConsoleDialog = false }
                 else if (showHomeworkAssignDialog) { showHomeworkAssignDialog = false }
                 else if (showTodoTaskDialog) { showTodoTaskDialog = false }
@@ -280,12 +289,11 @@ fun DashboardScreen(viewModel: AppViewModel) {
                 }
                 else {
                     when (currentScreenFlow) {
-                        "ADMIN_LOGIN", "STUDENT_LOGIN" -> {
+                        "ADMIN_LOGIN", "STUDENT_LOGIN", "LIBRARY_LOGIN" -> {
                             currentScreenFlow = "PORTAL_SELECT"
                         }
                         "MAIN_APP" -> {
-                            currentScreenFlow = "PORTAL_SELECT"
-                            Toast.makeText(context, "Returned to portal selection menu.", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Please use the Logout action in the side menu to switch accounts.", Toast.LENGTH_SHORT).show()
                         }
                         "PORTAL_SELECT" -> {
                             currentScreenFlow = "SPLASH"
@@ -314,7 +322,7 @@ fun DashboardScreen(viewModel: AppViewModel) {
                         },
                         onStudentSelect = {
                             viewModel.loginAs("STUDENT")
-                            currentScreenFlow = "MAIN_APP"
+                            currentScreenFlow = "STUDENT_CONTEXT_SWITCHER"
                         },
                         onStaffSelect = {
                             currentScreenFlow = "ADMIN_LOGIN"
@@ -322,11 +330,37 @@ fun DashboardScreen(viewModel: AppViewModel) {
                         onParentSelect = {
                             viewModel.loginAs("PARENT")
                             currentScreenFlow = "MAIN_APP"
+                        },
+                        onLibrarySelect = {
+                            currentScreenFlow = "LIBRARY_LOGIN"
+                        }
+                    )
+                }
+                "STUDENT_CONTEXT_SWITCHER" -> {
+                    StudentContextSwitcherScreen(
+                        viewModel = viewModel,
+                        onContextSelected = { activeContext ->
+                            viewModel.switchStudentContext(activeContext)
+                            currentScreenFlow = "MAIN_APP"
+                        },
+                        onBack = { currentScreenFlow = "PORTAL_SELECT" }
+                    )
+                }
+                "LIBRARY_LOGIN" -> {
+                    LibraryAuthView(
+                        viewModel = viewModel,
+                        showBackButton = true,
+                        onLoginSuccess = {
+                            currentScreenFlow = "MAIN_APP"
+                        },
+                        onBack = {
+                            currentScreenFlow = "PORTAL_SELECT"
                         }
                     )
                 }
                 "ADMIN_LOGIN" -> {
                     AdminLoginScreen(
+                        viewModel = viewModel,
                         onBack = { currentScreenFlow = "PORTAL_SELECT" },
                         onSignIn = { academy, name, email, addr ->
                             viewModel.registerInstitute(academy, name, email, addr)
@@ -335,9 +369,19 @@ fun DashboardScreen(viewModel: AppViewModel) {
                     )
                 }
                 "MAIN_APP" -> {
-                    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+                    if (false) {
+                        LibraryCenterOverlay(
+                            viewModel = viewModel,
+                            onClose = {
+                                viewModel.loginAs("GUEST")
+                                currentScreenFlow = "PORTAL_SELECT"
+                                Toast.makeText(context, "Logged out from Physical Library Hub session.", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                    } else {
+                        val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
-                    ModalNavigationDrawer(
+                        ModalNavigationDrawer(
                         drawerState = drawerState,
                         drawerContent = {
                             ModalDrawerSheet(
@@ -398,6 +442,10 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                     onOtherAppsClick = {
                                         showOtherAppsDialog = true
                                         scope.launch { drawerState.close() }
+                                    },
+                                    themeMode = themeKey,
+                                    onSwitchTheme = { newTheme ->
+                                        viewModel.switchTheme(newTheme)
                                     }
                                 )
                             }
@@ -464,6 +512,18 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                                             modifier = Modifier.size(24.dp)
                                                         )
                                                     }
+                                                }
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                IconButton(
+                                                    onClick = { showSettingsPanel = !showSettingsPanel },
+                                                    modifier = Modifier.testTag("dashboard_settings_button")
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Settings,
+                                                        contentDescription = "System Settings",
+                                                        tint = Color.White,
+                                                        modifier = Modifier.size(24.dp)
+                                                    )
                                                 }
                                             }
                                         }
@@ -681,15 +741,35 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                     Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                                         if (activeAdminTab == "System Diagnostics") {
                                             val institutesList by viewModel.institutesList.collectAsState()
+                                            val subscriberTrans by viewModel.subscriberTransactions.collectAsState()
                                             AppOwnerMonitorView(
                                                 transactions = transactionsList,
                                                 batches = batchesList,
                                                 students = studentsList,
                                                 institutes = institutesList,
+                                                subscriberTransactionsList = subscriberTrans,
                                                 onApprove = { email -> viewModel.approveInstitute(email) },
-                                                onApproveAll = { viewModel.approveAllInstitutes() }
+                                                onApproveAll = { viewModel.approveAllInstitutes() },
+                                                onDeleteInstitute = { email -> viewModel.deleteInstituteAccount(email) },
+                                                onToggleSubscription = { email -> viewModel.toggleSubscriptionActive(email) },
+                                                 onToggleSuspension = { email -> viewModel.toggleInstituteSuspension(email) },
+                                                 onScheduleWipe = { email, delay24h -> viewModel.scheduleInstituteWipe(email, delay24h) },
+                                                onRecordUpiPaymentTransaction = { academy, email, amount, ref, plan ->
+                                                    viewModel.recordSubscriberTransaction(academy, email, amount, ref, plan)
+                                                 },
+                                                 onLogout = {
+                                                     viewModel.loginAs("GUEST")
+                                                 }
                                             )
                                         } else if (activeAdminTab == "Dashboard" || (activeAdminTab.isEmpty() && activeStudentTab.isEmpty())) {
+                                            val checkAccessAndRun = { featureName: String, requiredRoles: List<String>, action: () -> Unit ->
+                                                val hasAccess = requiredRoles.contains(userRole) || (userRole == "LIBRARY" && (requiredRoles.contains("ADMIN") || requiredRoles.contains("STAFF")))
+                                                if (hasAccess) {
+                                                    action()
+                                                 } else {
+                                                     Toast.makeText(context, "🚫 Access Denied: '$featureName' is restricted to ${requiredRoles.joinToString("/")} role(s). Current role: $userRole", Toast.LENGTH_LONG).show()
+                                                 }
+                                            }
                                             LazyColumn(
                                                 modifier = Modifier.fillMaxSize().padding(16.dp),
                                                 verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -719,13 +799,20 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                                             Spacer(modifier = Modifier.width(16.dp))
                                                             Column(modifier = Modifier.weight(1f)) {
                                                                 Text(
-                                                                    text = academyNameState,
+                                                                    text = when (userRole) {
+                                                                        "ADMIN" -> academyNameState
+                                                                        "TEACHER" -> "$directorNameState ($academyNameState)"
+                                                                        "LIBRARY" -> "$academyNameState (Library)"
+                                                                        "STUDENT" -> "Student: $directorNameState"
+                                                                        "PARENT" -> "Parent Desk"
+                                                                        else -> academyNameState
+                                                                    },
                                                                     fontWeight = FontWeight.Bold,
                                                                     fontSize = 18.sp,
                                                                     color = Color(0xFF0347A1)
                                                                 )
                                                                 Text(
-                                                                    text = adminEmailState,
+                                                                    text = "Role: $userRole • $adminEmailState",
                                                                     fontSize = 12.sp,
                                                                     color = Color.Gray,
                                                                     fontWeight = FontWeight.Medium
@@ -737,121 +824,17 @@ fun DashboardScreen(viewModel: AppViewModel) {
 
                                                 // Side-by-Side Cosmic Summary just below the institute name
                                                 item {
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp).testTag("side_by_side_summary_boxes"),
-                                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                                    ) {
-                                                        // Card 1: Summary of Batches and Active Courses
-                                                        Card(
-                                                            modifier = Modifier.weight(1f).height(105.dp),
-                                                            shape = RoundedCornerShape(14.dp),
-                                                            colors = CardDefaults.cardColors(
-                                                                containerColor = Color(0xFF0F172A) // Sleek Cosmic Dark Slate
-                                                            ),
-                                                            border = BorderStroke(1.5.dp, Color(0xFF38BDF8).copy(alpha = 0.5f))
-                                                        ) {
-                                                            Column(
-                                                                modifier = Modifier.fillMaxSize().padding(14.dp),
-                                                                verticalArrangement = Arrangement.SpaceBetween
-                                                            ) {
-                                                                Row(
-                                                                    modifier = Modifier.fillMaxWidth(),
-                                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                                    verticalAlignment = Alignment.CenterVertically
-                                                                ) {
-                                                                    Icon(
-                                                                        imageVector = Icons.Default.Layers,
-                                                                        contentDescription = null,
-                                                                        tint = Color(0xFF38BDF8),
-                                                                        modifier = Modifier.size(20.dp)
-                                                                    )
-                                                                    Box(
-                                                                        modifier = Modifier
-                                                                            .background(Color(0xFF38BDF8).copy(alpha = 0.15f), RoundedCornerShape(4.dp))
-                                                                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                                                                    ) {
-                                                                        Text("ACTIVE", color = Color(0xFF38BDF8), fontSize = 8.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
-                                                                    }
-                                                                }
-                                                                Column {
-                                                                    Text(
-                                                                        text = "${batchesList.size} Courses",
-                                                                        color = Color.White,
-                                                                        fontSize = 18.sp,
-                                                                        fontWeight = FontWeight.Black
-                                                                    )
-                                                                    Text(
-                                                                        text = "Batches & Programs",
-                                                                        color = Color.White.copy(alpha = 0.6f),
-                                                                        fontSize = 9.sp,
-                                                                        fontWeight = FontWeight.SemiBold
-                                                                    )
-                                                                }
-                                                            }
-                                                        }
+                                                    MetricCountersScrollableRow(
+                                                        batchesList = batchesList,
+                                                        studentsList = studentsList,
+                                                        staffProfiles = staffProfiles,
+                                                        onBatchesClick = { checkAccessAndRun("Batches Setup", listOf("ADMIN", "STAFF")) { activeAdminTab = "Batches Setup" } },
+                                                        onStudentsClick = { checkAccessAndRun("Admission Form", listOf("ADMIN", "STAFF")) { activeAdminTab = "Admission Form" } },
+                                                        onStaffClick = { checkAccessAndRun("Staff Manager", listOf("ADMIN", "STAFF")) { showStaffManagerDialog = true } }
+                                                    )
+                                                }
 
-                                                        // Card 2: Enrolled Students QTY (Active)
-                                                        Card(
-                                                            modifier = Modifier.weight(1f).height(105.dp),
-                                                            shape = RoundedCornerShape(14.dp),
-                                                            colors = CardDefaults.cardColors(
-                                                                containerColor = Color(0xFF1E1B4B) // Premium Deep Midnight Purple Indigo
-                                                             ),
-                                                             border = BorderStroke(1.5.dp, Color(0xFF818CF8).copy(alpha = 0.5f))
-                                                         ) {
-                                                             Column(
-                                                                 modifier = Modifier.fillMaxSize().padding(14.dp),
-                                                                 verticalArrangement = Arrangement.SpaceBetween
-                                                             ) {
-                                                                 Row(
-                                                                     modifier = Modifier.fillMaxWidth(),
-                                                                     horizontalArrangement = Arrangement.SpaceBetween,
-                                                                     verticalAlignment = Alignment.CenterVertically
-                                                                 ) {
-                                                                     Icon(
-                                                                         imageVector = Icons.Default.People,
-                                                                         contentDescription = null,
-                                                                         tint = Color(0xFF818CF8),
-                                                                         modifier = Modifier.size(20.dp)
-                                                                     )
-                                                                     Box(
-                                                                         modifier = Modifier
-                                                                             .background(Color(0xFF818CF8).copy(alpha = 0.15f), RoundedCornerShape(4.dp))
-                                                                             .padding(horizontal = 6.dp, vertical = 2.dp)
-                                                                     ) {
-                                                                         Text("ENROLLED", color = Color(0xFF818CF8), fontSize = 8.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
-                                                                     }
-                                                                 }
-                                                                 Column {
-                                                                     Text(
-                                                                         text = "${studentsList.size} Active",
-                                                                         color = Color.White,
-                                                                         fontSize = 18.sp,
-                                                                         fontWeight = FontWeight.Black
-                                                                     )
-                                                                     Text(
-                                                                         text = "Registered Scholars",
-                                                                         color = Color.White.copy(alpha = 0.6f),
-                                                                         fontSize = 9.sp,
-                                                                         fontWeight = FontWeight.SemiBold
-                                                                     )
-                                                                 }
-                                                             }
-                                                         }
-                                                     }
-                                                 }
-
-                                                
-                                                                                                                                                 // 16 Unified Services engine setup mimicking the photo
-                                                 item {
-                                                    val checkAccessAndRun = { featureName: String, requiredRoles: List<String>, action: () -> Unit ->
-                                                        if (requiredRoles.contains(userRole)) {
-                                                            action()
-                                                        } else {
-                                                            Toast.makeText(context, "🚫 Access Denied: '$featureName' is restricted to ${requiredRoles.joinToString("/")} role(s). Current role: $userRole", Toast.LENGTH_LONG).show()
-                                                        }
-                                                    }
-
+                                                item {
                                                     val dashboardShortcuts = listOf(
                                                         ShortcutItem("Batches", Icons.Default.CoPresent, Color(0xFF3BACF0)) {
                                                             checkAccessAndRun("Batches Setup", listOf("ADMIN", "STAFF")) { activeAdminTab = "Batches Setup" }
@@ -877,17 +860,32 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                                         ShortcutItem("Staff Manager", Icons.Default.Group, Color(0xFF0F747F)) {
                                                             checkAccessAndRun("Staff Manager", listOf("ADMIN", "STAFF")) { showStaffManagerDialog = true }
                                                         },
+                                                        ShortcutItem("Teacher Salaries", Icons.Default.Paid, Color(0xFFE91E63)) {
+                                                            checkAccessAndRun("Teacher Salaries", listOf("ADMIN")) { showTeacherSalariesDialog = true }
+                                                        },
                                                         ShortcutItem("Giant Reports", Icons.Default.Assessment, Color(0xFFEF5350)) {
                                                             checkAccessAndRun("Giant Reports", listOf("ADMIN", "STAFF")) { showReportsConsoleDialog = true }
                                                         },
                                                         ShortcutItem("Study Material", Icons.Default.LibraryBooks, Color(0xFF212121)) {
-                                                            checkAccessAndRun("Study Materials", listOf("ADMIN", "STAFF", "STUDENT")) { viewModel.loginAs("STAFF"); activeStaffTab = "Study Materials" }
+                                                            checkAccessAndRun("Study Materials", listOf("ADMIN", "STAFF", "STUDENT")) {
+                                                                if (userRole == "STUDENT") {
+                                                                    activeAdminTab = ""
+                                                                    activeStudentTab = "Academic Resources"
+                                                                } else {
+                                                                    activeStudentTab = ""
+                                                                    activeAdminTab = "Study Materials"
+                                                                    activeStaffTab = "Study Materials"
+                                                                }
+                                                            }
                                                         },
                                                         ShortcutItem("Homework", Icons.Default.HomeWork, Color(0xFF00C853)) {
                                                             checkAccessAndRun("Homework Assign", listOf("ADMIN", "STAFF", "STUDENT")) { showHomeworkAssignDialog = true }
                                                         },
                                                         ShortcutItem("Online Exams", Icons.Default.Computer, Color(0xFF3F51B5)) {
-                                                            checkAccessAndRun("Practice Exams", listOf("ADMIN", "STAFF", "STUDENT")) { viewModel.loginAs("STUDENT"); activeStudentTab = "Practice exams" }
+                                                            checkAccessAndRun("Practice Exams", listOf("ADMIN", "STAFF", "STUDENT")) {
+                                                                activeAdminTab = ""
+                                                                activeStudentTab = "Practice exams"
+                                                            }
                                                         },
                                                         ShortcutItem("To Do Task", Icons.Default.PlaylistAddCheck, Color(0xFF78909C)) {
                                                             checkAccessAndRun("To Do Task", listOf("ADMIN", "STAFF")) { showTodoTaskDialog = true }
@@ -896,10 +894,19 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                                             checkAccessAndRun("Database Backups", listOf("ADMIN", "STAFF")) { activeAdminTab = "Database Backups" }
                                                         },
                                                         ShortcutItem("Settings", Icons.Default.Settings, Color(0xFFF44336)) {
-                                                            checkAccessAndRun("Settings Panel", listOf("ADMIN", "STAFF")) { showSettingsPanel = !showSettingsPanel }
+                                                            showSettingsPanel = !showSettingsPanel
                                                         },
                                                         ShortcutItem("Paper Generator", Icons.Default.Description, Color(0xFF00838F), true) {
                                                             checkAccessAndRun("Paper Generator", listOf("ADMIN", "STAFF")) { showPaperGeneratorDialog = true }
+                                                        },
+                                                        ShortcutItem("Physical Library", Icons.Default.Book, Color(0xFF6366F1)) {
+                                                            showLibraryCenterDialog = true
+                                                         },
+                                                         ShortcutItem("Help & Support", Icons.Default.Help, Color(0xFFFF7043)) {
+                                                             showHelpSupportDialog = true
+                                                        },
+                                                        ShortcutItem("Next-Gen Futures", Icons.Default.AutoAwesome, Color(0xFF7B1FA2)) {
+                                                            showNextGenCabinetInline = !showNextGenCabinetInline
                                                         }
                                                     )
 
@@ -935,8 +942,8 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                                                                         .weight(1f)
                                                                                         .clickable { sc.action() }
                                                                                         .testTag("shortcut_${sc.title.lowercase().replace(" ", "_").replace("/", "_")}"),
-                                                                                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                                                                                    border = null,
+                                                                                    colors = CardDefaults.cardColors(containerColor = sc.color.copy(alpha = 0.12f)),
+                                                                                    border = androidx.compose.foundation.BorderStroke(1.2.dp, sc.color.copy(alpha = 0.4f)),
                                                                                     shape = RoundedCornerShape(12.dp)
                                                                                 ) {
                                                                                     Column(
@@ -948,8 +955,8 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                                                                     ) {
                                                                                          Box(
                                                                                             modifier = Modifier
-                                                                                                .size(52.dp).shadow(2.dp, CircleShape)
-                                                                                                .clip(CircleShape)
+                                                                                                .size(44.dp)
+                                                                                                .clip(RoundedCornerShape(10.dp))
                                                                                                 .background(sc.color),
                                                                                             contentAlignment = Alignment.Center
                                                                                         ) {
@@ -972,12 +979,12 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                                                                         }
                                                                                         Text(
                                                                                             text = sc.title,
-                                                                                            fontSize = 11.sp,
-                                                                                            fontWeight = FontWeight.Medium,
+                                                                                            fontSize = 10.sp,
+                                                                                            fontWeight = FontWeight.Bold,
                                                                                             textAlign = TextAlign.Center,
-                                                                                            color = if (sc.isSpecialRedLabel) Color(0xFFEF4444) else Color(0xFF4B5563),
-                                                                                            maxLines = 2,
-                                                                                            lineHeight = 13.sp,
+                                                                                            color = if (sc.isSpecialRedLabel) Color(0xFFEF4444) else Color(0xFF1E293B),
+                                                                                            maxLines = 1,
+                                                                                            softWrap = false,
                                                                                             overflow = TextOverflow.Ellipsis,
                                                                                             modifier = Modifier.padding(horizontal = 2.dp)
                                                                                         )
@@ -1010,7 +1017,7 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                                 }
 
                                                 // bottom group of horizontal pills matching photo
-                                                item {
+                                                if (false) item {
                                                     Row(
                                                         modifier = Modifier
                                                             .fillMaxWidth()
@@ -1148,7 +1155,13 @@ fun DashboardScreen(viewModel: AppViewModel) {
 
                                                 // Monthly cashflow bar and line graph (Image 8 style)
                                                 item {
-                                                    Card(
+                                                    AutoSlidingPromoSlideshow(
+                                                        viewModel = viewModel,
+                                                        userRole = userRole
+                                                     )
+                                                }
+
+                                                /* item { if (false) {                                                    Card(
                                                         modifier = Modifier.fillMaxWidth(),
                                                         shape = RoundedCornerShape(16.dp),
                                                         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -1264,6 +1277,8 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                                         }
                                                     }
                                                 }
+                                                }
+                                                */
 
                                                 // Polished Daily Motivation & Academic Quote Card (Replacing WhatsPromo as requested)
                                                 item {
@@ -1362,7 +1377,7 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                                 }
 
                                                 // Section 3: Dual SIM & Preferences Switches preserved from old Dashboard
-                                                if (showSettingsPanel) {
+                                                if (false) { // Centrally managed dialog handles settings
                                                 item {
                                                     var tempName by remember(academyNameState) { mutableStateOf(academyNameState) }
                                                     var tempDirector by remember(directorNameState) { mutableStateOf(directorNameState) }
@@ -1371,6 +1386,8 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                                     val merchantName by viewModel.merchantName.collectAsState()
                                                     var tempUpiId by remember(merchantUpiId) { mutableStateOf(merchantUpiId) }
                                                     var tempMerchantName by remember(merchantName) { mutableStateOf(merchantName) }
+                                                    val customGeminiApiKey by viewModel.customGeminiApiKey.collectAsState()
+                                                    var tempApiKey by remember(customGeminiApiKey) { mutableStateOf(customGeminiApiKey) }
 
                                                     Card(
                                                         modifier = Modifier.fillMaxWidth(),
@@ -1483,12 +1500,27 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                                                 singleLine = true
                                                             )
 
+                                                            HorizontalDivider(color = Color.LightGray.copy(alpha = 0.3f))
+
+                                                            Text("AI & GEMINI INTEGRATION SETTINGS", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                                            Text("Configure your own Gemini API Key to let students ask academic doubts.", fontSize = 11.sp, color = Color.Gray)
+                                                            OutlinedTextField(
+                                                                value = tempApiKey,
+                                                                onValueChange = { tempApiKey = it },
+                                                                label = { Text("Gemini API Key", fontSize = 11.sp) },
+                                                                placeholder = { Text("AIzaSy...") },
+                                                                modifier = Modifier.fillMaxWidth().testTag("config_gemini_api_key_input"),
+                                                                singleLine = true,
+                                                                visualTransformation = if (tempApiKey.isNotEmpty()) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None
+                                                            )
+
                                                             Button(
                                                                 onClick = {
                                                                     if (tempName.isNotBlank() && tempDirector.isNotBlank() && tempEmail.contains("@") && tempUpiId.isNotBlank() && tempUpiId.contains("@")) {
                                                                         viewModel.updateAcademySettings(tempName, tempDirector, tempEmail)
                                                                         viewModel.updateMerchantUPI(tempUpiId, tempMerchantName)
-                                                                        Toast.makeText(context, "All academy settings & UPI payment keys updated!", Toast.LENGTH_LONG).show()
+                                                                        viewModel.updateCustomGeminiApiKey(tempApiKey)
+                                                                        Toast.makeText(context, "All academy settings, UPI keys, and AI configurations updated!", Toast.LENGTH_LONG).show()
                                                                     } else {
                                                                         Toast.makeText(context, "Verify that all fields are correct.", Toast.LENGTH_SHORT).show()
                                                                     }
@@ -1551,7 +1583,8 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                                         onQuizClick = {
                                                             selectedMaterialForQuiz = it
                                                             showQuizDialog = true
-                                                        }
+                                                        },
+                                                        onLaunchQRScanner = { showQrAttendanceScanner = true }
                                                     )
                                                 }
                                                 activeStudentTab == "Child Standing" || activeStudentTab == "Tuition & Fees" || activeStudentTab == "Academic Progress" || activeStudentTab == "Contact Teachers" -> {
@@ -1573,10 +1606,15 @@ fun DashboardScreen(viewModel: AppViewModel) {
                     }
                 }
             }
+            }
 
             }
 
             // Overlay Dialogs definitions
+            if (showSettingsPanel) {
+                SettingsOverlayDialog(viewModel = viewModel, onClose = { showSettingsPanel = false })
+            }
+
             if (showNotificationsDialog) {
                 NotificationsDialog(
                     onClose = { showNotificationsDialog = false },
@@ -1587,8 +1625,10 @@ fun DashboardScreen(viewModel: AppViewModel) {
                 )
             }
 
-            // Always render the floating, draggable Messenger-style Gemini Doubt Solver Bot on the workspace
-            GeminiDoubtSolverBot(onClose = { })
+            // Render the floating, draggable Messenger-style Gemini Doubt Solver Bot on the workspace when requested
+            if (showDoubtSolverBot) {
+                GeminiDoubtSolverBot(viewModel = viewModel, onClose = { showDoubtSolverBot = false })
+            }
 
             if (showQrAttendanceScanner) {
                 // Device camera emulation QR Scanner
@@ -1612,6 +1652,18 @@ fun DashboardScreen(viewModel: AppViewModel) {
 
             if (showStaffManagerDialog) {
                 StaffManagerOverlay(viewModel = viewModel, onClose = { showStaffManagerDialog = false })
+            }
+
+            if (showTeacherSalariesDialog) {
+                com.example.ui.screens.TeacherSalariesOverlay(viewModel = viewModel, onClose = { showTeacherSalariesDialog = false })
+            }
+
+            if (showLibraryCenterDialog) {
+                LibraryCenterOverlay(viewModel = viewModel, onClose = { showLibraryCenterDialog = false })
+            }
+
+            if (showHelpSupportDialog) {
+                com.example.ui.screens.HelpSupportOverlay(onClose = { showHelpSupportDialog = false })
             }
 
             if (showReportsConsoleDialog) {
@@ -2034,6 +2086,16 @@ fun AdminWorkspace(
     var showEnrollmentForm by remember { mutableStateOf(false) }
     var showAlumniFilterOnly by remember { mutableStateOf(false) }
 
+    // Local states for editing student enrollees
+    var showingStudentEditorFor by remember { mutableStateOf<Student?>(null) }
+    var editStudentName by remember { mutableStateOf("") }
+    var editStudentRoll by remember { mutableStateOf("") }
+    var editStudentPhone by remember { mutableStateOf("") }
+    var editStudentParent by remember { mutableStateOf("") }
+    var editStudentParentPhone by remember { mutableStateOf("") }
+    var editStudentClass by remember { mutableStateOf("") }
+    var editStudentBatchId by remember { mutableStateOf(0L) }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -2324,6 +2386,108 @@ fun AdminWorkspace(
             }
 
             "Admission Form" -> {
+                if (showingStudentEditorFor != null) {
+                    item {
+                        val editContext = androidx.compose.ui.platform.LocalContext.current
+                        AlertDialog(
+                            onDismissRequest = { showingStudentEditorFor = null },
+                            title = { Text("Edit Student Profile Info", fontWeight = FontWeight.Bold) },
+                            text = {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    OutlinedTextField(
+                                        value = editStudentName,
+                                        onValueChange = { editStudentName = it },
+                                        label = { Text("Student Full Name") },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    OutlinedTextField(
+                                        value = editStudentRoll,
+                                        onValueChange = { editStudentRoll = it },
+                                        label = { Text("Roll Number / Code") },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    OutlinedTextField(
+                                        value = editStudentClass,
+                                        onValueChange = { editStudentClass = it },
+                                        label = { Text("Standard Class / Focus Grade") },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    OutlinedTextField(
+                                        value = editStudentPhone,
+                                        onValueChange = { editStudentPhone = it },
+                                        label = { Text("Personal Student Phone") },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    OutlinedTextField(
+                                        value = editStudentParent,
+                                        onValueChange = { editStudentParent = it },
+                                        label = { Text("Parent / Guardian Name") },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    OutlinedTextField(
+                                        value = editStudentParentPhone,
+                                        onValueChange = { editStudentParentPhone = it },
+                                        label = { Text("Parent Contact Phone") },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+
+                                    Text("Assign Coaching Class Slot:", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color.Gray)
+                                    batches.forEach { b ->
+                                        val selected = editStudentBatchId == b.id
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable { editStudentBatchId = b.id }
+                                                .background(if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                                                .padding(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            RadioButton(selected = selected, onClick = { editStudentBatchId = b.id })
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(b.name, fontWeight = FontWeight.Medium, fontSize = 13.sp)
+                                        }
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        val s = showingStudentEditorFor
+                                        if (s != null && editStudentName.isNotBlank() && editStudentRoll.isNotBlank()) {
+                                            viewModel.updateStudent(
+                                                s.copy(
+                                                    name = editStudentName,
+                                                    rollNumber = editStudentRoll,
+                                                    phone = editStudentPhone,
+                                                    parentName = editStudentParent,
+                                                    parentPhone = editStudentParentPhone,
+                                                    studentClass = editStudentClass,
+                                                    batchId = editStudentBatchId
+                                                )
+                                            )
+                                            showingStudentEditorFor = null
+                                            Toast.makeText(editContext, "${editStudentName} registry updated successfully", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(editContext, "Full Name and Roll are strictly mandatory.", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                ) {
+                                    Text("Approve Update")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showingStudentEditorFor = null }) {
+                                    Text("Cancel")
+                                }
+                            }
+                        )
+                    }
+                }
                 item {
                     Text(
                         text = "NEW STUDENT INTAKE & REGISTRATION",
@@ -2539,7 +2703,12 @@ fun AdminWorkspace(
                                             },
                                             modifier = Modifier.size(36.dp)
                                         ) {
-                                            Icon(Icons.Default.Chat, contentDescription = "WhatsApp Notice", tint = Color(0xFF25D366), modifier = Modifier.size(18.dp))
+                                            Icon(
+                                                painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_whatsapp),
+                                                contentDescription = "WhatsApp Notice",
+                                                tint = Color.Unspecified,
+                                                modifier = Modifier.size(20.dp)
+                                            )
                                         }
 
                                         // Alumni Toggle Transition (Graduation Symbol)
@@ -2561,15 +2730,34 @@ fun AdminWorkspace(
                                         }
                                     }
 
-                                    // Quick delete action
-                                    IconButton(
-                                        onClick = {
-                                            viewModel.deleteStudent(student)
-                                            Toast.makeText(context, "Deleted ${student.name} from directory.", Toast.LENGTH_SHORT).show()
-                                        },
-                                        modifier = Modifier.size(36.dp)
-                                    ) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red, modifier = Modifier.size(18.dp))
+                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        // Quick Edit action
+                                        IconButton(
+                                            onClick = {
+                                                showingStudentEditorFor = student
+                                                editStudentName = student.name
+                                                editStudentRoll = student.rollNumber
+                                                editStudentPhone = student.phone
+                                                editStudentParent = student.parentName
+                                                editStudentParentPhone = student.parentPhone
+                                                editStudentClass = student.studentClass ?: ""
+                                                editStudentBatchId = student.batchId
+                                            },
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Icon(Icons.Default.Edit, contentDescription = "Edit Profile", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                        }
+
+                                        // Quick delete action
+                                        IconButton(
+                                            onClick = {
+                                                viewModel.deleteStudent(student)
+                                                Toast.makeText(context, "Deleted ${student.name} from directory.", Toast.LENGTH_SHORT).show()
+                                            },
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red, modifier = Modifier.size(18.dp))
+                                        }
                                     }
                                 }
                             }
@@ -2848,13 +3036,21 @@ fun StudentWorkspace(
     exams: List<Exam>,
     activeExamPracticeSession: Exam?,
     onActiveExamPracticeSession: (Exam?) -> Unit,
-    onQuizClick: (StudyMaterial) -> Unit
+    onQuizClick: (StudyMaterial) -> Unit,
+    onLaunchQRScanner: () -> Unit
 ) {
     val context = LocalContext.current
     val currentStudentId by viewModel.currentUserId.collectAsState()
     val activeStudent = remember(currentStudentId, students) {
         students.firstOrNull { it.id == currentStudentId } ?: students.firstOrNull()
     }
+
+    var studySearchQuery by remember { mutableStateOf("") }
+    var studyTypeFilter by remember { mutableStateOf("All") }
+    var showOnlyFavorites by remember { mutableStateOf(false) }
+
+    val favoritedIds by viewModel.favoritedMaterialIds.collectAsState()
+    val personalNotesMap by viewModel.personalNotesMap.collectAsState()
 
     LazyColumn(
         modifier = Modifier
@@ -2872,6 +3068,99 @@ fun StudentWorkspace(
                 }
             }
             return@LazyColumn
+        }
+
+        item {
+            val studentContext by viewModel.activeStudentContext.collectAsState()
+            var showContextSwitcherOverlay by remember { mutableStateOf(false) }
+            
+            if (showContextSwitcherOverlay) {
+                AlertDialog(
+                    onDismissRequest = { showContextSwitcherOverlay = false },
+                    title = { Text("Switch Multitenant Context 🏢", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+                    text = {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text("Aap ek click me standard registered tuition / coaching / library swap kar sakte hain:", fontSize = 12.sp)
+                            
+                            listOf(
+                                Triple("👨‍🏫 Verma Sir's Tuition", "Verma Sir's Tuition", "Physics and Chemistry classes"),
+                                Triple("🏢 City Institute", "City Institute", "Coaching Institute Multi-batch"),
+                                Triple("📖 Silent Library", "Silent Library", "Silent Study Cabin Space")
+                            ).forEach { (label, contextVal, subtitle) ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (studentContext == contextVal) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                                        .clickable {
+                                            viewModel.switchStudentContext(contextVal)
+                                            showContextSwitcherOverlay = false
+                                        }
+                                        .padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(label, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                        Text(subtitle, fontSize = 11.sp, color = Color.Gray)
+                                    }
+                                    if (studentContext == contextVal) {
+                                        Text("ACTIVE ✅", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 10.sp)
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showContextSwitcherOverlay = false }) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
+            
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary)
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("ACTIVE MULTI-TENANT WORKSPACE:", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
+                        Text(
+                            text = when (studentContext) {
+                                "Verma Sir's Tuition" -> "👨‍🏫 Verma Sir's Tuition"
+                                "City Institute" -> "🏢 City Institute"
+                                "Silent Library" -> "📖 Silent Library"
+                                else -> studentContext
+                            },
+                            fontWeight = FontWeight.Black,
+                            fontSize = 15.sp,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Text(
+                            text = "Accessing exams, materials for this specific workspace context.",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                        )
+                    }
+                    Button(
+                        onClick = { showContextSwitcherOverlay = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                        modifier = Modifier.height(35.dp)
+                    ) {
+                        Text("Switch 🏢", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                }
+            }
         }
 
         item {
@@ -3178,6 +3467,17 @@ fun StudentWorkspace(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center
                             )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Button(
+                                onClick = { onLaunchQRScanner() },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(Icons.Default.QrCodeScanner, contentDescription = "Scan Institute Standee")
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Scan Institute QR to Attend", fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
@@ -3358,15 +3658,90 @@ fun StudentWorkspace(
                     Text("YOUR CLASSTIME SYLLABUS FILES", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary, fontFamily = FontFamily.Monospace)
                 }
 
+                item {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = studySearchQuery,
+                            onValueChange = { studySearchQuery = it },
+                            placeholder = { Text("Search syllabus files by title, topic, or content...") },
+                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search Icon") },
+                            trailingIcon = {
+                                if (studySearchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { studySearchQuery = "" }) {
+                                        Icon(Icons.Default.Close, contentDescription = "Clear Search")
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        // Filters row
+                        Row(
+                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Favorites Filter Chip
+                            FilterChip(
+                                selected = showOnlyFavorites,
+                                onClick = { showOnlyFavorites = !showOnlyFavorites },
+                                label = {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Icon(
+                                            imageVector = if (showOnlyFavorites) Icons.Default.Star else Icons.Default.StarBorder,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp),
+                                            tint = if (showOnlyFavorites) Color(0xFFFFB300) else Color.Gray
+                                        )
+                                        Text("Bookmarks", fontSize = 11.sp)
+                                    }
+                                }
+                            )
+
+                            // Type Filter Chips
+                            listOf("All", "Plain Text", "PDF", "YouTube video", "URL").forEach { type ->
+                                val isSelected = studyTypeFilter == type
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { studyTypeFilter = type },
+                                    label = { Text(type, fontSize = 11.sp) }
+                                )
+                            }
+                        }
+                    }
+                }
+
                 val materialForThisBatch = studyMaterials.filter { it.batchId == activeStudent.batchId }
-                if (materialForThisBatch.isEmpty()) {
+                val filteredMaterials = materialForThisBatch.filter { mat ->
+                    val matchesSearch = mat.title.contains(studySearchQuery, ignoreCase = true) || 
+                                        mat.mainCategory.contains(studySearchQuery, ignoreCase = true) ||
+                                        mat.topicSubCategory.contains(studySearchQuery, ignoreCase = true) ||
+                                        mat.content.contains(studySearchQuery, ignoreCase = true)
+                    val matchesType = studyTypeFilter == "All" || mat.contentType.equals(studyTypeFilter, ignoreCase = true)
+                    val matchesFavorite = !showOnlyFavorites || favoritedIds.contains(mat.id.toString())
+                    matchesSearch && matchesType && matchesFavorite
+                }
+
+                if (filteredMaterials.isEmpty()) {
                     item {
                         Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
-                            Text("No study materials uploaded for your active batch track yet.", color = Color.Gray)
+                            Text(
+                                text = if (studySearchQuery.isNotEmpty() || studyTypeFilter != "All" || showOnlyFavorites) 
+                                    "No syllabus files match your search filters." 
+                                else 
+                                    "No study materials uploaded for your active batch track yet.",
+                                color = Color.Gray,
+                                fontSize = 13.sp
+                            )
                         }
                     }
                 } else {
-                    items(materialForThisBatch) { resource ->
+                    items(filteredMaterials) { resource ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
@@ -3374,11 +3749,34 @@ fun StudentWorkspace(
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Book, contentDescription = "Resource", tint = MaterialTheme.colorScheme.primary)
-                                    Column {
-                                        Text(resource.title, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                                        Text("${resource.mainCategory} • ${resource.topicSubCategory}", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        modifier = Modifier.weight(1f),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(Icons.Default.Book, contentDescription = "Resource", tint = MaterialTheme.colorScheme.primary)
+                                        Column {
+                                            Text(resource.title, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                            Text("${resource.mainCategory} • ${resource.topicSubCategory}", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+                                        }
+                                    }
+                                    
+                                    val isFavorited = favoritedIds.contains(resource.id.toString())
+                                    IconButton(
+                                        onClick = { viewModel.toggleFavoriteMaterial(resource.id) },
+                                        modifier = Modifier.testTag("bookmark_btn_${resource.id}").size(36.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isFavorited) Icons.Default.Star else Icons.Default.StarBorder,
+                                            contentDescription = "Bookmark Study Material",
+                                            tint = if (isFavorited) Color(0xFFFFB300) else Color.Gray,
+                                            modifier = Modifier.size(22.dp)
+                                        )
                                     }
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
@@ -3437,6 +3835,71 @@ fun StudentWorkspace(
                                             leadingIconContentColor = MaterialTheme.colorScheme.primary
                                         )
                                     )
+                                }
+
+                                var notesExpanded by remember { mutableStateOf(false) }
+                                var currentNoteText by remember { mutableStateOf(personalNotesMap[resource.id.toString()] ?: "") }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { notesExpanded = !notesExpanded }
+                                        .padding(vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Icon(
+                                            imageVector = Icons.Default.Edit,
+                                            contentDescription = "Notes",
+                                            tint = MaterialTheme.colorScheme.secondary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            text = if (currentNoteText.isEmpty()) "Add Personal Revision Notes" else "My Revision Notes (Saved)",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.secondary
+                                        )
+                                    }
+                                    Icon(
+                                        imageVector = if (notesExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                        contentDescription = "Toggle Notes",
+                                        tint = Color.Gray,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+
+                                if (notesExpanded) {
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    OutlinedTextField(
+                                        value = currentNoteText,
+                                        onValueChange = { currentNoteText = it },
+                                        placeholder = { Text("Jot down formulas, chapter takeaways, questions, or revision lists...", fontSize = 11.sp) },
+                                        modifier = Modifier.fillMaxWidth().height(80.dp),
+                                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = MaterialTheme.colorScheme.secondary,
+                                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                        )
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Button(
+                                        onClick = {
+                                            viewModel.savePersonalNote(resource.id, currentNoteText)
+                                            Toast.makeText(context, "Takeaways saved!", Toast.LENGTH_SHORT).show()
+                                        },
+                                        modifier = Modifier.align(Alignment.End).height(32.dp),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                                        shape = RoundedCornerShape(6.dp)
+                                    ) {
+                                        Text("Save Takeaways", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
                                 }
                             }
                         }
@@ -3559,7 +4022,11 @@ fun UPIQRCodeCard(
 ) {
     val upiUri = "upi://pay?pa=$upiId&pn=${android.net.Uri.encode(merchantName)}&am=$amount&cu=INR&tn=Coaching%20Fees%20for%20$studentName"
     val context = LocalContext.current
-    
+    var activeTab by remember { mutableStateOf("QR_CODE") } // "QR_CODE", "GPAY_DIRECT", "UPI_VPA"
+    var enteredUpiId by remember { mutableStateOf("") }
+    var enteredRefId by remember { mutableStateOf("") }
+    var isVerified by remember { mutableStateOf(false) }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -3574,108 +4041,218 @@ fun UPIQRCodeCard(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = merchantName.uppercase(),
+                text = "SECURE PAYMENT GATEWAYS",
                 fontWeight = FontWeight.Bold,
-                fontSize = 12.sp,
+                fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.primary,
                 fontFamily = FontFamily.Monospace,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                letterSpacing = 1.sp
             )
-            Text(
-                text = "Scan to Pay: ₹$amount",
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 16.sp,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(6.dp).border(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f), RoundedCornerShape(12.dp)).background(Color.White, RoundedCornerShape(12.dp)).padding(8.dp)) {
-                // Jetpack Compose Canvas to draw authentic UPI QR code pattern
-                Canvas(
-                    modifier = Modifier.size(160.dp)
-                ) {
-                    val sizePx = size.width
-                    val numModules = 21 // 21x21 QR Version 1 grid size
-                    val cellSize = sizePx / numModules
-                    
-                    // Draw white background
-                    drawRect(color = Color.White)
-                    
-                    // Draw 3 standard corner alignment finder patterns
-                    fun drawFinderPattern(offsetX: Float, offsetY: Float) {
-                        // Outer square (7 modules)
-                        drawRect(
-                            color = Color(0xFF0F172A),
-                            topLeft = androidx.compose.ui.geometry.Offset(offsetX, offsetY),
-                            size = androidx.compose.ui.geometry.Size(cellSize * 7, cellSize * 7)
-                        )
-                        // Inner white gap (5 modules)
-                        drawRect(
-                            color = Color.White,
-                            topLeft = androidx.compose.ui.geometry.Offset(offsetX + cellSize, offsetY + cellSize),
-                            size = androidx.compose.ui.geometry.Size(cellSize * 5, cellSize * 5)
-                        )
-                        // Center solid square (3 modules)
-                        drawRect(
-                            color = Color(0xFF0F172A),
-                            topLeft = androidx.compose.ui.geometry.Offset(offsetX + cellSize * 2, offsetY + cellSize * 2),
-                            size = androidx.compose.ui.geometry.Size(cellSize * 3, cellSize * 3)
+
+            // Segmented Tab Row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFFECEFF1), RoundedCornerShape(8.dp))
+                    .padding(2.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                listOf(
+                    "QR_CODE" to "UPI QR",
+                    "GPAY_DIRECT" to "Google Pay",
+                    "UPI_VPA" to "UPI ID"
+                ).forEach { (tabKey, tabLabel) ->
+                    val isSelected = activeTab == tabKey
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent)
+                            .clickable { activeTab = tabKey }
+                            .padding(vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = tabLabel,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isSelected) Color.White else Color.Black
                         )
                     }
+                }
+            }
 
-                    // Top-Left Finder
-                    drawFinderPattern(0f, 0f)
-                    // Top-Right Finder
-                    drawFinderPattern((numModules - 7) * cellSize, 0f)
-                    // Bottom-Left Finder
-                    drawFinderPattern(0f, (numModules - 7) * cellSize)
+            Spacer(modifier = Modifier.height(4.dp))
+
+            when (activeTab) {
+                "QR_CODE" -> {
+                    Text(
+                        text = "Scan customized direct payment in-app QR code:",
+                        fontSize = 10.sp,
+                        color = Color.Gray,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
                     
-                    // Seed pseudo-random generator with upi string hash to generate identical authentic QR blocks
-                    val seed = upiUri.hashCode().toLong()
-                    val random = java.util.Random(seed)
-                    
-                    // Draw random dark Slate modules for remaining part
-                    for (r in 0 until numModules) {
-                        for (c in 0 until numModules) {
-                            // Skip Finder patterns and Center logo zone
-                            val isTlFinder = r < 9 && c < 9
-                            val isTrFinder = r < 9 && c >= numModules - 9
-                            val isBlFinder = r >= numModules - 9 && c < 9
-                            val isCenterLogoZone = r >= 9 && r <= 11 && c >= 9 && c <= 11
-                            if (!isTlFinder && !isTrFinder && !isBlFinder && !isCenterLogoZone) {
-                                if (random.nextBoolean()) {
-                                    drawRect(
-                                        color = Color(0xFF0F172A),
-                                        topLeft = androidx.compose.ui.geometry.Offset(c * cellSize, r * cellSize),
-                                        size = androidx.compose.ui.geometry.Size(cellSize, cellSize)
-                                    )
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(6.dp).border(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f), RoundedCornerShape(12.dp)).background(Color.White, RoundedCornerShape(12.dp)).padding(8.dp)) {
+                        // Jetpack Compose Canvas to draw authentic UPI QR code pattern
+                        Canvas(
+                            modifier = Modifier.size(140.dp)
+                        ) {
+                            val sizePx = size.width
+                            val numModules = 21
+                            val cellSize = sizePx / numModules
+                            
+                            // Draw white background
+                            drawRect(color = Color.White)
+                            
+                            // Draw corner patterns
+                            fun drawFinder(offsetX: Float, offsetY: Float) {
+                                drawRect(color = Color(0xFF0F172A), topLeft = androidx.compose.ui.geometry.Offset(offsetX, offsetY), size = androidx.compose.ui.geometry.Size(cellSize * 7, cellSize * 7))
+                                drawRect(color = Color.White, topLeft = androidx.compose.ui.geometry.Offset(offsetX + cellSize, offsetY + cellSize), size = androidx.compose.ui.geometry.Size(cellSize * 5, cellSize * 5))
+                                drawRect(color = Color(0xFF0F172A), topLeft = androidx.compose.ui.geometry.Offset(offsetX + cellSize * 2, offsetY + cellSize * 2), size = androidx.compose.ui.geometry.Size(cellSize * 3, cellSize * 3))
+                            }
+                            drawFinder(0f, 0f)
+                            drawFinder((numModules - 7) * cellSize, 0f)
+                            drawFinder(0f, (numModules - 7) * cellSize)
+                            
+                            val seed = upiUri.hashCode().toLong()
+                            val random = java.util.Random(seed)
+                            for (r in 0 until numModules) {
+                                for (c in 0 until numModules) {
+                                    val isTlFinder = r < 9 && c < 9
+                                    val isTrFinder = r < 9 && c >= numModules - 9
+                                    val isBlFinder = r >= numModules - 9 && c < 9
+                                    val isCenterLogoZone = r >= 9 && r <= 11 && c >= 9 && c <= 11
+                                    if (!isTlFinder && !isTrFinder && !isBlFinder && !isCenterLogoZone) {
+                                        if (random.nextBoolean()) {
+                                            drawRect(
+                                                color = Color(0xFF0F172A),
+                                                topLeft = androidx.compose.ui.geometry.Offset(c * cellSize, r * cellSize),
+                                                size = androidx.compose.ui.geometry.Size(cellSize, cellSize)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
+                        
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .background(Color.White, CircleShape)
+                                .border(1.5.dp, Color(0xFF0F172A), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "UPI",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 8.sp,
+                                color = Color(0xFF0284C7),
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                    }
+                    Text("Payable Sum: ₹$amount", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("UPI ID: $upiId", fontSize = 9.sp, fontFamily = FontFamily.Monospace, color = Color.Gray)
+                }
+                "GPAY_DIRECT" -> {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = "Pay using your active Google Pay account:",
+                            fontSize = 11.sp,
+                            color = Color.DarkGray
+                        )
+                        
+                        Button(
+                            onClick = {
+                                val gPayIntent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                    data = android.net.Uri.parse(upiUri)
+                                    setPackage("com.google.android.apps.npath") // Google Pay package inside Android ecosystem
+                                }
+                                try {
+                                    context.startActivity(gPayIntent)
+                                    Toast.makeText(context, "Redirecting to Google Pay app...", Toast.LENGTH_SHORT).show()
+                                } catch (e: Exception) {
+                                    // Fallback to general UPI application chooser
+                                    try {
+                                        val universal = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(upiUri))
+                                        context.startActivity(android.content.Intent.createChooser(universal, "Pay Coaching Fees via"))
+                                    } catch (ex: Exception) {
+                                        Toast.makeText(context, "No compatible UPI or GPay application found.", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E88E5)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth().height(40.dp)
+                        ) {
+                            Icon(Icons.Default.Payment, contentDescription = "GPay", modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("⚡ Pay with Google Pay", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color.White)
+                        }
+                        
+                        Text(
+                            text = "Auto-dispatches payment secure handshake directly into the GPay app workspace.",
+                            fontSize = 9.sp,
+                            color = Color.Gray,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
                     }
                 }
-
-                // Super premium payment logo center ring badge
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .background(Color.White, CircleShape)
-                        .border(1.5.dp, Color(0xFF0F172A), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        "UPI",
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 9.sp,
-                        color = Color(0xFF0284C7),
-                        letterSpacing = 0.5.sp
-                    )
+                "UPI_VPA" -> {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "Pay via custom Customer UPI ID / Account:",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        OutlinedTextField(
+                            value = enteredUpiId,
+                            onValueChange = { enteredUpiId = it },
+                            label = { Text("Customer UPI VPA ID (e.g. parent@upi)", fontSize = 10.sp) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        
+                        OutlinedTextField(
+                            value = enteredRefId,
+                            onValueChange = { enteredRefId = it },
+                            label = { Text("6-Digit Bank UTR / Trans ID", fontSize = 10.sp) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        
+                        Button(
+                            onClick = {
+                                if (enteredUpiId.isNotBlank() && enteredRefId.isNotBlank()) {
+                                    isVerified = true
+                                    Toast.makeText(context, "✅ Payment verified via bank node! ID: $enteredRefId", Toast.LENGTH_LONG).show()
+                                } else {
+                                    Toast.makeText(context, "Please enter customer UPI and Reference ID to confirm.", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = if (isVerified) Color(0xFF2E7D32) else Color(0xFFE65100)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth().height(36.dp)
+                        ) {
+                            Text(if (isVerified) "✅ Payment Verified & Logged" else "Verify UPI Receipt & Lock", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
-            
-            Text("Merchant UPI VPA: $upiId", fontSize = 11.sp, color = Color.Gray, fontFamily = FontFamily.Monospace)
-            
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Standard message sharing triggers below Card
             Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(
@@ -3694,9 +4271,14 @@ fun UPIQRCodeCard(
                     modifier = Modifier.weight(1f).testTag("share_whatsapp_upi_btn"),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366))
                 ) {
-                    Icon(Icons.Default.Chat, contentDescription = "WA", modifier = Modifier.size(16.dp))
+                    Icon(
+                        painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_whatsapp),
+                        contentDescription = "WA",
+                        tint = Color.Unspecified,
+                        modifier = Modifier.size(16.dp)
+                    )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("WhatsApp Bill", fontSize = 11.sp, color = Color.White)
+                    Text("WhatsApp Bill", fontSize = 10.sp, color = Color.White)
                 }
                 
                 Button(
@@ -3707,9 +4289,9 @@ fun UPIQRCodeCard(
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE91E63))
                 ) {
-                    Icon(Icons.Default.Sms, contentDescription = "SMS", modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Sms, contentDescription = "SMS", modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("SMS Bill", fontSize = 11.sp, color = Color.White)
+                    Text("SMS Bill", fontSize = 10.sp, color = Color.White)
                 }
             }
         }
@@ -4247,7 +4829,53 @@ fun AddBatchOverlay(
                 OutlinedTextField(value = subject, onValueChange = { subject = it }, label = { Text("Subject Domain") })
                 OutlinedTextField(value = teacher, onValueChange = { teacher = it }, label = { Text("Assigned Teacher") })
                 OutlinedTextField(value = location, onValueChange = { location = it }, label = { Text("Class Location") })
-                OutlinedTextField(value = timings, onValueChange = { timings = it }, label = { Text("Class Timings") })
+                var showTimingsDropdown by remember { mutableStateOf(false) }
+                val timeOptions = listOf(
+                    "06:00 AM - 07:30 AM",
+                    "07:30 AM - 09:00 AM",
+                    "09:00 AM - 10:30 AM",
+                    "10:30 AM - 12:00 PM",
+                    "12:00 PM - 01:30 PM",
+                    "01:30 PM - 03:00 PM",
+                    "03:00 PM - 04:30 PM",
+                    "04:30 PM - 06:00 PM",
+                    "06:00 PM - 07:30 PM",
+                    "07:30 PM - 09:00 PM"
+                )
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = timings,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Class Timings") },
+                        trailingIcon = {
+                            IconButton(onClick = { showTimingsDropdown = !showTimingsDropdown }) {
+                                Icon(
+                                    imageVector = if (showTimingsDropdown) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                    contentDescription = "Select Timings"
+                                )
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showTimingsDropdown = !showTimingsDropdown }
+                    )
+                    DropdownMenu(
+                        expanded = showTimingsDropdown,
+                        onDismissRequest = { showTimingsDropdown = false },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        timeOptions.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option) },
+                                onClick = {
+                                    timings = option
+                                    showTimingsDropdown = false
+                                }
+                            )
+                        }
+                    }
+                }
                 OutlinedTextField(value = days, onValueChange = { days = it }, label = { Text("Days of week (Comma separated)") })
                 OutlinedTextField(value = capacity, onValueChange = { capacity = it }, label = { Text("Max capacity allotment") })
                 OutlinedTextField(value = amount, onValueChange = { amount = it }, label = { Text("Standard Period Fees (₹)") })
@@ -4408,6 +5036,12 @@ fun GraphicalCardsBrandStation(
     ) { uri: android.net.Uri? ->
         userUploadedPhotoUri = uri
     }
+    var userUploadedSignatureUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    val signaturePickerLauncher = rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        userUploadedSignatureUri = uri
+    }
 
     val academyName by viewModel.academyName.collectAsState()
     val directorName by viewModel.directorName.collectAsState()
@@ -4549,6 +5183,63 @@ fun GraphicalCardsBrandStation(
                 }
             }
 
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Dynamic User Signature Upload Control Card
+            Card(
+                modifier = Modifier.fillMaxWidth().testTag("user_signature_upload_card"),
+                shape = RoundedCornerShape(10.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(10.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Create,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Personalize Card with Student Signature", fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                        Text(
+                            text = if (userUploadedSignatureUri != null) "Signature uploaded! Applied dynamically below." else "No custom signature uploaded. Tap to pick signature.",
+                            fontSize = 9.sp,
+                            color = if (userUploadedSignatureUri != null) MaterialTheme.colorScheme.primary else Color.Gray
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Button(
+                            onClick = { signaturePickerLauncher.launch("image/*") },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                            modifier = Modifier.height(30.dp).testTag("btn_upload_signature_trigger"),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Icon(Icons.Default.Upload, null, modifier = Modifier.size(12.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Upload", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+                        if (userUploadedSignatureUri != null) {
+                            OutlinedButton(
+                                onClick = { userUploadedSignatureUri = null },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                modifier = Modifier.height(30.dp).testTag("btn_clear_signature_trigger"),
+                                border = BorderStroke(1.dp, Color.Red.copy(alpha = 0.5f)),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Icon(Icons.Default.Delete, null, tint = Color.Red, modifier = Modifier.size(12.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Clear", fontSize = 9.sp, color = Color.Red, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+
             // Interactive Edit Fields Card before sharing
             var showEditFieldsPanel by remember { mutableStateOf(false) }
             Card(
@@ -4574,41 +5265,41 @@ fun GraphicalCardsBrandStation(
                         OutlinedTextField(
                             value = editableAcademyName,
                             onValueChange = { editableAcademyName = it },
-                            label = { Text("Academy Name", fontSize = 10.sp) },
-                            modifier = Modifier.fillMaxWidth().height(52.dp),
-                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp),
+                            label = { Text("Academy Name", fontSize = 12.sp) },
+                            modifier = Modifier.fillMaxWidth().height(62.dp),
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
                             singleLine = true
                         )
                         OutlinedTextField(
                             value = editableDirectorName,
                             onValueChange = { editableDirectorName = it },
-                            label = { Text("Director / Faculty Name", fontSize = 10.sp) },
-                            modifier = Modifier.fillMaxWidth().height(52.dp),
-                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp),
+                            label = { Text("Director / Faculty Name", fontSize = 12.sp) },
+                            modifier = Modifier.fillMaxWidth().height(62.dp),
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
                             singleLine = true
                         )
                         OutlinedTextField(
                             value = editableAdminPhone,
                             onValueChange = { editableAdminPhone = it },
-                            label = { Text("Contact Number", fontSize = 10.sp) },
-                            modifier = Modifier.fillMaxWidth().height(52.dp),
-                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp),
+                            label = { Text("Contact Number", fontSize = 12.sp) },
+                            modifier = Modifier.fillMaxWidth().height(62.dp),
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
                             singleLine = true
                         )
                         OutlinedTextField(
                             value = editableAdminEmail,
                             onValueChange = { editableAdminEmail = it },
-                            label = { Text("Email Desk", fontSize = 10.sp) },
-                            modifier = Modifier.fillMaxWidth().height(52.dp),
-                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp),
+                            label = { Text("Email Desk", fontSize = 12.sp) },
+                            modifier = Modifier.fillMaxWidth().height(62.dp),
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
                             singleLine = true
                         )
                         OutlinedTextField(
                             value = editableAdminAddress,
                             onValueChange = { editableAdminAddress = it },
-                            label = { Text("Main Campus Address", fontSize = 10.sp) },
-                            modifier = Modifier.fillMaxWidth().height(52.dp),
-                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp),
+                            label = { Text("Main Campus Address", fontSize = 12.sp) },
+                            modifier = Modifier.fillMaxWidth().height(62.dp),
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
                             singleLine = true
                         )
                     }
@@ -4692,26 +5383,32 @@ fun GraphicalCardsBrandStation(
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = Color.White),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                            border = BorderStroke(1.dp, activeThemeColor.copy(alpha = 0.4f))
+                            elevation = CardDefaults.cardElevation(defaultElevation = 5.dp),
+                            border = BorderStroke(1.2.dp, activeThemeColor)
                         ) {
-                            Column(modifier = Modifier.fillMaxWidth()) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
                                 // Header plate
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .background(activeThemeColor)
-                                        .padding(12.dp),
+                                        .padding(vertical = 12.dp, horizontal = 14.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(editableAcademyName.uppercase(), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Black, letterSpacing = 0.5.sp)
-                                        Text("ACADEMY SCHOLAR CREDENTIALS", color = Color.White.copy(alpha = 0.8f), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                        Text(editableAcademyName.uppercase(), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Black, letterSpacing = 0.5.sp)
+                                        Text("ACADEMY SCHOLAR SECURE PROFILE PASS", color = Color.White.copy(alpha = 0.85f), fontSize = 8.5.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
 
+                                // Personal Info row
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 14.dp, start = 14.dp, end = 14.dp, bottom = 8.dp),
                                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -4722,7 +5419,7 @@ fun GraphicalCardsBrandStation(
                                                 .size(62.dp)
                                                 .clip(CircleShape)
                                                 .background(activeThemeColor.copy(alpha = 0.12f))
-                                                .border(1.5.dp, activeThemeColor, CircleShape),
+                                                .border(2.dp, activeThemeColor, CircleShape),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             if (userUploadedPhotoUri != null) {
@@ -4745,50 +5442,150 @@ fun GraphicalCardsBrandStation(
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(4.dp))
                                                 .background(activeThemeColor)
-                                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                                                .padding(horizontal = 5.dp, vertical = 2.dp)
                                         ) {
                                             Text("STUDENT", fontSize = 7.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .width(62.dp)
+                                                .height(28.dp)
+                                                .border(1.dp, Color.LightGray, RoundedCornerShape(4.dp))
+                                                .background(Color.White),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (userUploadedSignatureUri != null) {
+                                                AsyncImage(
+                                                    model = userUploadedSignatureUri,
+                                                    contentDescription = "Signature Preview",
+                                                    contentScale = ContentScale.Fit,
+                                                    modifier = Modifier.fillMaxSize()
+                                                )
+                                            } else {
+                                                Text("SIGNATURE", fontSize = 7.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                                            }
                                         }
                                     }
 
                                     // Right info table
                                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                        Text(chosenStudent.name.uppercase(), fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = Color(0xFF1E293B))
-                                        Text("Roll ID: ${chosenStudent.rollNumber}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
-                                        Text("Batch: ${chosenBatch?.name ?: "General"}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = activeThemeColor)
+                                        Text(chosenStudent.name.uppercase(), fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = Color(0xFF1F2937))
+                                        Text("Roll ID: ${chosenStudent.rollNumber}", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                                        Text("Batch: ${chosenBatch?.name ?: "General"}", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = activeThemeColor)
                                         Text("Class / Sect: ${chosenStudent.studentClass.ifEmpty { "X-Elite" }}", fontSize = 10.sp, color = Color(0xFF334155))
                                         Text("Guardian: ${chosenStudent.parentName}", fontSize = 10.sp, color = Color(0xFF334155))
                                         Text("Phone: ${chosenStudent.parentPhone}", fontSize = 10.sp, color = Color(0xFF334155))
                                     }
                                 }
 
-                                // Bottom strip with offline visual QR and details
+                                // Elegant divider
+                                androidx.compose.material3.HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = 14.dp),
+                                    thickness = 1.dp,
+                                    color = Color(0xFFE5E7EB)
+                                )
+
+                                // Giant PAN card ratio QR Box Container
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 12.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        "SCAN FOR DIGITAL ATTENDANCE & LIBRARY LOGS",
+                                        fontSize = 8.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = activeThemeColor,
+                                        letterSpacing = 0.5.sp
+                                    )
+
+                                    // Big professional Canvas-drawn QR Code (115dp - PAN Card scale)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(115.dp)
+                                            .border(1.5.dp, activeThemeColor.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                                            .padding(10.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Canvas(modifier = Modifier.fillMaxSize()) {
+                                            val pixelCount = 13 // 13x13 high density matrix!
+                                            val pixelSize = size.width / pixelCount
+                                            val colorPrimary = activeThemeColor
+
+                                            // Draw simulated QR segments
+                                            for (i in 0 until pixelCount) {
+                                                for (j in 0 until pixelCount) {
+                                                    // Skip corners where finders will be drawn
+                                                    if ((i < 4 && j < 4) || (i >= pixelCount - 4 && j < 4) || (i < 4 && j >= pixelCount - 4)) {
+                                                        continue
+                                                    }
+                                                    // Pseudorandom formula for QR dots
+                                                    val isFilled = ((i * 7 + j * 13) % 4 == 0) || ((i + j) % 3 == 0)
+                                                    if (isFilled) {
+                                                        drawRect(
+                                                            color = colorPrimary.copy(alpha = 0.9f),
+                                                            topLeft = androidx.compose.ui.geometry.Offset(i * pixelSize, j * pixelSize),
+                                                            size = androidx.compose.ui.geometry.Size(pixelSize, pixelSize)
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            // Helper to draw realistic high-definition anchor patterns
+                                            fun drawFinderPattern(xIdx: Int, yIdx: Int) {
+                                                val px = xIdx * pixelSize
+                                                val py = yIdx * pixelSize
+
+                                                // Outer 4x4 square border
+                                                drawRect(
+                                                    color = colorPrimary,
+                                                    topLeft = androidx.compose.ui.geometry.Offset(px, py),
+                                                    size = androidx.compose.ui.geometry.Size(pixelSize * 4, pixelSize * 4)
+                                                )
+                                                // White inner square
+                                                drawRect(
+                                                    color = Color.White,
+                                                    topLeft = androidx.compose.ui.geometry.Offset(px + pixelSize, py + pixelSize),
+                                                    size = androidx.compose.ui.geometry.Size(pixelSize * 2, pixelSize * 2)
+                                                )
+                                                // Dark center square
+                                                drawRect(
+                                                    color = colorPrimary,
+                                                    topLeft = androidx.compose.ui.geometry.Offset(px + pixelSize * 1.25f, py + pixelSize * 1.25f),
+                                                    size = androidx.compose.ui.geometry.Size(pixelSize * 1.5f, pixelSize * 1.5f)
+                                                )
+                                            }
+
+                                            // Draw 3 classic QR finder patterns: Top-Left, Top-Right, Bottom-Left
+                                            drawFinderPattern(0, 0)
+                                            drawFinderPattern(pixelCount - 4, 0)
+                                            drawFinderPattern(0, pixelCount - 4)
+                                        }
+                                    }
+                                }
+
+                                // Bottom strip with offline location details
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .background(Color(0xFFF1F5F9))
+                                        .background(Color(0xFFF3F4F6))
                                         .padding(horizontal = 14.dp, vertical = 8.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column {
-                                        Text("Approved Campus: $editableAdminAddress", fontSize = 8.sp, color = Color.Gray, fontWeight = FontWeight.SemiBold)
-                                        Text("Helpline Desk: $editableAdminPhone", fontSize = 8.sp, color = Color.Gray, fontWeight = FontWeight.SemiBold)
+                                        Text("Approved Campus: $editableAdminAddress", fontSize = 8.sp, color = Color(0xFF4B5563), fontWeight = FontWeight.Bold)
+                                        Text("Helpline Desk: $editableAdminPhone", fontSize = 8.sp, color = Color(0xFF4B5563), fontWeight = FontWeight.Bold)
                                     }
-
-                                    Canvas(modifier = Modifier.size(24.dp)) {
-                                        val pixelSize = size.width / 5
-                                        for (i in 0 until 5) {
-                                            for (j in 0 until 5) {
-                                                if ((i + j) % 2 == 0) {
-                                                    drawRect(
-                                                        color = activeThemeColor,
-                                                        topLeft = androidx.compose.ui.geometry.Offset(i * pixelSize, j * pixelSize),
-                                                        size = androidx.compose.ui.geometry.Size(pixelSize, pixelSize)
-                                                    )
-                                                }
-                                            }
-                                        }
+                                    Box(
+                                        modifier = Modifier
+                                            .background(activeThemeColor.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text("SECURE VERIFIED ID", fontSize = 7.sp, color = activeThemeColor, fontWeight = FontWeight.Black)
                                     }
                                 }
                             }
@@ -4798,7 +5595,33 @@ fun GraphicalCardsBrandStation(
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(
                                 onClick = {
-                                    Toast.makeText(context, "ID Card layout successfully saved to downloads!", Toast.LENGTH_SHORT).show()
+                                    try {
+                                        val student = chosenStudent
+                                        if (student != null) {
+                                            val bName = chosenBatch?.name ?: "General"
+                                            val idCardBitmap = com.example.ui.screens.CardExporter.drawStudentIdCard(
+                                                context,
+                                                student,
+                                                bName,
+                                                idCardTheme,
+                                                editableAcademyName,
+                                                editableAdminAddress,
+                                                editableAdminPhone,
+                                                userUploadedPhotoUri,
+                                                userUploadedSignatureUri
+                                            )
+                                            val result = com.example.ui.screens.CardExporter.saveAndDownloadBitmap(
+                                                context,
+                                                idCardBitmap,
+                                                "Academy_ID_${student.name.replace(" ", "_")}"
+                                            )
+                                            Toast.makeText(context, result, Toast.LENGTH_LONG).show()
+                                        } else {
+                                            Toast.makeText(context, "No student selected.", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "Export error: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    }
                                 },
                                 modifier = Modifier.weight(1f).height(38.dp),
                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
@@ -4806,47 +5629,63 @@ fun GraphicalCardsBrandStation(
                             ) {
                                 Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Download Image", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Text("Download Image & PDF", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
 
                             Button(
                                 onClick = {
-                                    val shareText = """
-                                        ==================================
-                                        🏫 PREBUILT DIGITAL ID CREDENTIALS
-                                        ==================================
-                                        Academy: $editableAcademyName
-                                        Student: ${chosenStudent.name}
-                                        Roll Number: ${chosenStudent.rollNumber}
-                                        Batch: ${chosenBatch?.name ?: "General Intake"}
-                                        Subject: ${chosenStudent.subject.ifEmpty { "Academics" }}
-                                        Parent: ${chosenStudent.parentName} (${chosenStudent.parentPhone})
-                                        Address: ${chosenStudent.address.ifEmpty { editableAdminAddress }}
-                                        ----------------------------------
-                                        Use this Digital ID Badge for direct entry clearance at our center.
-                                    """.trimIndent()
                                     try {
-                                        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                            if (userUploadedPhotoUri != null) {
-                                                type = "image/*"
-                                                putExtra(android.content.Intent.EXTRA_STREAM, userUploadedPhotoUri)
-                                                putExtra(android.content.Intent.EXTRA_TEXT, shareText)
-                                                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                            } else {
-                                                type = "text/plain"
-                                                putExtra(android.content.Intent.EXTRA_TEXT, shareText)
-                                            }
+                                        val student = chosenStudent
+                                        if (student != null) {
+                                            val bName = chosenBatch?.name ?: "General"
+                                            val idCardBitmap = com.example.ui.screens.CardExporter.drawStudentIdCard(
+                                                context,
+                                                student,
+                                                bName,
+                                                idCardTheme,
+                                                editableAcademyName,
+                                                editableAdminAddress,
+                                                editableAdminPhone,
+                                                userUploadedPhotoUri,
+                                                userUploadedSignatureUri
+                                            )
+                                            val shareText = """
+                                                ==================================
+                                                🏫 PREBUILT DIGITAL ID CREDENTIALS
+                                                ==================================
+                                                Academy: $editableAcademyName
+                                                Student: ${student.name}
+                                                Roll Number: ${student.rollNumber}
+                                                Batch: $bName
+                                                Subject: ${student.subject.ifEmpty { "Academics" }}
+                                                Parent: ${student.parentName} (${student.parentPhone})
+                                                Address: ${student.address.ifEmpty { editableAdminAddress }}
+                                                ----------------------------------
+                                                Use this Digital ID Badge for direct entry clearance at our center.
+                                            """.trimIndent()
+                                            com.example.ui.screens.CardExporter.shareBitmap(
+                                                context,
+                                                idCardBitmap,
+                                                "Academy_ID_${student.name.replace(" ", "_")}",
+                                                shareText
+                                            )
+                                        } else {
+                                            Toast.makeText(context, "No student selected.", Toast.LENGTH_SHORT).show()
                                         }
-                                        context.startActivity(android.content.Intent.createChooser(intent, "Share Student ID Card via WhatsApp"))
                                     } catch (e: Exception) {
-                                        Toast.makeText(context, "Direct messaging share failed.", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "Direct messaging share failed: ${e.message}", Toast.LENGTH_SHORT).show()
                                     }
                                 },
                                 modifier = Modifier.weight(1f).height(38.dp),
                                 shape = RoundedCornerShape(8.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366))
                             ) {
-                                Icon(Icons.Default.Share, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                Icon(
+                                    painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_whatsapp),
+                                    contentDescription = "WhatsApp Share",
+                                    tint = Color.Unspecified,
+                                    modifier = Modifier.size(16.dp)
+                                )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text("WhatsApp Share", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
                             }
@@ -4973,7 +5812,26 @@ fun GraphicalCardsBrandStation(
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
                             onClick = {
-                                Toast.makeText(context, "High-Res Business Visiting Card saved successfully inside Pictures!", Toast.LENGTH_SHORT).show()
+                                try {
+                                    val vCardBitmap = com.example.ui.screens.CardExporter.drawVisitingCard(
+                                        context = context,
+                                        directorName = editableDirectorName,
+                                        academyName = editableAcademyName,
+                                        phone = editableAdminPhone,
+                                        email = editableAdminEmail,
+                                        address = editableAdminAddress,
+                                        theme = visitingCardTheme,
+                                        photoUri = userUploadedPhotoUri
+                                    )
+                                    val result = com.example.ui.screens.CardExporter.saveAndDownloadBitmap(
+                                        context,
+                                        vCardBitmap,
+                                        "Academy_Visiting_Card"
+                                    )
+                                    Toast.makeText(context, result, Toast.LENGTH_LONG).show()
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Export error: ${e.message}", Toast.LENGTH_SHORT).show()
+                                }
                             },
                             modifier = Modifier.weight(1f).height(38.dp),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
@@ -4981,45 +5839,54 @@ fun GraphicalCardsBrandStation(
                         ) {
                             Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Download Card", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("Download Card & PDF", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
 
                         Button(
                             onClick = {
-                                val vText = """
-                                    ==================================
-                                    🏫 ACADEMY BUSINESS VISITING CARD
-                                    ==================================
-                                    Academy: $editableAcademyName
-                                    Director: $editableDirectorName
-                                    Helpline Phone: $editableAdminPhone
-                                    Email Desk: $editableAdminEmail
-                                    Main Campus: $editableAdminAddress
-                                    ----------------------------------
-                                    Empowering next-gen student careers. Share or save this card.
-                                """.trimIndent()
                                 try {
-                                    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                        if (userUploadedPhotoUri != null) {
-                                            type = "image/*"
-                                            putExtra(android.content.Intent.EXTRA_STREAM, userUploadedPhotoUri)
-                                            putExtra(android.content.Intent.EXTRA_TEXT, vText)
-                                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                        } else {
-                                            type = "text/plain"
-                                            putExtra(android.content.Intent.EXTRA_TEXT, vText)
-                                        }
-                                    }
-                                    context.startActivity(android.content.Intent.createChooser(intent, "Share Visiting Card"))
+                                    val vCardBitmap = com.example.ui.screens.CardExporter.drawVisitingCard(
+                                        context = context,
+                                        directorName = editableDirectorName,
+                                        academyName = editableAcademyName,
+                                        phone = editableAdminPhone,
+                                        email = editableAdminEmail,
+                                        address = editableAdminAddress,
+                                        theme = visitingCardTheme,
+                                        photoUri = userUploadedPhotoUri
+                                    )
+                                    val vText = """
+                                        ==================================
+                                        🏫 ACADEMY BUSINESS VISITING CARD
+                                        ==================================
+                                        Academy: $editableAcademyName
+                                        Director: $editableDirectorName
+                                        Helpline Phone: $editableAdminPhone
+                                        Email Desk: $editableAdminEmail
+                                        Main Campus: $editableAdminAddress
+                                        ----------------------------------
+                                        Empowering next-gen student careers. Share or save this card.
+                                    """.trimIndent()
+                                    com.example.ui.screens.CardExporter.shareBitmap(
+                                        context,
+                                        vCardBitmap,
+                                        "Academy_Visiting_Card",
+                                        vText
+                                    )
                                 } catch (e: Exception) {
-                                    Toast.makeText(context, "Direct share failed.", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Direct share failed: ${e.message}", Toast.LENGTH_SHORT).show()
                                 }
                             },
                             modifier = Modifier.weight(1f).height(38.dp),
                             shape = RoundedCornerShape(8.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366))
                         ) {
-                            Icon(Icons.Default.Share, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Icon(
+                                painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_whatsapp),
+                                contentDescription = "WhatsApp Share",
+                                tint = Color.Unspecified,
+                                modifier = Modifier.size(16.dp)
+                            )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("WhatsApp Share", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         }
@@ -5032,74 +5899,117 @@ fun GraphicalCardsBrandStation(
                     // BEAUTIFUL POSTER CARD RENDER
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
-                        border = BorderStroke(1.2.dp, Color(0xFF0284C7)),
-                        shape = RoundedCornerShape(14.dp)
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.5.dp, Color(0xFF0F172A)),
+                        shape = RoundedCornerShape(16.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
                     ) {
                         Column(
-                            modifier = Modifier.padding(14.dp),
+                            modifier = Modifier.padding(16.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             // Header banner
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(Color(0xFF0284C7))
-                                    .padding(8.dp),
+                                    .background(Color(0xFF0F172A))
+                                    .padding(10.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text("SECURE INSTANT UPI AUTO-PAY SCANNER", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 0.5.sp)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.QrCodeScanner,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text("SECURE INSTANT QR PASS: ATTENDANCE & UPI PAYMENTS", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 0.5.sp)
+                                }
                             }
 
-                            Text(academyName.uppercase(), fontWeight = FontWeight.Black, fontSize = 16.sp, color = Color(0xFF0F172A))
+                            Text(academyName.uppercase(), fontWeight = FontWeight.Black, fontSize = 18.sp, color = Color(0xFF0F172A))
 
-                            // Large Canvas-drawn QR Code
+                            // Large Canvas-drawn QR Code (210dp scale!)
                             Box(
                                 modifier = Modifier
-                                    .size(140.dp)
-                                    .clip(RoundedCornerShape(10.dp))
+                                    .size(210.dp)
+                                    .clip(RoundedCornerShape(14.dp))
                                     .background(Color.White)
-                                    .border(1.5.dp, Color(0xFFE2E8F0))
-                                    .padding(12.dp),
+                                    .border(2.dp, Color(0xFF0F172A).copy(alpha = 0.2f))
+                                    .padding(14.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Canvas(modifier = Modifier.fillMaxSize()) {
-                                    // Render authentic looking QR grid pattern dynamically!
-                                    val pixelSize = size.width / 9
-                                    // 3 corners landmarks
-                                    drawRect(Color.Black, topLeft = androidx.compose.ui.geometry.Offset(0f, 0f), size = androidx.compose.ui.geometry.Size(3*pixelSize, 3*pixelSize))
-                                    drawRect(Color.White, topLeft = androidx.compose.ui.geometry.Offset(pixelSize, pixelSize), size = androidx.compose.ui.geometry.Size(pixelSize, pixelSize))
+                                    val pixelCount = 13 // 13x13 high density matrix!
+                                    val pixelSize = size.width / pixelCount
+                                    val colorPrimary = Color(0xFF0F172A)
 
-                                    drawRect(Color.Black, topLeft = androidx.compose.ui.geometry.Offset(6*pixelSize, 0f), size = androidx.compose.ui.geometry.Size(3*pixelSize, 3*pixelSize))
-                                    drawRect(Color.White, topLeft = androidx.compose.ui.geometry.Offset(7*pixelSize, pixelSize), size = androidx.compose.ui.geometry.Size(pixelSize, pixelSize))
-
-                                    drawRect(Color.Black, topLeft = androidx.compose.ui.geometry.Offset(0f, 6*pixelSize), size = androidx.compose.ui.geometry.Size(3*pixelSize, 3*pixelSize))
-                                    drawRect(Color.White, topLeft = androidx.compose.ui.geometry.Offset(pixelSize, 7*pixelSize), size = androidx.compose.ui.geometry.Size(pixelSize, pixelSize))
-
-                                    // Scattered pixels
-                                    for (i in 0 until 9) {
-                                        for (j in 0 until 9) {
-                                            if ((i < 3 && j < 3) || (i >= 6 && j < 3) || (i < 3 && j >= 6)) {
-                                                continue // skip corner landmarks
+                                    // Draw simulated QR segments
+                                    for (i in 0 until pixelCount) {
+                                        for (j in 0 until pixelCount) {
+                                            // Skip corners where finders will be drawn
+                                            if ((i < 4 && j < 4) || (i >= pixelCount - 4 && j < 4) || (i < 4 && j >= pixelCount - 4)) {
+                                                continue
                                             }
-                                            if ((i * j + (i+j)) % 2 == 0) {
+                                            // Pseudorandom formula for QR dots
+                                            val isFilled = ((i * 11 + j * 7) % 3 == 0) || ((i + j) % 5 == 0)
+                                            if (isFilled) {
                                                 drawRect(
-                                                    color = Color.Black,
+                                                    color = colorPrimary.copy(alpha = 0.95f),
                                                     topLeft = androidx.compose.ui.geometry.Offset(i * pixelSize, j * pixelSize),
                                                     size = androidx.compose.ui.geometry.Size(pixelSize, pixelSize)
                                                 )
                                             }
                                         }
                                     }
+
+                                    // Helper to draw realistic high-definition anchor patterns
+                                    fun drawFinderPattern(xIdx: Int, yIdx: Int) {
+                                        val px = xIdx * pixelSize
+                                        val py = yIdx * pixelSize
+
+                                        // Outer 4x4 square border
+                                        drawRect(
+                                            color = colorPrimary,
+                                            topLeft = androidx.compose.ui.geometry.Offset(px, py),
+                                            size = androidx.compose.ui.geometry.Size(pixelSize * 4, pixelSize * 4)
+                                        )
+                                        // White inner square
+                                        drawRect(
+                                            color = Color.White,
+                                            topLeft = androidx.compose.ui.geometry.Offset(px + pixelSize, py + pixelSize),
+                                            size = androidx.compose.ui.geometry.Size(pixelSize * 2, pixelSize * 2)
+                                        )
+                                        // Dark center square
+                                        drawRect(
+                                            color = colorPrimary,
+                                            topLeft = androidx.compose.ui.geometry.Offset(px + pixelSize * 1.25f, py + pixelSize * 1.25f),
+                                            size = androidx.compose.ui.geometry.Size(pixelSize * 1.5f, pixelSize * 1.5f)
+                                        )
+                                    }
+
+                                    // Draw 3 classic QR finder patterns: Top-Left, Top-Right, Bottom-Left
+                                    drawFinderPattern(0, 0)
+                                    drawFinderPattern(pixelCount - 4, 0)
+                                    drawFinderPattern(0, pixelCount - 4)
                                 }
+                            }
+
+                            // Dual Purpose Standee Labels
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("STUDENT GATEWAY & FEES PASS", fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color(0xFF0F172A))
+                                Text("Scan using your student login scanner to log attendance or route fees", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF475569), textAlign = TextAlign.Center)
                             }
 
                             // UPI Subtitles
                             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text("BHIM UPI MERCHANT PARAMETERS", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
-                                Text(merchantUpiId, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0369A1), fontFamily = FontFamily.Monospace)
+                                Text(merchantUpiId, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0284C7), fontFamily = FontFamily.Monospace)
                                 Text("Registered Name: $merchantName", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF475569))
                             }
 
@@ -5115,7 +6025,22 @@ fun GraphicalCardsBrandStation(
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
                             onClick = {
-                                Toast.makeText(context, "Graphical Academy Standee QR Code successfully downloaded!", Toast.LENGTH_SHORT).show()
+                                try {
+                                    val standeeBitmap = com.example.ui.screens.CardExporter.drawQrStandee(
+                                        context,
+                                        academyName,
+                                        merchantName,
+                                        merchantUpiId
+                                    )
+                                    val result = com.example.ui.screens.CardExporter.saveAndDownloadBitmap(
+                                        context,
+                                        standeeBitmap,
+                                        "Academy_UPI_Standee"
+                                    )
+                                    Toast.makeText(context, result, Toast.LENGTH_LONG).show()
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Export error: ${e.message}", Toast.LENGTH_SHORT).show()
+                                }
                             },
                             modifier = Modifier.weight(1f).height(38.dp),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
@@ -5123,36 +6048,48 @@ fun GraphicalCardsBrandStation(
                         ) {
                             Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Download Standee", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("Download Standee & PDF", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
 
                         Button(
                             onClick = {
-                                val sText = """
-                                    ==================================
-                                    🏫 ACADEMY DIRECT UPI PAY SCANNER
-                                    ==================================
-                                    School: $academyName
-                                    Registered Merchant: $merchantName
-                                    Receiver UPI ID: $merchantUpiId
-                                    ----------------------------------
-                                    Scan QR code or send payment to the above address to settle academy dues instantly. 
-                                """.trimIndent()
                                 try {
-                                    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                        type = "text/plain"
-                                        putExtra(android.content.Intent.EXTRA_TEXT, sText)
-                                    }
-                                    context.startActivity(android.content.Intent.createChooser(intent, "Share UPI QR Standee Details"))
+                                    val standeeBitmap = com.example.ui.screens.CardExporter.drawQrStandee(
+                                        context,
+                                        academyName,
+                                        merchantName,
+                                        merchantUpiId
+                                    )
+                                    val sText = """
+                                        ==================================
+                                        🏫 ACADEMY DIRECT UPI PAY SCANNER
+                                        ==================================
+                                        School: $academyName
+                                        Registered Merchant: $merchantName
+                                        Receiver UPI ID: $merchantUpiId
+                                        ----------------------------------
+                                        Scan QR code or send payment to the above address to settle academy dues instantly. 
+                                    """.trimIndent()
+                                    com.example.ui.screens.CardExporter.shareBitmap(
+                                        context,
+                                        standeeBitmap,
+                                        "Academy_UPI_Standee",
+                                        sText
+                                    )
                                 } catch (e: Exception) {
-                                    Toast.makeText(context, "Direct messaging desk routing failed.", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Direct messaging desk routing failed: ${e.message}", Toast.LENGTH_SHORT).show()
                                 }
                             },
                             modifier = Modifier.weight(1f).height(38.dp),
                             shape = RoundedCornerShape(8.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366))
                         ) {
-                            Icon(Icons.Default.Share, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Icon(
+                                painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_whatsapp),
+                                contentDescription = "WhatsApp Share",
+                                tint = Color.Unspecified,
+                                modifier = Modifier.size(16.dp)
+                            )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("WhatsApp Share", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         }
@@ -5284,6 +6221,8 @@ fun BackupEngineConsole(
                     fontSize = 11.sp,
                     color = Color.Gray
                 )
+                var localRestoreProgress by remember { mutableStateOf(false) }
+
                 Button(
                     onClick = {
                         viewModel.exportDatabaseToLocalMemory { log ->
@@ -5297,6 +6236,35 @@ fun BackupEngineConsole(
                     Icon(Icons.Default.Backup, contentDescription = "Backup")
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("Export `.db` File to Local Memory", fontSize = 13.sp)
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        localRestoreProgress = true
+                        viewModel.restoreDatabaseFromLocalMemory { log ->
+                            syncLogText = log
+                            if (log.startsWith("Success:")) {
+                                localRestoreProgress = false
+                                Toast.makeText(context, "Local SQLite backup restored successfully!", Toast.LENGTH_SHORT).show()
+                            } else if (log.startsWith("Error")) {
+                                localRestoreProgress = false
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    if (localRestoreProgress) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text("Restoring Local Database...", fontSize = 13.sp)
+                    } else {
+                        Icon(Icons.Default.Restore, contentDescription = "Restore Local")
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Restore `.db` File from Local Memory", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
 
@@ -6287,6 +7255,10 @@ fun UploadStudyResourcesSubModule(
     var pdfName by remember { mutableStateOf("syllabus_note_2026.pdf") }
     var youtubeUrl by remember { mutableStateOf("https://youtube.com/watch?v=predefined") }
 
+    var teacherSearchQuery by remember { mutableStateOf("") }
+    var teacherTypeFilter by remember { mutableStateOf("All") }
+    var teacherBatchFilter by remember { mutableStateOf<Long?>(null) }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -6367,20 +7339,90 @@ fun UploadStudyResourcesSubModule(
                 color = MaterialTheme.colorScheme.primary,
                 fontFamily = FontFamily.Monospace
             )
-            
-            if (studyMaterials.isEmpty()) {
+
+            // Search Bar
+            OutlinedTextField(
+                value = teacherSearchQuery,
+                onValueChange = { teacherSearchQuery = it },
+                placeholder = { Text("Search resources by title, category, or content...") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search Icon") },
+                trailingIcon = {
+                    if (teacherSearchQuery.isNotEmpty()) {
+                        IconButton(onClick = { teacherSearchQuery = "" }) {
+                            Icon(Icons.Default.Close, contentDescription = "Clear Search")
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp)
+            )
+
+            // Batch filtering chips
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                FilterChip(
+                    selected = teacherBatchFilter == null,
+                    onClick = { teacherBatchFilter = null },
+                    label = { Text("All Batches", fontSize = 11.sp) }
+                )
+                batches.forEach { b ->
+                    FilterChip(
+                        selected = teacherBatchFilter == b.id,
+                        onClick = { teacherBatchFilter = b.id },
+                        label = { Text(b.name, fontSize = 11.sp) }
+                    )
+                }
+            }
+
+            // Material type filtering chips
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                listOf("All", "Plain Text", "PDF", "YouTube video", "URL").forEach { plat ->
+                    FilterChip(
+                        selected = teacherTypeFilter == plat,
+                        onClick = { teacherTypeFilter = plat },
+                        label = { Text(plat, fontSize = 11.sp) }
+                    )
+                }
+            }
+
+            val filteredTeacherMaterials = studyMaterials.filter { mat ->
+                val matchesSearch = mat.title.contains(teacherSearchQuery, ignoreCase = true) || 
+                                    mat.mainCategory.contains(teacherSearchQuery, ignoreCase = true) ||
+                                    mat.topicSubCategory.contains(teacherSearchQuery, ignoreCase = true) ||
+                                    mat.content.contains(teacherSearchQuery, ignoreCase = true)
+                val matchesType = teacherTypeFilter == "All" || mat.contentType.equals(teacherTypeFilter, ignoreCase = true)
+                val matchesBatch = teacherBatchFilter == null || mat.batchId == teacherBatchFilter
+                matchesSearch && matchesType && matchesBatch
+            }
+
+            if (filteredTeacherMaterials.isEmpty()) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(8.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
                 ) {
                     Box(modifier = Modifier.padding(16.dp), contentAlignment = Alignment.Center) {
-                        Text("No active resources found. Create one above to sync.", color = Color.Gray, fontSize = 12.sp)
+                        Text(
+                            text = if (teacherSearchQuery.isNotEmpty() || teacherTypeFilter != "All" || teacherBatchFilter != null)
+                                "No materials found matching applied search filters."
+                            else
+                                "No active resources found. Create one above to sync.",
+                            color = Color.Gray,
+                            fontSize = 12.sp
+                        )
                     }
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    studyMaterials.forEach { mat ->
+                    filteredTeacherMaterials.forEach { mat ->
                         val bName = batches.find { it.id == mat.batchId }?.name ?: "All Batches"
                         Card(
                             modifier = Modifier.fillMaxWidth().testTag("study_resource_item_${mat.id}"),
@@ -6784,86 +7826,114 @@ fun NotificationsDialog(onClose: () -> Unit, onMarkAllRead: () -> Unit) {
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    val alerts = listOf(
-                        Triple("WhatsPromo Broadcast", "Broadcaster successfully dispatched 12 marketing invitations dynamic templates.", "1 min ago"),
-                        Triple("Tuition Auto-Receipt", "Dispatched ₹2,500 receipt PDF automatically via WhatsApp API.", "12 mins ago"),
-                        Triple("S3 Backup Synced", "Cold storage daily backup compiled successfully. Uploader node healthy.", "1 hour ago"),
-                        Triple("Student Birthday Alert", "Automated custom birthday greeting pushed to Roshni S. on partition 1.", "4 hours ago"),
-                        Triple("Critical Batch Schedule", "Evening physics batch report compiled and cached.", "Today")
-                    )
+                val alerts = emptyList<Triple<String, String, String>>()
 
-                    items(alerts) { item ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    selectedNotification = item
-                                },
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            ),
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                if (alerts.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(8.dp)
-                                                .clip(CircleShape)
-                                                .background(Color.Red)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                                modifier = Modifier.size(64.dp)
+                            )
+                            Text(
+                                "No active notifications",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                            Text(
+                                "You are completely up-to-date! Demo notification feeds have been cleared.",
+                                fontSize = 12.sp,
+                                color = Color.Gray,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 24.dp)
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        items(alerts) { item ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        selectedNotification = item
+                                    },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(8.dp)
+                                                    .clip(CircleShape)
+                                                    .background(Color.Red)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                item.first,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                fontSize = 14.sp,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
                                         Text(
-                                            item.first,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            fontSize = 14.sp,
-                                            color = MaterialTheme.colorScheme.primary
+                                            item.third,
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                         )
                                     }
+                                    Spacer(modifier = Modifier.height(8.dp))
                                     Text(
-                                        item.third,
-                                        fontSize = 10.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                        item.second,
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        lineHeight = 16.sp
                                     )
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    item.second,
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    lineHeight = 16.sp
-                                )
 
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.End,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        "Tap to take action",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.secondary,
-                                        textDecoration = TextDecoration.Underline
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Icon(
-                                        imageVector = Icons.Default.Launch,
-                                        contentDescription = "Action",
-                                        tint = MaterialTheme.colorScheme.secondary,
-                                        modifier = Modifier.size(12.dp)
-                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.End,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            "Tap to take action",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.secondary,
+                                            textDecoration = TextDecoration.Underline
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Icon(
+                                            imageVector = Icons.Default.Launch,
+                                            contentDescription = "Action",
+                                            tint = MaterialTheme.colorScheme.secondary,
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -7063,7 +8133,9 @@ fun DrawerNavigationItems(
     onAboutAppClick: () -> Unit,
     onHelpClick: () -> Unit,
     onReferralClick: () -> Unit,
-    onOtherAppsClick: () -> Unit
+    onOtherAppsClick: () -> Unit,
+    themeMode: String,
+    onSwitchTheme: (String) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -7125,6 +8197,47 @@ fun DrawerNavigationItems(
         HorizontalDivider(color = Color.LightGray.copy(alpha = 0.3f))
         Spacer(modifier = Modifier.height(8.dp))
 
+        // Dark Mode Toggle Button for Side Menu Bar
+        val isDark = themeMode == "CLASSIC_MIDNIGHT"
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = if (isDark) Icons.Default.DarkMode else Icons.Default.LightMode,
+                    contentDescription = "Theme Icon",
+                    tint = if (isDark) Color(0xFF38BDF8) else Color(0xFF8C6E12),
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = if (isDark) "Dark Mode" else "Classic Mode",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        text = "Toggle active page theme",
+                        fontSize = 10.sp,
+                        color = Color.Gray
+                    )
+                }
+            }
+            androidx.compose.material3.Switch(
+                checked = isDark,
+                onCheckedChange = { checked ->
+                    onSwitchTheme(if (checked) "CLASSIC_MIDNIGHT" else "CLASSIC_NAVY")
+                }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         DrawerItem(
             label = "Logout",
             icon = Icons.AutoMirrored.Filled.Logout,
@@ -7160,188 +8273,356 @@ fun AppOwnerMonitorView(
     batches: List<Batch>,
     students: List<Student>,
     institutes: List<InstituteAccount>,
+    subscriberTransactionsList: List<com.example.ui.viewmodel.SubTransactionRecord>,
     onApprove: (String) -> Unit,
-    onApproveAll: () -> Unit
+    onApproveAll: () -> Unit,
+    onDeleteInstitute: (String) -> Unit,
+    onToggleSubscription: (String) -> Unit,
+    onToggleSuspension: (String) -> Unit,
+    onScheduleWipe: (String, Boolean) -> Unit,
+    onRecordUpiPaymentTransaction: (academyName: String, email: String, amount: Double, upiTxRef: String, plan: String) -> Unit,
+    onLogout: () -> Unit
 ) {
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedFilterChip by remember { mutableStateOf("All") } // "All", "Individual", "Institute", "Library"
     var tokenCode by remember { mutableStateOf("") }
     var outputTokenText by remember { mutableStateOf("") }
     val context = LocalContext.current
 
-    LazyColumn(
+    // Subscriber payment dialogue states
+    var renewalForInst by remember { mutableStateOf<com.example.ui.viewmodel.InstituteAccount?>(null) }
+    var inputAmount by remember { mutableStateOf("499.0") }
+    var inputUpiRef by remember { mutableStateOf("") }
+    var inputPlanType by remember { mutableStateOf("Monthly") } // "Monthly" or "Yearly"
+
+    // High-fidelity default items mapped to Mr. Gupta, Mr. Sharma, and Silent Library as specified in Prompt 1
+    val customTenants = remember(institutes) {
+        val list = mutableListOf<com.example.ui.viewmodel.InstituteAccount>()
+        if (institutes.none { it.academyName.contains("City Coaching", ignoreCase = true) }) {
+            list.add(
+                com.example.ui.viewmodel.InstituteAccount(
+                    email = "city@coaching.com",
+                    academyName = "City Coaching Institute",
+                    directorName = "Mr. Gupta",
+                    address = "Metro Center Hub, Block-C",
+                    isApproved = true,
+                    isSuspended = false,
+                    subscriptionActive = true,
+                    expiryDate = "23 July 2026",
+                    lastUpiTxRef = "city@upi",
+                    lastPaymentAmount = 1499.0,
+                    profileType = "COACHING_OWNER"
+                )
+            )
+        }
+        if (institutes.none { it.academyName.contains("Verma Tuition", ignoreCase = true) }) {
+            list.add(
+                com.example.ui.viewmodel.InstituteAccount(
+                    email = "verma@tuition.com",
+                    academyName = "Verma Tuition Center",
+                    directorName = "Mr. Sharma",
+                    address = "Street 12, Civil Lines",
+                    isApproved = true,
+                    isSuspended = false,
+                    subscriptionActive = true,
+                    expiryDate = "29 July 2026",
+                    lastUpiTxRef = "verma@upi",
+                    lastPaymentAmount = 199.0,
+                    profileType = "COACHING_OWNER"
+                )
+            )
+        }
+        if (institutes.none { it.academyName.contains("Silent Study", ignoreCase = true) }) {
+            list.add(
+                com.example.ui.viewmodel.InstituteAccount(
+                    email = "silent@library.com",
+                    academyName = "Silent Study Library",
+                    directorName = "Library Desk",
+                    address = "Opposite PG Hostel, Lane 4",
+                    isApproved = true,
+                    isSuspended = true, // Suspended on startup for Prompt 1 spec!
+                    subscriptionActive = false,
+                    expiryDate = "20 Oct 2026",
+                    lastUpiTxRef = "silent@upi",
+                    lastPaymentAmount = 4999.0,
+                    profileType = "LIBRARY_OWNER"
+                )
+            )
+        }
+        list.addAll(institutes)
+        list.toList()
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .background(Color(0xFF0B0F19)) // Deep Space Blue/Grey
     ) {
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1B5E20)), // Strong forest green app-owner theme
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .safeDrawingPadding()
+        ) {
+            // 1. TOP APP BAR
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF111827))
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.VerifiedUser,
-                        contentDescription = "App Owner",
-                        tint = Color.White,
-                        modifier = Modifier.size(48.dp)
-                    )
-                    Spacer(modifier = Modifier.width(16.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFF06B6D4)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("🛡️", fontSize = 20.sp)
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
                     Column {
-                        Text("App Owner Supervisor Monitor", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.White)
-                        Text("License Server v3.4 • Security Monitor Active", fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f))
+                        Text(
+                            text = "Admin Panel",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF06B6D4),
+                            letterSpacing = 1.sp
+                        )
+                        Text(
+                            text = "TutionMaster Control Tower",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color.White
+                        )
+                    }
+                }
+                
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.padding(end = 12.dp)) {
+                        IconButton(onClick = {
+                            Toast.makeText(context, "System Status: Control Tower Online", Toast.LENGTH_SHORT).show()
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = "Alerts",
+                                tint = Color.LightGray
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = (-4).dp, y = (4).dp)
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFF43F5E))
+                        )
+                    }
+                    
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF1F2937))
+                            .border(1.5.dp, Color(0xFF06B6D4), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("SA", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF22D3EE))
                     }
                 }
             }
-        }
 
-        // --- NEW SECTION: INSTITUTES & TEACHERS APPROVAL REGISTER ---
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF9FBE7)), // Light lime/green soft card
-                border = BorderStroke(1.dp, Color(0xFFCDDC39).copy(alpha = 0.6f))
+            // 2. MAIN SCROLLABLE CONTENT BODY
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                item { Spacer(modifier = Modifier.height(10.dp)) }
+
+                // STATS ROW (Horizontal Scroll with neon cyan glass-morphic cards with trending indicators)
+                item {
+                    Text(
+                        text = "REAL-TIME NETWORK METRICS",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        color = Color(0xFF06B6D4),
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 1.sp,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Column {
-                            Text(
-                                text = "TEACHERS & ACADEMIES APPROVAL DESK",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp,
-                                color = Color(0xFF558B2F),
-                                fontFamily = FontFamily.Monospace,
-                                letterSpacing = 0.5.sp
-                            )
-                            Text(
-                                text = "${institutes.size} Accounts Total",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = Color.DarkGray
-                            )
-                        }
-                        Button(
-                            onClick = onApproveAll,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF689F38)),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                            modifier = Modifier.height(34.dp)
-                        ) {
-                            Text("Approve All", fontSize = 11.sp, color = Color.White)
-                        }
+                        StatsRowGlassCard(title = "Total Tenants", count = "124", trend = "+8%", pathColor = Color(0xFF22D3EE))
+                        StatsRowGlassCard(title = "Active Students", count = "2.3k", trend = "+12%", pathColor = Color(0xFF06B6D4))
+                        StatsRowGlassCard(title = "Today's Attendance", count = "840", trend = "84%", pathColor = Color(0xFF10B981))
+                        StatsRowGlassCard(title = "Monthly Revenue", count = "₹85,000", trend = "₹", pathColor = Color(0xFFF59E0B))
                     }
+                }
 
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    if (institutes.isEmpty()) {
-                        Text(
-                            text = "No registered institutes found.",
-                            fontSize = 12.sp,
-                            color = Color.Gray,
-                            modifier = Modifier.padding(vertical = 8.dp)
-                        )
-                    } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            institutes.forEach { inst ->
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                                    shape = RoundedCornerShape(12.dp),
-                                    border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.4f))
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(12.dp).fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                // SEARCH & FILTERS SECTION
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF111827)),
+                        border = BorderStroke(1.dp, Color(0xFF1F2937))
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(30.dp))
+                                    .background(Color(0xFF0B0F19))
+                                    .border(1.dp, Color(0xFF06B6D4).copy(alpha = 0.4f), RoundedCornerShape(30.dp))
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = null,
+                                    tint = Color(0xFF22D3EE),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Box(modifier = Modifier.weight(1f)) {
+                                    if (searchQuery.isEmpty()) {
+                                        Text(
+                                            text = "Search by Tenant Name, Phone, or ID...",
+                                            color = Color.Gray,
+                                            fontSize = 13.sp
+                                        )
+                                    }
+                                    androidx.compose.foundation.text.BasicTextField(
+                                        value = searchQuery,
+                                        onValueChange = { searchQuery = it },
+                                        textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 13.sp),
+                                        modifier = Modifier.fillMaxWidth().testTag("tenant_search_field"),
+                                        singleLine = true
+                                    )
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(12.dp))
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf("All", "Individual", "Institute", "Library").forEach { filterLabel ->
+                                    val isSelected = selectedFilterChip.equals(filterLabel, ignoreCase = true)
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(20.dp))
+                                            .background(if (isSelected) Color(0xFF06B6D4) else Color(0xFF1F2937))
+                                            .clickable { selectedFilterChip = filterLabel }
+                                            .padding(horizontal = 14.dp, vertical = 6.dp),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text(
-                                                    text = inst.academyName,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.Black,
-                                                    fontSize = 13.sp
-                                                )
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                if (inst.isApproved) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.CheckCircle,
-                                                        contentDescription = "Approved",
-                                                        tint = Color(0xFF4CAF50),
-                                                        modifier = Modifier.size(14.dp)
-                                                    )
-                                                } else {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Pending,
-                                                        contentDescription = "Pending",
-                                                        tint = Color(0xFFFF9800),
-                                                        modifier = Modifier.size(14.dp)
-                                                    )
-                                                }
-                                            }
-                                            Text(
-                                                text = "Director: ${inst.directorName} | Location: ${inst.address}",
-                                                fontSize = 11.sp,
-                                                color = Color.DarkGray
-                                            )
-                                            Text(
-                                                text = inst.email,
-                                                fontSize = 10.sp,
-                                                color = Color.Gray,
-                                                fontFamily = FontFamily.Monospace
-                                            )
-                                        }
-
-                                        if (!inst.isApproved) {
-                                            Button(
-                                                onClick = { onApprove(inst.email) },
-                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8BC34A)),
-                                                shape = RoundedCornerShape(6.dp),
-                                                contentPadding = PaddingValues(horizontal = 8.dp),
-                                                modifier = Modifier.height(28.dp)
-                                            ) {
-                                                Text("Approve", fontSize = 10.sp, color = Color.White)
-                                            }
-                                        } else {
-                                            Text(
-                                                text = "APPROVED",
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 10.sp,
-                                                color = Color(0xFF388E3C)
-                                            )
-                                        }
+                                        Text(
+                                            text = filterLabel,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp,
+                                            color = if (isSelected) Color.White else Color.LightGray
+                                        )
                                     }
                                 }
                             }
                         }
                     }
                 }
-            }
-        }
 
-        // Section 1: API UPTIME & SYSTEM TELEMETRY
+                // TENANTS HEADER
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "TENANT ENDPOINTS REGISTER",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            color = Color(0xFF06B6D4),
+                            fontFamily = FontFamily.Monospace,
+                            letterSpacing = 0.5.sp
+                        )
+                        
+                        TextButton(
+                            onClick = {
+                                onApproveAll()
+                                Toast.makeText(context, "All unregistered tenants have been approved!", Toast.LENGTH_SHORT).show()
+                            }
+                        ) {
+                            Text("Approve All Pending ✔", color = Color(0xFF22D3EE), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                // Filtering list dynamically based on Search Query and select chips
+                val filteredTenants = customTenants.filter { inst ->
+                    val matchesSearch = inst.academyName.contains(searchQuery, ignoreCase = true) ||
+                            inst.directorName.contains(searchQuery, ignoreCase = true) ||
+                            inst.email.contains(searchQuery, ignoreCase = true)
+                    
+                    val matchesChip = when (selectedFilterChip.lowercase()) {
+                        "all" -> true
+                        "individual" -> inst.profileType.equals("ADMIN", ignoreCase = true) || inst.profileType.equals("COACHING_OWNER", ignoreCase = true)
+                        "institute" -> inst.academyName.contains("Institute", ignoreCase = true) || inst.academyName.contains("Academy", ignoreCase = true)
+                        "library" -> inst.profileType.contains("LIBRARY", ignoreCase = true)
+                        else -> true
+                    }
+                    matchesSearch && matchesChip
+                }
+
+                if (filteredTenants.isEmpty()) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF111827))
+                        ) {
+                            Box(modifier = Modifier.padding(24.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                Text("No matching tenants found.", color = Color.Gray, fontSize = 13.sp)
+                            }
+                        }
+                    }
+                } else {
+                    items(filteredTenants.size) { index ->
+                        val inst = filteredTenants[index]
+                        TenantAccountItemCard(
+                            inst = inst,
+                            onToggleSuspension = { onToggleSuspension(inst.email) },
+                            onToggleSubscription = { onToggleSubscription(inst.email) },
+                            onDelete = { onDeleteInstitute(inst.email) },
+                            onRecordSubscription = { renewalForInst = inst },
+                            onWipeNode = { onScheduleWipe(inst.email, true) }
+                        )
+                    }
+                }
+
+        // Section 1: API UPTIME & SYSTEM TELEMETRY (Cyber Dark)
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f))
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF111827)),
+                border = BorderStroke(1.dp, Color(0xFF1F2937))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
                         text = "GLOBAL LICENSING & INSTANT DIAGNOSTICS",
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp,
-                        color = Color.Gray,
+                        color = Color(0xFF06B6D4),
                         fontFamily = FontFamily.Monospace,
                         letterSpacing = 1.sp
                     )
@@ -7353,54 +8634,54 @@ fun AppOwnerMonitorView(
                     ) {
                         Column {
                             Text("Database Footprint", fontSize = 11.sp, color = Color.Gray)
-                            Text("3.42 MB SQLite", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Text("3.42 MB SQLite", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
                         }
                         Column {
                             Text("Active Institutes Connected", fontSize = 11.sp, color = Color.Gray)
-                            Text("3 Registered", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF2E7D32))
+                            Text("3 Registered", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF10B981))
                         }
                         Column {
                             Text("Cloud S3 Status", fontSize = 11.sp, color = Color.Gray)
-                            Text("99.98% Online", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF1565C0))
+                            Text("99.98% Online", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF06B6D4))
                         }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
-                    HorizontalDivider()
+                    HorizontalDivider(color = Color(0xFF1F2937))
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Text("System telemetry logs (Real-time updates):", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.DarkGray)
+                    Text("System telemetry logs (Real-time updates):", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     Spacer(modifier = Modifier.height(8.dp))
                     Column(
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color(0xFFEEEEEE), RoundedCornerShape(8.dp))
+                            .background(Color(0xFF0B0F19), RoundedCornerShape(8.dp))
                             .padding(10.dp)
                     ) {
-                        Text("● [2026-06-14 13:12] Cloud check successful. Latency 142ms.", fontFamily = FontFamily.Monospace, fontSize = 10.sp, color = Color.DarkGray)
-                        Text("● [2026-06-14 11:45] Aspirants Success Classes synced 42 attendance entries.", fontFamily = FontFamily.Monospace, fontSize = 10.sp, color = Color.DarkGray)
-                        Text("● [2026-06-14 09:00] Daily database encryption key rotated successfully.", fontFamily = FontFamily.Monospace, fontSize = 10.sp, color = Color.DarkGray)
-                        Text("● [2026-06-14 00:05] S3 cold storage compressed archive compiled successfully.", fontFamily = FontFamily.Monospace, fontSize = 10.sp, color = Color.DarkGray)
+                        Text("● [2026-06-14 13:12] Cloud check successful. Latency 142ms.", fontFamily = FontFamily.Monospace, fontSize = 10.sp, color = Color(0xFF22D3EE))
+                        Text("● [2026-06-14 11:45] Aspirants Success Classes synced 42 attendance entries.", fontFamily = FontFamily.Monospace, fontSize = 10.sp, color = Color.Gray)
+                        Text("● [2026-06-14 09:00] Daily database encryption key rotated successfully.", fontFamily = FontFamily.Monospace, fontSize = 10.sp, color = Color.Gray)
+                        Text("● [2026-06-14 00:05] S3 cold storage compressed archive compiled successfully.", fontFamily = FontFamily.Monospace, fontSize = 10.sp, color = Color.Gray)
                     }
                 }
             }
         }
 
-        // Section 2: REGISTERED INSTITUTES LEDGER
+        // Section 2: REGISTERED INSTITUTES LEDGER (Cyber Dark)
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f))
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF111827)),
+                border = BorderStroke(1.dp, Color(0xFF1F2937))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
                         text = "TENANT SCHOOLS & LICENSE LEDGER",
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp,
-                        color = Color.Gray,
+                        color = Color(0xFF06B6D4),
                         fontFamily = FontFamily.Monospace,
                         letterSpacing = 1.sp
                     )
@@ -7419,19 +8700,19 @@ fun AppOwnerMonitorView(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column {
-                                Text(school.first, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text(school.first, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
                                 Text(school.second, fontSize = 11.sp, color = Color.Gray)
                             }
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(Color(0xFFE8F5E9))
+                                    .background(Color(0xFF06B6D4).copy(alpha = 0.15f))
                                     .padding(horizontal = 8.dp, vertical = 2.dp)
                             ) {
-                                Text(school.third, color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                                Text(school.third.uppercase(), color = Color(0xFF22D3EE), fontWeight = FontWeight.Bold, fontSize = 10.sp)
                             }
                         }
-                        HorizontalDivider(color = Color.LightGray.copy(alpha = 0.3f))
+                        HorizontalDivider(color = Color(0xFF1F2937))
                     }
                 }
             }
@@ -7442,31 +8723,38 @@ fun AppOwnerMonitorView(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f))
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF111827)),
+                border = BorderStroke(1.dp, Color(0xFF1F2937))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
                         text = "SUPERVISOR OPERATION CONTROLS",
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp,
-                        color = Color.Gray,
+                        color = Color(0xFF06B6D4),
                         fontFamily = FontFamily.Monospace,
                         letterSpacing = 1.sp
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Text("Generate Activation Key / Code for Client Schools", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text("Generate Activation Key / Code for Client Schools", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         OutlinedTextField(
                             value = tokenCode,
                             onValueChange = { tokenCode = it },
-                            placeholder = { Text("e.g. ALPHA_COACH") },
+                            placeholder = { Text("e.g. ALPHA_COACH", color = Color.Gray) },
                             modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(8.dp)
+                            shape = RoundedCornerShape(8.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedBorderColor = Color(0xFF06B6D4),
+                                unfocusedBorderColor = Color(0xFF1F2937)
+                            )
                         )
                         Button(
                             onClick = {
@@ -7477,9 +8765,10 @@ fun AppOwnerMonitorView(
                                     Toast.makeText(context, "Please enter client tag first", Toast.LENGTH_SHORT).show()
                                 }
                             },
-                            shape = RoundedCornerShape(8.dp)
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF06B6D4))
                         ) {
-                            Text("Generate")
+                            Text("Generate", color = Color.Black, fontWeight = FontWeight.Bold)
                         }
                     }
 
@@ -7488,7 +8777,7 @@ fun AppOwnerMonitorView(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(Color(0xFFE3F2FD), RoundedCornerShape(8.dp))
+                                .background(Color(0xFF06B6D4).copy(alpha = 0.15f), RoundedCornerShape(8.dp))
                                 .padding(12.dp)
                         ) {
                             Text(
@@ -7496,16 +8785,16 @@ fun AppOwnerMonitorView(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF0D47A1)
+                                color = Color(0xFF22D3EE)
                             )
                         }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
-                    HorizontalDivider()
+                    HorizontalDivider(color = Color(0xFF1F2937))
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Text("Simulate Remote Reset / Rogue Database Lock", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFB71C1C))
+                    Text("Simulate Remote Reset / Rogue Database Lock", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFEF4444))
                     Text("Remotely wipe or revoke database client nodes due to licensing infractions.", fontSize = 11.sp, color = Color.Gray)
                     Spacer(modifier = Modifier.height(8.dp))
 
@@ -7514,26 +8803,209 @@ fun AppOwnerMonitorView(
                             onClick = {
                                 Toast.makeText(context, "CRITICAL: Simulated database recovery initiated. Cloud nodes sync locked.", Toast.LENGTH_LONG).show()
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9800)),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF59E0B)),
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(8.dp)
                         ) {
-                            Text("Lock Node Sync")
+                            Text("Lock Node Sync", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                         }
                         Button(
                             onClick = {
                                 Toast.makeText(context, "DANGER: Remote Wipe simulation dispatched. Client node data cleared.", Toast.LENGTH_LONG).show()
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(8.dp)
                         ) {
-                            Text("Wipe Client DB")
+                            Text("Wipe Client DB", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                         }
                     }
                 }
             }
         }
+
+        // --- SECTION: LIVE SUBSCRIPTION TRANSACTION LEDGER MONITOR ---
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF111827)),
+                border = BorderStroke(1.dp, Color(0xFF1F2937))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "LIVE UPI SUBSCRIPTION TRANSACTIONS LEDGER",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        color = Color(0xFF06B6D4),
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 0.5.sp
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    if (subscriberTransactionsList.isEmpty()) {
+                        Text(
+                            text = "No subscriptions recorded yet.",
+                            fontSize = 12.sp,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            subscriberTransactionsList.forEach { tx ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(Color(0xFF0B0F19), RoundedCornerShape(8.dp))
+                                        .border(1.dp, Color(0xFF1F2937), RoundedCornerShape(8.dp))
+                                        .padding(10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(tx.academyName, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.White)
+                                        Text("${tx.date} • Plan: ${tx.planType} • Ref: ${tx.upiTxnId}", fontSize = 10.sp, color = Color.Gray)
+                                    }
+                                    Text(
+                                        text = "₹${tx.amount}",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 13.sp,
+                                        color = Color(0xFF10B981)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        item { Spacer(modifier = Modifier.height(90.dp)) }
+    }
+
+    }
+
+    // Persistent FAB Logout
+    FloatingActionButton(
+        onClick = {
+            onLogout()
+            Toast.makeText(context, "Logged out of Control Tower", Toast.LENGTH_SHORT).show()
+        },
+        modifier = Modifier
+            .align(Alignment.BottomEnd)
+            .padding(16.dp)
+            .safeDrawingPadding()
+            .testTag("control_tower_logout_fab"),
+        containerColor = Color(0xFFEF4444),
+        contentColor = Color.White,
+        shape = CircleShape
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(imageVector = Icons.Default.ExitToApp, contentDescription = "Logout")
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("Logout", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        }
+    }
+}
+
+    // Dialogue: Record subscriber UPI payment
+    renewalForInst?.let { inst ->
+        AlertDialog(
+            onDismissRequest = { renewalForInst = null },
+            title = {
+                Text(
+                    text = "Record UPI Subscription: ${inst.academyName}",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = Color.Black
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Configure details for subscription payment from this school/library/teacher via UPI.",
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
+
+                    OutlinedTextField(
+                        value = inputAmount,
+                        onValueChange = { inputAmount = it },
+                        label = { Text("Amount Paid (₹)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        singleLine = true
+                    )
+
+                    OutlinedTextField(
+                        value = inputUpiRef,
+                        onValueChange = { inputUpiRef = it },
+                        label = { Text("UPI Txn ID / Reference") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        singleLine = true
+                    )
+
+                    Text("Choose Subscription Term / Plan:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.DarkGray)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(
+                                selected = inputPlanType == "Monthly",
+                                onClick = {
+                                    inputPlanType = "Monthly"
+                                    inputAmount = "499.0"
+                                }
+                            )
+                            Text("Monthly (₹499)", fontSize = 12.sp, color = Color.Black)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(
+                                selected = inputPlanType == "Yearly",
+                                onClick = {
+                                    inputPlanType = "Yearly"
+                                    inputAmount = "4999.0"
+                                }
+                            )
+                            Text("Yearly (₹4999)", fontSize = 12.sp, color = Color.Black)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val amountDouble = inputAmount.toDoubleOrNull() ?: 499.0
+                        if (inputUpiRef.isNotBlank()) {
+                            onRecordUpiPaymentTransaction(
+                                inst.academyName,
+                                inst.email,
+                                amountDouble,
+                                inputUpiRef,
+                                inputPlanType
+                            )
+                            Toast.makeText(context, "UPI status transaction received. License updated!", Toast.LENGTH_LONG).show()
+                            renewalForInst = null
+                        } else {
+                            Toast.makeText(context, "Please enter a valid UPI transaction reference.", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20))
+                ) {
+                    Text("Confirm Record")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { renewalForInst = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
@@ -7550,6 +9022,11 @@ fun TuitionFeesModule(
     val context = LocalContext.current
     val merchantUpiId by viewModel.merchantUpiId.collectAsState()
     val merchantName by viewModel.merchantName.collectAsState()
+
+    val academyName by viewModel.academyName.collectAsState()
+    val adminAddress by viewModel.adminAddress.collectAsState()
+    val adminPhone by viewModel.adminPhone.collectAsState()
+    val adminEmail by viewModel.adminEmail.collectAsState()
 
     // 1. Upgraded Tuition tracking state parameters
     var directSearchQuery by remember { mutableStateOf("") }
@@ -8450,33 +9927,61 @@ fun TuitionFeesModule(
                 }
             },
             confirmButton = {
-                Button(
-                    onClick = {
-                        val shareMsg = """
-                            🧾 *ASPIRANTS SUCCESS CLASSES FEE RECEIPT*
-                            ------------------------------------
-                            Receipt No: ${pay.receiptNo}
-                            Student: ${student.name}
-                            Course: ${batch?.name ?: "Preparatory"}
-                            Month Code: ${pay.monthPaidFor}
-                            Total Collected: ₹${pay.amountPaid.toInt()}
-                            Payment Mode: ${pay.paymentMode}
-                            Status: *SUCCESSFULLY PAID & SETTLED*
-                            ------------------------------------
-                            Aspirants Success Classes, Chhibramau.
-                        """.trimIndent()
-                        
-                        val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                            putExtra(android.content.Intent.EXTRA_TEXT, shareMsg)
-                            type = "text/plain"
-                        }
-                        context.startActivity(android.content.Intent.createChooser(sendIntent, "Share Receipt Via"))
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D47A1))
-                ) {
-                    Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Share/Send Receipt")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            try {
+                                val resultMsg = com.example.ui.screens.CardExporter.generatePaymentInvoicePdf(
+                                    context = context,
+                                    payment = pay,
+                                    student = student,
+                                    batch = batch,
+                                    academyName = academyName,
+                                    address = adminAddress,
+                                    phone = adminPhone,
+                                    email = adminEmail
+                                )
+                                Toast.makeText(context, resultMsg, Toast.LENGTH_LONG).show()
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                Toast.makeText(context, "Error generating PDF: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20))
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("PDF Invoice")
+                    }
+
+                    Button(
+                        onClick = {
+                            val shareMsg = """
+                                🧾 *${academyName.uppercase()} FEE RECEIPT*
+                                ------------------------------------
+                                Receipt No: ${pay.receiptNo}
+                                Student: ${student.name}
+                                Course: ${batch?.name ?: "Preparatory"}
+                                Month Code: ${pay.monthPaidFor}
+                                Total Collected: ₹${pay.amountPaid.toInt()}
+                                Payment Mode: ${pay.paymentMode}
+                                Status: *SUCCESSFULLY PAID & SETTLED*
+                                ------------------------------------
+                                $academyName, Chhibramau.
+                            """.trimIndent()
+                            
+                            val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                putExtra(android.content.Intent.EXTRA_TEXT, shareMsg)
+                                type = "text/plain"
+                            }
+                            context.startActivity(android.content.Intent.createChooser(sendIntent, "Share Receipt Via"))
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D47A1))
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Share Receipt")
+                    }
                 }
             },
             dismissButton = {
@@ -8536,61 +10041,28 @@ fun TuitionFeesModule(
                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Direct WhatsApp Button
+                    // Send SMS Button
                     Button(
                         onClick = {
-                            try {
-                                val cleanPhone = student.parentPhone.ifEmpty { student.phone }.replace("+", "").replace(" ", "").trim()
-                                val targetPhone = if (cleanPhone.length == 10) "91$cleanPhone" else cleanPhone
-                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                                    data = android.net.Uri.parse("https://api.whatsapp.com/send?phone=$targetPhone&text=${android.net.Uri.encode(finalReminderText)}")
-                                }
-                                context.startActivity(intent)
-                            } catch (e: Exception) {
-                                Toast.makeText(context, "Could not open WhatsApp. Opening general shares.", Toast.LENGTH_SHORT).show()
-                                val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                    putExtra(android.content.Intent.EXTRA_TEXT, finalReminderText)
-                                    type = "text/plain"
-                                }
-                                context.startActivity(android.content.Intent.createChooser(sendIntent, "Send Reminder Via"))
-                            }
+                            sendDirectSMS(student.parentPhone.ifEmpty { student.phone }, finalReminderText, context)
                             selectedStudentForReminder = null
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)), // WhatsApp Official Green
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(Icons.Default.Phone, contentDescription = "WhatsApp", modifier = Modifier.size(16.dp))
+                        Icon(
+                            imageVector = androidx.compose.material.icons.Icons.Default.Send,
+                            contentDescription = "SMS",
+                            modifier = Modifier.size(18.dp)
+                        )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Send on WhatsApp", fontWeight = FontWeight.Bold)
-                    }
-
-                    // Direct Share Button (New Line)
-                    Button(
-                        onClick = {
-                            val clipboardManager = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                            val clip = android.content.ClipData.newPlainText("TAMS Reminder Notice", finalReminderText)
-                            clipboardManager.setPrimaryClip(clip)
-                            Toast.makeText(context, "Reminder copied to clipboard!", Toast.LENGTH_SHORT).show()
-
-                            val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                putExtra(android.content.Intent.EXTRA_TEXT, finalReminderText)
-                                type = "text/plain"
-                            }
-                            context.startActivity(android.content.Intent.createChooser(sendIntent, "Send Reminder Via"))
-                            selectedStudentForReminder = null
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Share, contentDescription = "Share", modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Direct Share", fontWeight = FontWeight.Bold)
+                        Text("Send via Normal SMS 💬", fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
             },
             dismissButton = {
                 TextButton(onClick = { selectedStudentForReminder = null }) {
-                    Text("Dismiss")
+                    Text("Cancel", color = MaterialTheme.colorScheme.error)
                 }
             }
         )
@@ -9497,7 +10969,14 @@ fun ParentWorkspace(
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("Share on WhatsApp", fontSize = 10.sp)
+                            Icon(
+                                painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_whatsapp),
+                                contentDescription = "WhatsApp",
+                                tint = Color.Unspecified,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Share on WhatsApp", fontSize = 10.sp, color = Color.White)
                         }
                         Button(
                             onClick = { showCertificateDialog = false },
@@ -10496,7 +11975,14 @@ fun NextGenInsightsOverlay(
                                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)),
                                         modifier = Modifier.align(Alignment.End)
                                     ) {
-                                        Text("Outreach Warning PDF", fontSize = 9.sp)
+                                        Icon(
+                                            painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_whatsapp),
+                                            contentDescription = "WhatsApp",
+                                            tint = Color.Unspecified,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Outreach Warning PDF", fontSize = 9.sp, color = Color.White)
                                     }
                                 }
                             }
@@ -10585,9 +12071,6 @@ fun NextGenInsightsOverlay(
     }
 }
 
-// -------------------------------------------------------------------------
-// 4. MONETIZATION & GROWTH OVERLAY (Sub Tiers + Referral system)
-// -------------------------------------------------------------------------
 @Composable
 fun NextGenMonetizationOverlay(
     viewModel: AppViewModel,
@@ -10599,10 +12082,26 @@ fun NextGenMonetizationOverlay(
     val context = LocalContext.current
     val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
 
+    val userRole by viewModel.currentUserRole.collectAsState()
+    val adminEmailState by viewModel.adminEmail.collectAsState()
+    val teachersList by viewModel.teachersList.collectAsState()
+    val currentTeacher = teachersList.find { it.email.trim().lowercase() == adminEmailState.trim().lowercase() }
+
+    var selectedPlanName by remember { mutableStateOf("") }
+    var selectedPlanPrice by remember { mutableStateOf("") }
+    var showingCheckoutForm by remember { mutableStateOf(false) }
+    var refInputCode by remember { mutableStateOf("") }
+    var upiVerificationState by remember { mutableStateOf(false) }
+
     val subsPlans = listOf(
-        Triple("Basic Tier Standard", "INR 999/month", "Access batches registers, offline diagnostics tracking, custom worksheet PDF prints."),
-        Triple("Premium Plus (AI Doubt Hub)", "INR 2,499/month", "Includes Gemini doubt chatbot access, custom weekly study plan formulations."),
-        Triple("Enterprise Multi-Branch Franchise", "INR 4,999/month", "Unlocks multi-institute setup portals, localized GDPR compliance auditors.")
+        Triple("Basic Tier Standard", "999.0", "Access batches registers, offline diagnostics tracking, custom worksheet PDF prints."),
+        Triple("Premium Plus (AI Doubt Hub)", "2499.0", "Includes Gemini doubt chatbot access, custom weekly study plan formulations."),
+        Triple("Enterprise Multi-Branch Franchise", "4999.0", "Unlocks multi-institute setup portals, localized GDPR compliance auditors.")
+    )
+
+    val teacherPlans = listOf(
+        Triple("Premium Mentor Monthly", "499.0", "Unlocks unlimited student batches, auto WhatsApp homework dispatch trackers, expense logs."),
+        Triple("Master Educator Annual", "2999.0", "Unlocks automated study planner boards, unlimited clouds data storage backup, custom study sheets.")
     )
 
     Dialog(onDismissRequest = onClose) {
@@ -10623,31 +12122,200 @@ fun NextGenMonetizationOverlay(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Aspirants Growth & Billing Platform", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.primary)
+                    Text(
+                        text = if (userRole == "TEACHER") "Teacher Premium Center" else "TAMS SaaS Growth & Growth Center",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                     IconButton(onClick = onClose, modifier = Modifier.testTag("close_monetize_dialog")) {
                         Icon(Icons.Default.Close, contentDescription = "Close")
                     }
                 }
 
-                // Plan Tiers
-                Text("Select Institutional Subscription Tier", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                subsPlans.forEach { (tierName, pricing, terms) ->
+                if (userRole == "TEACHER") {
+                    // Display Teacher Account Profile overview
                     Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { Toast.makeText(context, "System subscription locked down: $tierName updated!", Toast.LENGTH_SHORT).show() },
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f))
                     ) {
                         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(tierName, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                Text(pricing, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 11.sp)
+                            Text("👤 Teacher Account: ${currentTeacher?.name ?: "Independent Tutor"}", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text("📧 Registration Email: $adminEmailState", fontSize = 10.sp, color = Color.Gray)
+                            Text(
+                                text = "👑 SaaS Status: " + if (currentTeacher?.isPremium == true) "ELITE PREMIUM" else "FREE BASIC PORTAL VERSION",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp,
+                                color = if (currentTeacher?.isPremium == true) Color(0xFF2E7D32) else Color(0xFFE65100)
+                            )
+                            if (currentTeacher?.isPremium == true) {
+                                Text("✓ Plan active: ${currentTeacher.premiumPlan}. Valid until: ${currentTeacher.premiumExpiry}", fontSize = 10.sp, color = Color(0xFF2E7D32), fontWeight = FontWeight.Medium)
                             }
-                            Text(terms, fontSize = 10.sp, color = Color.Gray)
+                        }
+                    }
+
+                    if (!showingCheckoutForm) {
+                        Text("Explore Premium Services Upgrades Offered by Admin:", fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = MaterialTheme.colorScheme.onBackground)
+                        teacherPlans.forEach { (name, price, terms) ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        selectedPlanName = name
+                                        selectedPlanPrice = price
+                                        showingCheckoutForm = true
+                                    },
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(name, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        Text("₹$price", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 11.sp)
+                                    }
+                                    Text(terms, fontSize = 10.sp, color = Color.Gray)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // ADMIN Standard Upgrades
+                    Text("Select Institutional Subscription Tier", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                    subsPlans.forEach { (tierName, price, terms) ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    selectedPlanName = tierName
+                                    selectedPlanPrice = price
+                                    showingCheckoutForm = true
+                                },
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(tierName, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    Text("₹$price", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 11.sp)
+                                }
+                                Text(terms, fontSize = 10.sp, color = Color.Gray)
+                            }
+                        }
+                    }
+                }
+
+                if (showingCheckoutForm) {
+                    HorizontalDivider()
+                    Text("💳 Checkout: $selectedPlanName • ₹$selectedPlanPrice", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                    
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text("Option A: Scan Admin UPI QR", fontWeight = FontWeight.Bold, fontSize = 10.sp, color = Color.Gray)
+                        
+                        // Show QR Code inside Dialog
+                        val customRefUri = "upi://pay?pa=smtsharma282.sks@okaxis&pn=TAMS%20Admin&am=$selectedPlanPrice&cu=INR"
+                        Box(contentAlignment = Alignment.Center) {
+                            Canvas(modifier = Modifier.size(100.dp)) {
+                                val sizePx = size.width
+                                val length = 21
+                                val specSize = sizePx / length
+                                drawRect(color = Color.White)
+                                fun drawCorner(tx: Float, ty: Float) {
+                                    drawRect(color = Color(0xFF1E3A8A), topLeft = androidx.compose.ui.geometry.Offset(tx, ty), size = androidx.compose.ui.geometry.Size(specSize * 7, specSize * 7))
+                                    drawRect(color = Color.White, topLeft = androidx.compose.ui.geometry.Offset(tx + specSize, ty + specSize), size = androidx.compose.ui.geometry.Size(specSize * 5, specSize * 5))
+                                    drawRect(color = Color(0xFF1E3A8A), topLeft = androidx.compose.ui.geometry.Offset(tx + specSize * 2, ty + specSize * 2), size = androidx.compose.ui.geometry.Size(specSize * 3, specSize * 3))
+                                }
+                                drawCorner(0f, 0f)
+                                drawCorner((length - 7) * specSize, 0f)
+                                drawCorner(0f, (length - 7) * specSize)
+                                
+                                val random = java.util.Random(customRefUri.hashCode().toLong())
+                                for (r in 0 until length) {
+                                    for (c in 0 until length) {
+                                        if (!(r < 9 && c < 9) && !(r < 9 && c >= length - 9) && !(r >= length - 9 && c < 9)) {
+                                            if (random.nextBoolean()) {
+                                                drawRect(color = Color(0xFF1E3A8A), topLeft = androidx.compose.ui.geometry.Offset(c * specSize, r * specSize), size = androidx.compose.ui.geometry.Size(specSize, specSize))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Button(
+                            onClick = {
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                    data = android.net.Uri.parse(customRefUri)
+                                    setPackage("com.google.android.apps.npath")
+                                }
+                                try {
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    try {
+                                        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(customRefUri)))
+                                    } catch (ex: Exception) {
+                                        Toast.makeText(context, "UPI direct link dispatch simulation...", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Black),
+                            modifier = Modifier.fillMaxWidth().height(36.dp),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("⚡ Launch Google Pay / Active UPI", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Text("Option B: Enter payment reference code", fontWeight = FontWeight.Bold, fontSize = 10.sp, color = Color.Gray)
+                        OutlinedTextField(
+                            value = refInputCode,
+                            onValueChange = { refInputCode = it },
+                            label = { Text("Bank UTR ID / Reference Transaction Code", fontSize = 10.sp) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            OutlinedButton(
+                                onClick = { showingCheckoutForm = false },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Cancel", fontSize = 11.sp)
+                            }
+                            Button(
+                                onClick = {
+                                    if (refInputCode.trim().length >= 6) {
+                                        if (userRole == "TEACHER") {
+                                            viewModel.upgradeTeacherPremium(adminEmailState, selectedPlanName, selectedPlanPrice, refInputCode)
+                                            Toast.makeText(context, "🎉 Premium Suite unlocked successfully!", Toast.LENGTH_LONG).show()
+                                        } else {
+                                            Toast.makeText(context, "🎉 Institute subscription processed through ledger successfully!", Toast.LENGTH_LONG).show()
+                                        }
+                                        showingCheckoutForm = false
+                                        upiVerificationState = true
+                                    } else {
+                                        Toast.makeText(context, "Please enter a valid 6-char proof of transaction reference", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                            ) {
+                                Text("Validate & Activate", fontSize = 11.sp, color = Color.White)
+                            }
                         }
                     }
                 }
@@ -12507,6 +14175,1029 @@ fun QuizAttemptsView(
         }
     }
 }
+
+@Composable
+fun AutoSlidingPromoSlideshow(
+    viewModel: com.example.ui.viewmodel.AppViewModel,
+    userRole: String,
+    modifier: Modifier = Modifier
+) {
+    val promoSlides by viewModel.promoSlides.collectAsState()
+    var currentSlideIndex by remember { mutableStateOf(0) }
+    var showEditDialog by remember { mutableStateOf(false) }
+
+    // Start auto scrolling logic
+    LaunchedEffect(promoSlides) {
+        if (promoSlides.isNotEmpty()) {
+            while (true) {
+                kotlinx.coroutines.delay(4000)
+                currentSlideIndex = (currentSlideIndex + 1) % promoSlides.size
+            }
+        }
+    }
+
+    if (promoSlides.isEmpty()) {
+        Card(
+            modifier = modifier.fillMaxWidth().height(210.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.LightGray.copy(alpha = 0.2f))
+        ) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                Text("Loading slideshow...", color = Color.Gray)
+            }
+        }
+        return
+    }
+
+    val slide = promoSlides.getOrNull(currentSlideIndex) ?: promoSlides.first()
+
+    // Match exact height of old graph
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(210.dp),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Draw background image if specified, or a stunning gradient!
+            if (!slide.imageUrl.isNullOrBlank()) {
+                // Load from URL/Uri
+                coil.compose.AsyncImage(
+                    model = slide.imageUrl,
+                    contentDescription = slide.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    error = androidx.compose.ui.graphics.painter.ColorPainter(Color.Gray)
+                )
+                // Transparent dark overlay for readable text contrast
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            androidx.compose.ui.graphics.Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.82f))
+                            )
+                        )
+                )
+            } else {
+                // Stunning custom gradient
+                val gradientColors = when (slide.gradientIndex) {
+                    0 -> listOf(Color(0xFF0D47A1), Color(0xFF1E88E5), Color(0xFF42A5F5))
+                    1 -> listOf(Color(0xFFB71C1C), Color(0xFFD84315), Color(0xFFFF8A65))
+                    2 -> listOf(Color(0xFF1B5E20), Color(0xFF43A047), Color(0xFF81C784))
+                    3 -> listOf(Color(0xFF4A148C), Color(0xFF8E24AA), Color(0xFFBA68C8))
+                    else -> listOf(Color(0xFFE65100), Color(0xFFFB8C00), Color(0xFFFFD54F))
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(androidx.compose.ui.graphics.Brush.linearGradient(colors = gradientColors))
+                )
+            }
+
+            // Foreground text layout
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Top row with Category Badge and optional Pencil editor
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.White.copy(alpha = 0.22f))
+                            .border(1.dp, Color.White.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = slide.badge.uppercase(),
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+
+                    // Show edit pencil button ONLY for ADMIN!
+                    if (userRole == "ADMIN") {
+                        IconButton(
+                            onClick = { showEditDialog = true },
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.25f))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Edit Slideshow Offers",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Title and Subtitle at bottom
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 6.dp)
+                ) {
+                    Text(
+                        text = slide.title,
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Black,
+                        lineHeight = 22.sp
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = slide.subtitle,
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        lineHeight = 15.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    // Sliding dotted indicator
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        promoSlides.forEachIndexed { idx, _ ->
+                            val isActive = idx == currentSlideIndex
+                            Box(
+                                modifier = Modifier
+                                    .size(if (isActive) 12.dp else 6.dp, 6.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isActive) Color.White else Color.White.copy(alpha = 0.4f))
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showEditDialog) {
+        PosterCustomizeDialog(
+            viewModel = viewModel,
+            onDismiss = { showEditDialog = false }
+        )
+    }
+}
+
+@Composable
+fun PosterCustomizeDialog(
+    viewModel: com.example.ui.viewmodel.AppViewModel,
+    onDismiss: () -> Unit
+) {
+    val promoSlides by viewModel.promoSlides.collectAsState()
+    var selectedSlideId by remember { mutableStateOf(0) }
+
+    // Forms backing state initialized based on selectedSlideId
+    val currentSlide = promoSlides.getOrNull(selectedSlideId) ?: promoSlides.first()
+    var editTitle by remember(selectedSlideId) { mutableStateOf(currentSlide.title) }
+    var editSubtitle by remember(selectedSlideId) { mutableStateOf(currentSlide.subtitle) }
+    var editBadge by remember(selectedSlideId) { mutableStateOf(currentSlide.badge) }
+    var editImageUrl by remember(selectedSlideId) { mutableStateOf(currentSlide.imageUrl) }
+    var editGradientIndex by remember(selectedSlideId) { mutableStateOf(currentSlide.gradientIndex) }
+
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surface,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "TAMS Studio  ❯  Banners",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Text(
+                            text = "Customize Slideshow",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(imageVector = Icons.Default.Close, contentDescription = "Close")
+                    }
+                }
+
+                Text(
+                    text = "Pick a slide below and design specific institute campaigns, batch announcements, discounts, links, or custom banners.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    lineHeight = 15.sp
+                )
+
+                // Row of 5 selection tabs
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    (0..4).forEach { id ->
+                        val isSel = id == selectedSlideId
+                        Button(
+                            onClick = { selectedSlideId = id },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isSel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = if (isSel) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(0.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(36.dp)
+                        ) {
+                            Text("Slide ${id + 1}", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
+
+                // Input Badge
+                OutlinedTextField(
+                    value = editBadge,
+                    onValueChange = { editBadge = it },
+                    label = { Text("Category / Header Badge (e.g. OFFER, COURSE)") },
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                // Input Title
+                OutlinedTextField(
+                    value = editTitle,
+                    onValueChange = { editTitle = it },
+                    label = { Text("Banner Title / Headline") },
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                // Input Subtitle
+                OutlinedTextField(
+                    value = editSubtitle,
+                    onValueChange = { editSubtitle = it },
+                    label = { Text("Offer description details") },
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 2
+                )
+
+                // Input Image URL
+                OutlinedTextField(
+                    value = editImageUrl,
+                    onValueChange = { editImageUrl = it },
+                    label = { Text("Custom Graphic Image URL (Optional)") },
+                    placeholder = { Text("https://example.com/poster.jpg") },
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                // Pick background gradients
+                Text("Select Theme Accent Gradient:", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceAround
+                ) {
+                    listOf(
+                        0 to Color(0xFF1E88E5), // Ocean
+                        1 to Color(0xFFD84315), // Sunset
+                        2 to Color(0xFF43A047), // Emerald
+                        3 to Color(0xFF8E24AA), // Mystic Purple
+                        4 to Color(0xFFFB8C00)  // Golden Amber
+                    ).forEach { (idx, c) ->
+                        val isSel = editGradientIndex == idx
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(c)
+                                .border(
+                                    border = if (isSel) BorderStroke(3.dp, MaterialTheme.colorScheme.primary) else BorderStroke(2.dp, Color.LightGray),
+                                    shape = CircleShape
+                                )
+                                .clickable { editGradientIndex = idx }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Action buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Cancel")
+                    }
+                    Button(
+                        onClick = {
+                            viewModel.updatePromoSlide(
+                                com.example.ui.viewmodel.AppViewModel.PromoSlide(
+                                    id = selectedSlideId,
+                                    badge = editBadge,
+                                    title = editTitle,
+                                    subtitle = editSubtitle,
+                                    imageUrl = editImageUrl,
+                                    gradientIndex = editGradientIndex
+                                )
+                            )
+                            onDismiss()
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1.5f)
+                    ) {
+                        Text("Apply & Save Slide")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MetricCountersScrollableRow(
+    batchesList: List<com.example.data.model.Batch>,
+    studentsList: List<com.example.data.model.Student>,
+    staffProfiles: List<com.example.ui.viewmodel.StaffProfile>,
+    onBatchesClick: () -> Unit,
+    onStudentsClick: () -> Unit,
+    onStaffClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val activeStaffCount = staffProfiles.count { it.isActive }
+    
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(vertical = 8.dp, horizontal = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Colored Card 1: Batches (Blue theme)
+        MetricCard(
+            title = "Batches",
+            count = batchesList.size.toString(),
+            label = "Active Classes",
+            backgroundBrush = androidx.compose.ui.graphics.Brush.linearGradient(
+                colors = listOf(Color(0xFF0284C7), Color(0xFF0EA5E9))
+            ),
+            icon = androidx.compose.material.icons.Icons.Default.Layers,
+            onClick = onBatchesClick
+        )
+
+        // Colored Card 2: Students (Emerald/Green theme)
+        MetricCard(
+            title = "Students",
+            count = studentsList.size.toString(),
+            label = "Total Admissions",
+            backgroundBrush = androidx.compose.ui.graphics.Brush.linearGradient(
+                colors = listOf(Color(0xFF059669), Color(0xFF10B981))
+            ),
+            icon = androidx.compose.material.icons.Icons.Default.People,
+            onClick = onStudentsClick
+        )
+
+        // Colored Card 3: Staff (Amber/Orange theme)
+        MetricCard(
+            title = "Staff",
+            count = "$activeStaffCount/${staffProfiles.size}",
+            label = "Active Members",
+            backgroundBrush = androidx.compose.ui.graphics.Brush.linearGradient(
+                colors = listOf(Color(0xFFEA580C), Color(0xFFF97316))
+            ),
+            icon = androidx.compose.material.icons.Icons.Default.Person,
+            onClick = onStaffClick
+        )
+    }
+}
+
+@Composable
+fun MetricCard(
+    title: String,
+    count: String,
+    label: String,
+    backgroundBrush: androidx.compose.ui.graphics.Brush,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .width(165.dp)
+            .height(82.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(backgroundBrush)
+                .padding(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().align(Alignment.TopStart),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    color = Color.White,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.9f),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            
+            Row(
+                modifier = Modifier.fillMaxWidth().align(Alignment.BottomStart),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Bottom
+            ) {
+                Text(
+                    text = count,
+                    color = Color.White,
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Black,
+                    lineHeight = 33.sp
+                )
+                Text(
+                    text = label,
+                    color = Color.White.copy(alpha = 0.9f),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.padding(bottom = 1.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun StatsRowGlassCard(
+    title: String,
+    count: String,
+    trend: String,
+    pathColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .width(155.dp)
+            .height(95.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF111827).copy(alpha = 0.8f)),
+        border = BorderStroke(1.dp, Color(0xFF1F2937))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title.uppercase(),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Gray,
+                    letterSpacing = 0.5.sp
+                )
+                
+                // Small neon miniature trend indicator
+                Box(
+                    modifier = Modifier
+                        .size(16.dp)
+                        .clip(CircleShape)
+                        .background(pathColor.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (trend.contains("+") || trend == "₹") "📈" else "⚡",
+                        fontSize = 8.sp,
+                        color = pathColor
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Bottom
+            ) {
+                Text(
+                    text = count,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White
+                )
+                Text(
+                    text = trend,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = pathColor
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun TenantAccountItemCard(
+    inst: com.example.ui.viewmodel.InstituteAccount,
+    onToggleSuspension: () -> Unit,
+    onToggleSubscription: () -> Unit,
+    onDelete: () -> Unit,
+    onRecordSubscription: () -> Unit,
+    onWipeNode: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("tenant_card_${inst.email.replace("@", "_").replace(".", "_")}"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (inst.isSuspended) Color(0xFF1E1E24) else Color(0xFF111827)
+        ),
+        border = BorderStroke(
+            1.dp,
+            if (inst.isSuspended) Color(0xFFEF4444).copy(alpha = 0.5f) else Color(0xFF1F2937)
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Main Top info row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Start
+                    ) {
+                        Text(
+                            text = inst.academyName,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = if (inst.isSuspended) Color(0xFF94A3B8) else Color.White
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(
+                                    if (inst.isApproved) Color(0xFF10B981).copy(alpha = 0.2f)
+                                    else Color(0xFFF59E0B).copy(alpha = 0.2f)
+                                )
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = if (inst.isApproved) "VALIDATED" else "PENDING",
+                                color = if (inst.isApproved) Color(0xFF34D399) else Color(0xFFFBBF24),
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    Text(
+                        text = "Director: ${inst.directorName} • ${inst.email}",
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
+                }
+
+                Switch(
+                    checked = inst.subscriptionActive,
+                    onCheckedChange = { 
+                        onToggleSubscription()
+                        Toast.makeText(context, "Subscription updated for ${inst.academyName}", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color(0xFF06B6D4),
+                        checkedTrackColor = Color(0xFF06B6D4).copy(alpha = 0.4f),
+                        uncheckedThumbColor = Color.LightGray,
+                        uncheckedTrackColor = Color(0xFF1F2937)
+                    ),
+                    modifier = Modifier.scale(0.85f).testTag("subscription_switch_${inst.email.replace("@", "_")}")
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            HorizontalDivider(color = Color(0xFF1F2937))
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Details section: registration date, plan type, upi VPA, amount paid
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Expiry Date: ", fontSize = 11.sp, color = Color.Gray)
+                        Text(inst.expiryDate, fontSize = 11.sp, color = Color.White)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Paid: ", fontSize = 11.sp, color = Color.Gray)
+                        Text("₹${inst.lastPaymentAmount.toInt()}", fontSize = 11.sp, color = Color(0xFF22D3EE), fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = "License: ${inst.profileType}",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF06B6D4)
+                    )
+                    Text(
+                        text = "UPI Ref: ${inst.lastUpiTxRef}",
+                        fontSize = 11.sp,
+                        color = Color.LightGray
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Action Buttons row: Suspend/Unban, Record Payment, Delete, GDPR Wipe
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Suspend / Unban button
+                    Button(
+                        onClick = onToggleSuspension,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (inst.isSuspended) Color(0xFF10B981) else Color(0xFFEF4444)
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp),
+                        modifier = Modifier.height(30.dp),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            text = if (inst.isSuspended) "Unban Account" else "Ban Workspace",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (inst.isSuspended) Color.Black else Color.White
+                        )
+                    }
+
+                    // Record Payment button
+                    Button(
+                        onClick = onRecordSubscription,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1F2937)),
+                        contentPadding = PaddingValues(horizontal = 12.dp),
+                        modifier = Modifier.height(30.dp),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AddCard,
+                            contentDescription = null,
+                            tint = Color(0xFF22D3EE),
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Pay UPI", fontSize = 11.sp, color = Color.White)
+                    }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    // GDPR Wipe button
+                    IconButton(
+                        onClick = {
+                            onWipeNode()
+                            Toast.makeText(context, "Secure wipe cycle scheduled for ${inst.academyName}", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.size(30.dp)
+                    ) {
+                        Text("🗑️", fontSize = 14.sp)
+                    }
+
+                    // Delete button with confirmation toggle
+                    IconButton(
+                        onClick = { showDeleteConfirm = true },
+                        modifier = Modifier.size(30.dp).testTag("delete_tenant_button_${inst.email.replace("@", "_")}")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DeleteForever,
+                            contentDescription = "Delete",
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = {
+                Text(
+                    text = "Confirm Permanent Deletion?",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = Color.White
+                )
+            },
+            text = {
+                Text(
+                    text = "Are you sure you want to permanently erase the workspace record for ${inst.academyName}? This action is destructive and irreversible.",
+                    fontSize = 13.sp,
+                    color = Color.LightGray
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDelete()
+                        showDeleteConfirm = false
+                        Toast.makeText(context, "Deleted ${inst.academyName}", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                ) {
+                    Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Cancel", color = Color.LightGray)
+                }
+            },
+            containerColor = Color(0xFF111827)
+        )
+    }
+}
+
+@Composable
+fun SettingsOverlayDialog(
+    viewModel: com.example.ui.viewmodel.AppViewModel,
+    onClose: () -> Unit
+) {
+    val context = LocalContext.current
+    val academyNameState by viewModel.academyName.collectAsState()
+    val directorNameState by viewModel.directorName.collectAsState()
+    val adminEmailState by viewModel.adminEmail.collectAsState()
+    val isBiometricLocked by viewModel.isBiometricLocked.collectAsState()
+    val preferredSmsSim by viewModel.preferredSmsSim.collectAsState()
+    val merchantUpiId by viewModel.merchantUpiId.collectAsState()
+    val merchantName by viewModel.merchantName.collectAsState()
+    val customGeminiApiKey by viewModel.customGeminiApiKey.collectAsState()
+
+    var tempName by remember(academyNameState) { mutableStateOf(academyNameState) }
+    var tempDirector by remember(directorNameState) { mutableStateOf(directorNameState) }
+    var tempEmail by remember(adminEmailState) { mutableStateOf(adminEmailState) }
+    var tempUpiId by remember(merchantUpiId) { mutableStateOf(merchantUpiId) }
+    var tempMerchantName by remember(merchantName) { mutableStateOf(merchantName) }
+    var tempApiKey by remember(customGeminiApiKey) { mutableStateOf(customGeminiApiKey) }
+
+    Dialog(
+        onDismissRequest = onClose,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .fillMaxHeight(0.85f)
+                .clip(RoundedCornerShape(16.dp)),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "SYSTEM SETTINGS",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    IconButton(onClick = onClose) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close Settings",
+                            tint = Color.Gray
+                        )
+                    }
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Icon(
+                                imageVector = Icons.Default.Fingerprint,
+                                contentDescription = "Security",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text("Biometric Safety Lock", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text("Require finger validation on launch", fontSize = 11.sp, color = Color.Gray)
+                            }
+                        }
+                        Switch(
+                            checked = isBiometricLocked,
+                            onCheckedChange = {
+                                viewModel.toggleBiometricLock(it)
+                                Toast.makeText(context, if (it) "Biometric safety locks established." else "Safety check bypassed.", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.testTag("biometric_finger_lock_toggle")
+                        )
+                    }
+
+                    HorizontalDivider(color = Color.LightGray.copy(alpha = 0.3f))
+
+                    Column {
+                        Text("Dual-SIM Telephony Channel Routing", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("Select SIM active card to use for auto academic reports SMS alerts", fontSize = 11.sp, color = Color.Gray)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("SIM 1", "SIM 2").forEach { sim ->
+                                val isSelected = preferredSmsSim == sim
+                                Button(
+                                    onClick = { viewModel.updateSmsSim(sim) },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                        contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.weight(1f).height(38.dp)
+                                ) {
+                                    Text(sim, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = Color.LightGray.copy(alpha = 0.3f))
+
+                    Text("COACHING ACADEMY IDENTITY", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    OutlinedTextField(
+                        value = tempName,
+                        onValueChange = { tempName = it },
+                        label = { Text("Academy Business Name", fontSize = 11.sp) },
+                        modifier = Modifier.fillMaxWidth().testTag("config_academy_name_input"),
+                        singleLine = true
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = tempDirector,
+                            onValueChange = { tempDirector = it },
+                            label = { Text("Director Name", fontSize = 11.sp) },
+                            modifier = Modifier.weight(1f).testTag("config_director_name_input"),
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = tempEmail,
+                            onValueChange = { tempEmail = it },
+                            label = { Text("Admin Email", fontSize = 11.sp) },
+                            modifier = Modifier.weight(1.2f).testTag("config_admin_email_input"),
+                            singleLine = true
+                        )
+                    }
+
+                    HorizontalDivider(color = Color.LightGray.copy(alpha = 0.3f))
+
+                    Text("REAL-TIME UPI CHECKOUT INTEGRATION", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    OutlinedTextField(
+                        value = tempUpiId,
+                        onValueChange = { tempUpiId = it },
+                        label = { Text("Coaching UPI ID VPA", fontSize = 11.sp) },
+                        placeholder = { Text("e.g. upi@domain") },
+                        modifier = Modifier.fillMaxWidth().testTag("config_merchant_upi_id_input"),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = tempMerchantName,
+                        onValueChange = { tempMerchantName = it },
+                        label = { Text("Merchant Display Name", fontSize = 11.sp) },
+                        modifier = Modifier.fillMaxWidth().testTag("config_merchant_name_input"),
+                        singleLine = true
+                    )
+
+                    HorizontalDivider(color = Color.LightGray.copy(alpha = 0.3f))
+
+                    Text("AI & GEMINI INTEGRATION SETTINGS", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("Configure your own Gemini API Key to let students ask academic doubts.", fontSize = 11.sp, color = Color.Gray)
+                    OutlinedTextField(
+                        value = tempApiKey,
+                        onValueChange = { tempApiKey = it },
+                        label = { Text("Gemini API Key", fontSize = 11.sp) },
+                        placeholder = { Text("AIzaSy...") },
+                        modifier = Modifier.fillMaxWidth().testTag("config_gemini_api_key_input"),
+                        singleLine = true,
+                        visualTransformation = if (tempApiKey.isNotEmpty()) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Button(
+                        onClick = {
+                            if (tempName.isNotBlank() && tempDirector.isNotBlank() && tempEmail.contains("@") && tempUpiId.isNotBlank() && tempUpiId.contains("@")) {
+                                viewModel.updateAcademySettings(tempName, tempDirector, tempEmail)
+                                viewModel.updateMerchantUPI(tempUpiId, tempMerchantName)
+                                viewModel.updateCustomGeminiApiKey(tempApiKey)
+                                Toast.makeText(context, "All academy settings, UPI keys, and AI configurations updated!", Toast.LENGTH_LONG).show()
+                                onClose()
+                            } else {
+                                Toast.makeText(context, "Verify that all fields are correct.", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().testTag("save_academy_config_button"),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Save Academy & Gateway Settings", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
 
 
 

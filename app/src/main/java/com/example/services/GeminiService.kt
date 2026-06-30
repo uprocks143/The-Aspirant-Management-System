@@ -18,6 +18,7 @@ object GeminiService {
     // Ordered list of model candidacies for robust fallback resolve support
     private val MODELS = listOf(
         "gemini-3.5-flash",
+        "gemini-2.5-flash",
         "gemini-3.1-pro-preview"
     )
 

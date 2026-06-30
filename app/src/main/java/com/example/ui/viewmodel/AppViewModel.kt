@@ -26,7 +26,32 @@ data class InstituteAccount(
     val directorName: String,
     val email: String,
     val address: String,
-    val isApproved: Boolean = false
+    val isApproved: Boolean = false,
+    val subscriptionActive: Boolean = true,
+    val expiryDate: String = "2026-07-18",
+    val lastPaymentAmount: Double = 0.0,
+    val lastUpiTxRef: String = "",
+    val profileType: String = "COACHING_OWNER",
+    val gstNumber: String = "",
+    val businessProofId: String = "",
+    val libraryCapacity: String = "",
+    val libraryCategory: String = "",
+    val tuitionSubject: String = "",
+    val tuitionStandard: String = "",
+    val schoolCode: String = "",
+    val isSuspended: Boolean = false,
+    val wipeDataAt: Long = 0L // GDPR automatic wiping timestamp after 24 hours
+)
+
+data class SubTransactionRecord(
+    val id: String,
+    val academyName: String,
+    val email: String,
+    val date: String,
+    val amount: Double,
+    val upiTxnId: String,
+    val planType: String,
+    val status: String = "Approved"
 )
 
 private fun getSafeString(sharedPrefs: android.content.SharedPreferences, key: String, defaultValue: String): String {
@@ -88,31 +113,104 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val sharedPrefs = context.getSharedPreferences("tams_settings", Context.MODE_PRIVATE)
 
     // === Dynamic Registration State ===
-    private val _academyName = MutableStateFlow(getSafeString(sharedPrefs, "academy_name", "Aspirants Success Classes"))
+    private val _academyName = MutableStateFlow(getSafeString(sharedPrefs, "academy_name", "TAMS Academy"))
     val academyName = _academyName.asStateFlow()
 
-    private val _directorName = MutableStateFlow(getSafeString(sharedPrefs, "director_name", "Sumit Kumar"))
+    private val _directorName = MutableStateFlow(getSafeString(sharedPrefs, "director_name", "Admin Director"))
     val directorName = _directorName.asStateFlow()
 
-    private val _adminEmail = MutableStateFlow(getSafeString(sharedPrefs, "admin_email", "smtsharma282.sks@gmail.com"))
+    private val _adminEmail = MutableStateFlow(getSafeString(sharedPrefs, "admin_email", "admin@tams.com"))
     val adminEmail = _adminEmail.asStateFlow()
 
-    private val _adminPhone = MutableStateFlow(getSafeString(sharedPrefs, "admin_phone", "+919582715282"))
+    private val _adminPhone = MutableStateFlow(getSafeString(sharedPrefs, "admin_phone", "+919999999999"))
     val adminPhone = _adminPhone.asStateFlow()
 
-    private val _adminAddress = MutableStateFlow(getSafeString(sharedPrefs, "admin_address", "chhibramau"))
+    private val _adminAddress = MutableStateFlow(getSafeString(sharedPrefs, "admin_address", "Main Campus"))
     val adminAddress = _adminAddress.asStateFlow()
 
     private val _institutesList = MutableStateFlow<List<InstituteAccount>>(emptyList())
     val institutesList = _institutesList.asStateFlow()
 
-    init {
-        try {
-            loadInstitutes()
-        } catch (e: Exception) {
-            android.util.Log.e("AppViewModel", "loadInstitutes failed on creation", e)
+    private val _subscriberTransactions = MutableStateFlow<List<SubTransactionRecord>>(emptyList())
+    val subscriberTransactions = _subscriberTransactions.asStateFlow()
+
+    // --- Customisable Promo Slides for Auto Slideshow ---
+    data class PromoSlide(
+        val id: Int,
+        val title: String,
+        val subtitle: String,
+        val badge: String,
+        val imageUrl: String = "",
+        val gradientIndex: Int = 0
+    )
+
+    private val _promoSlides = MutableStateFlow<List<PromoSlide>>(emptyList())
+    val promoSlides = _promoSlides.asStateFlow()
+
+    fun loadPromoSlides() {
+        val defaultSlides = listOf(
+            PromoSlide(0, "TAMS Smart Admissions Open", "Enroll today & get offline study kit free!", "ADMISSIONS 2026", "", 0),
+            PromoSlide(1, "NDA & SSC Premium Batches", "Regular doubt sessions with personal mentors", "BATCH LIVE", "", 1),
+            PromoSlide(2, "Integrated Silent Library Hub", "Access 10,000+ offline books & high-speed Wi-Fi", "MEMBERSHIP", "", 2),
+            PromoSlide(3, "All India Offline Test Series", "Solve offline sheets & verify auto-rankings", "MOCK TESTS", "", 3),
+            PromoSlide(4, "Need Instant Assistance?", "Tap here to chat with our expert academic counsellors", "HELP DESK", "", 4)
+        )
+        val jsonStr = sharedPrefs.getString("promo_slides_json", "")
+        if (jsonStr.isNullOrEmpty()) {
+            savePromoSlides(defaultSlides)
+        } else {
+            try {
+                val array = org.json.JSONArray(jsonStr)
+                val list = mutableListOf<PromoSlide>()
+                for (i in 0 until array.length()) {
+                    val obj = array.getJSONObject(i)
+                    list.add(
+                        PromoSlide(
+                            id = obj.optInt("id", i),
+                            title = obj.optString("title", ""),
+                            subtitle = obj.optString("subtitle", ""),
+                            badge = obj.optString("badge", ""),
+                            imageUrl = obj.optString("imageUrl", ""),
+                            gradientIndex = obj.optInt("gradientIndex", 0)
+                        )
+                    )
+                }
+                _promoSlides.value = list
+            } catch (e: Exception) {
+                android.util.Log.e("AppViewModel", "Failed parsing promo slides, loading defaults", e)
+                savePromoSlides(defaultSlides)
+            }
         }
     }
+
+    fun savePromoSlides(list: List<PromoSlide>) {
+        _promoSlides.value = list
+        val array = org.json.JSONArray()
+        list.forEach { slide ->
+            val obj = org.json.JSONObject()
+            obj.put("id", slide.id)
+            obj.put("title", slide.title)
+            obj.put("subtitle", slide.subtitle)
+            obj.put("badge", slide.badge)
+            obj.put("imageUrl", slide.imageUrl)
+            obj.put("gradientIndex", slide.gradientIndex)
+            array.put(obj)
+        }
+        sharedPrefs.edit().putString("promo_slides_json", array.toString()).apply()
+    }
+
+    fun updatePromoSlide(updated: PromoSlide) {
+        val currentList = _promoSlides.value.toMutableList()
+        val index = currentList.indexOfFirst { it.id == updated.id }
+        if (index >= 0) {
+            currentList[index] = updated
+        } else {
+            currentList.add(updated)
+        }
+        savePromoSlides(currentList)
+    }
+
+
 
     private fun loadInstitutes() {
         val jsonStr = getSafeString(sharedPrefs, "registered_institutes_json", "[]")
@@ -127,16 +225,31 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         directorName = obj.optString("directorName", "Tutor"),
                         email = obj.optString("email", ""),
                         address = obj.optString("address", ""),
-                        isApproved = obj.optBoolean("isApproved", false)
+                        isApproved = obj.optBoolean("isApproved", false),
+                        subscriptionActive = obj.optBoolean("subscriptionActive", true),
+                        expiryDate = obj.optString("expiryDate", "2026-07-18"),
+                        lastPaymentAmount = obj.optDouble("lastPaymentAmount", 0.0),
+                        lastUpiTxRef = obj.optString("lastUpiTxRef", ""),
+                        profileType = obj.optString("profileType", "COACHING_OWNER"),
+                        gstNumber = obj.optString("gstNumber", ""),
+                        businessProofId = obj.optString("businessProofId", ""),
+                        libraryCapacity = obj.optString("libraryCapacity", ""),
+                        libraryCategory = obj.optString("libraryCategory", ""),
+                        tuitionSubject = obj.optString("tuitionSubject", ""),
+                        tuitionStandard = obj.optString("tuitionStandard", ""),
+                        schoolCode = obj.optString("schoolCode", ""),
+                        isSuspended = obj.optBoolean("isSuspended", false),
+                        wipeDataAt = obj.optLong("wipeDataAt", 0L)
                     )
                 )
             }
             if (list.isEmpty()) {
-                list.add(InstituteAccount("Dynamic Shapers Coaching", "Anand Rao", "anand@shapers.com", "Lucknow", false))
-                list.add(InstituteAccount("Quantum prep Classes", "Dr. Homi", "homi@quantum.com", "Mumbai", false))
+                // Seed only the App Owner's authorized account profile. No other accounts can be created or auto-generated.
+                list.add(InstituteAccount("TAMS Academy", "Admin Director", "admin@tams.com", "Main Campus", true, true, "2026-12-31"))
                 saveInstitutesList(list)
             }
             _institutesList.value = list
+            loadTeachers()
         } catch (e: Exception) {
             _institutesList.value = emptyList()
         }
@@ -151,18 +264,195 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             obj.put("email", item.email)
             obj.put("address", item.address)
             obj.put("isApproved", item.isApproved)
+            obj.put("subscriptionActive", item.subscriptionActive)
+            obj.put("expiryDate", item.expiryDate)
+            obj.put("lastPaymentAmount", item.lastPaymentAmount)
+            obj.put("lastUpiTxRef", item.lastUpiTxRef)
+            obj.put("profileType", item.profileType)
+            obj.put("gstNumber", item.gstNumber)
+            obj.put("businessProofId", item.businessProofId)
+            obj.put("libraryCapacity", item.libraryCapacity)
+            obj.put("libraryCategory", item.libraryCategory)
+            obj.put("tuitionSubject", item.tuitionSubject)
+            obj.put("tuitionStandard", item.tuitionStandard)
+            obj.put("schoolCode", item.schoolCode)
+            obj.put("isSuspended", item.isSuspended)
+            obj.put("wipeDataAt", item.wipeDataAt)
             array.put(obj)
         }
         sharedPrefs.edit().putString("registered_institutes_json", array.toString()).apply()
         _institutesList.value = list
+
+        // Auto sync updated / verified institute/admin records to Cloud database firebase doc
+        viewModelScope.launch {
+            try {
+                FirebaseService.initialize(context)
+                if (FirebaseService.isInitialized) {
+                    for (item in list) {
+                        FirebaseService.syncInstituteToCloud(item)
+                    }
+                    android.util.Log.d("AppViewModel", "Institutes list successfully synced to Firebase.")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("AppViewModel", "Cloud sync for Institutes failed: ${e.localizedMessage}")
+            }
+        }
     }
 
-    fun registerInstitute(academy: String, director: String, email: String, address: String) {
+    fun toggleSubscriptionActive(email: String) {
+        val updated = _institutesList.value.map {
+            if (it.email == email) {
+                it.copy(subscriptionActive = !it.subscriptionActive)
+            } else it
+        }
+        saveInstitutesList(updated)
+    }
+
+    fun toggleInstituteSuspension(email: String) {
+        val updated = _institutesList.value.map {
+            if (it.email == email) {
+                it.copy(
+                    isSuspended = !it.isSuspended,
+                    subscriptionActive = if (!it.isSuspended) false else it.subscriptionActive // suspend subscription if banned
+                )
+            } else it
+        }
+        saveInstitutesList(updated)
+    }
+
+    fun scheduleInstituteWipe(email: String, delay24h: Boolean) {
+        val wipeTime = if (delay24h) System.currentTimeMillis() + 86400000L else 1L
+        if (wipeTime == 1L) {
+            // Instant destructive wipe: remove from the institute list completely!
+            val updated = _institutesList.value.filter { it.email != email }
+            saveInstitutesList(updated)
+        } else {
+            // Schedule 24 hour wiping flag
+            val updated = _institutesList.value.map {
+                if (it.email == email) {
+                    it.copy(wipeDataAt = wipeTime)
+                } else it
+            }
+            saveInstitutesList(updated)
+        }
+    }
+
+    fun updateSubscriptionManual(email: String, active: Boolean, expiry: String, amt: Double, ref: String) {
+        val updated = _institutesList.value.map {
+            if (it.email == email) {
+                it.copy(
+                    subscriptionActive = active,
+                    expiryDate = expiry,
+                    lastPaymentAmount = amt,
+                    lastUpiTxRef = ref
+                )
+            } else it
+        }
+        saveInstitutesList(updated)
+    }
+
+    fun loadSubscriberTransactions() {
+        val jsonStr = getSafeString(sharedPrefs, "subscriber_transactions_json", "[]")
+        try {
+            val array = JSONArray(jsonStr)
+            val list = mutableListOf<SubTransactionRecord>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                list.add(
+                    SubTransactionRecord(
+                        id = obj.optString("id", System.currentTimeMillis().toString()),
+                        academyName = obj.optString("academyName", ""),
+                        email = obj.optString("email", ""),
+                        date = obj.optString("date", ""),
+                        amount = obj.optDouble("amount", 0.0),
+                        upiTxnId = obj.optString("upiTxnId", ""),
+                        planType = obj.optString("planType", ""),
+                        status = obj.optString("status", "Approved")
+                    )
+                )
+            }
+            if (list.isEmpty()) {
+                list.add(SubTransactionRecord("tx_1", "TAMS Academy", "admin@tams.com", "2026-06-15", 499.0, "UPI62984530182", "Monthly", "Approved"))
+                saveSubscriberTransactionsList(list)
+            }
+            _subscriberTransactions.value = list
+        } catch (e: Exception) {
+            _subscriberTransactions.value = emptyList()
+        }
+    }
+
+    fun saveSubscriberTransactionsList(list: List<SubTransactionRecord>) {
+        val array = JSONArray()
+        for (item in list) {
+            val obj = JSONObject()
+            obj.put("id", item.id)
+            obj.put("academyName", item.academyName)
+            obj.put("email", item.email)
+            obj.put("date", item.date)
+            obj.put("amount", item.amount)
+            obj.put("upiTxnId", item.upiTxnId)
+            obj.put("planType", item.planType)
+            obj.put("status", item.status)
+            array.put(obj)
+        }
+        sharedPrefs.edit().putString("subscriber_transactions_json", array.toString()).apply()
+        _subscriberTransactions.value = list
+    }
+
+    fun recordSubscriberTransaction(academyName: String, email: String, amount: Double, upiTxnId: String, planType: String) {
+        val list = _subscriberTransactions.value.toMutableList()
+        val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+        val nid = "tx_" + System.currentTimeMillis()
+        list.add(
+            SubTransactionRecord(
+                id = nid,
+                academyName = academyName,
+                email = email,
+                date = dateStr,
+                amount = amount,
+                upiTxnId = upiTxnId,
+                planType = planType,
+                status = "Approved"
+            )
+        )
+        saveSubscriberTransactionsList(list)
+
+        val addDays = if (planType == "Yearly") 365 else 30
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+        val cal = java.util.Calendar.getInstance()
+        try {
+            val currentInst = _institutesList.value.firstOrNull { it.email == email }
+            val baseDate = if (currentInst != null) sdf.parse(currentInst.expiryDate) else java.util.Date()
+            cal.time = baseDate ?: java.util.Date()
+        } catch (e: Exception) {
+            cal.time = java.util.Date()
+        }
+        cal.add(java.util.Calendar.DAY_OF_YEAR, addDays)
+        val newExpiry = sdf.format(cal.time)
+
+        updateSubscriptionManual(email, true, newExpiry, amount, upiTxnId)
+    }
+
+    fun registerInstitute(
+        academy: String,
+        director: String,
+        email: String,
+        address: String,
+        profileType: String = "COACHING_OWNER",
+        gstNumber: String = "",
+        businessProofId: String = "",
+        libraryCapacity: String = "",
+        libraryCategory: String = "",
+        tuitionSubject: String = "",
+        tuitionStandard: String = "",
+        schoolCode: String = ""
+    ) {
         sharedPrefs.edit()
             .putString("academy_name", academy)
             .putString("director_name", director)
             .putString("admin_email", email)
             .putString("admin_address", address)
+            .putString("profile_type", profileType)
             .apply()
         _academyName.value = academy
         _directorName.value = director
@@ -175,8 +465,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // Also append to the tracking list so the owner can view / monitor it
         val current = _institutesList.value.toMutableList()
         if (!current.any { it.email == email }) {
-            val isApproved = (email == "smtsharma282.sks@gmail.com" || email.contains("guest") || email.contains("google"))
-            current.add(InstituteAccount(academy, director, email, address, isApproved))
+            val isApproved = true
+            current.add(
+                InstituteAccount(
+                    academyName = academy,
+                    directorName = director,
+                    email = email,
+                    address = address,
+                    isApproved = isApproved,
+                    profileType = profileType,
+                    gstNumber = gstNumber,
+                    businessProofId = businessProofId,
+                    libraryCapacity = libraryCapacity,
+                    libraryCategory = libraryCategory,
+                    tuitionSubject = tuitionSubject,
+                    tuitionStandard = tuitionStandard,
+                    schoolCode = schoolCode
+                )
+            )
             saveInstitutesList(current)
         }
     }
@@ -253,18 +559,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _promoShareCount = MutableStateFlow(getSafeInt(sharedPrefs, "promo_share_count", 0))
     val promoShareCount = _promoShareCount.asStateFlow()
 
-    init {
-        try {
-            if (_trialStartDate.value == 0L) {
-                val now = System.currentTimeMillis()
-                _trialStartDate.value = now
-                sharedPrefs.edit().putLong("trial_start_date", now).apply()
-            }
-            loadStaffProfiles()
-        } catch (e: Exception) {
-            android.util.Log.e("AppViewModel", "init trial/staff failed on creation", e)
-        }
-    }
+
 
     fun getRemainingTrialDays(): Int {
         val start = _trialStartDate.value
@@ -320,14 +615,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         name = obj.optString("name", ""),
                         role = obj.optString("role", "Teacher"),
                         phone = obj.optString("phone", ""),
-                        allowedScreens = screens
+                        allowedScreens = screens,
+                        isActive = obj.optBoolean("isActive", true)
                     )
                 )
             }
             if (list.isEmpty()) {
-                list.add(StaffProfile("staff1", "Sunil Verma", "Senior Maths Faculty", "9876543210", setOf("Attendance", "Study Materials", "Homework")))
-                list.add(StaffProfile("staff2", "Neha Gupta", "Academy Center Incharge", "9988776655", setOf("Batches Setup", "Admission Form", "Tuition Fees", "Attendance", "Homework")))
-                list.add(StaffProfile("staff3", "Pankaj Sharma", "Admission Lead Manager", "9456123780", setOf("Enquiry Manager", "Admission Form")))
+                list.add(StaffProfile("staff1", "Sunil Verma", "Senior Maths Faculty", "9876543210", setOf("Attendance", "Study Materials", "Homework"), true))
+                list.add(StaffProfile("staff2", "Neha Gupta", "Academy Center Incharge", "9988776655", setOf("Batches Setup", "Admission Form", "Tuition Fees", "Attendance", "Homework"), true))
+                list.add(StaffProfile("staff3", "Pankaj Sharma", "Admission Lead Manager", "9456123780", setOf("Enquiry Manager", "Admission Form"), true))
                 saveStaffProfilesList(list)
             }
             _staffProfiles.value = list
@@ -344,6 +640,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             obj.put("name", item.name)
             obj.put("role", item.role)
             obj.put("phone", item.phone)
+            obj.put("isActive", item.isActive)
             val screensArray = JSONArray()
             item.allowedScreens.forEach { screensArray.put(it) }
             obj.put("allowedScreens", screensArray)
@@ -353,18 +650,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _staffProfiles.value = list
     }
 
-    fun addStaffProfile(name: String, role: String, phone: String, screens: Set<String>) {
+    fun addStaffProfile(name: String, role: String, phone: String, screens: Set<String>): String {
         val list = _staffProfiles.value.toMutableList()
+        val newId = System.currentTimeMillis().toString()
         list.add(
             StaffProfile(
-                id = System.currentTimeMillis().toString(),
+                id = newId,
                 name = name,
                 role = role,
                 phone = phone,
-                allowedScreens = screens
+                allowedScreens = screens,
+                isActive = true
             )
         )
         saveStaffProfilesList(list)
+        return newId
     }
 
     fun deleteStaffProfile(id: String) {
@@ -377,6 +677,427 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             if (it.id == id) it.copy(allowedScreens = screens) else it
         }
         saveStaffProfilesList(updatedList)
+    }
+
+    fun updateStaffProfile(id: String, name: String, role: String, phone: String, screens: Set<String>, isActive: Boolean = true) {
+        val updatedList = _staffProfiles.value.map {
+            if (it.id == id) it.copy(name = name, role = role, phone = phone, allowedScreens = screens, isActive = isActive) else it
+        }
+        saveStaffProfilesList(updatedList)
+    }
+
+    fun deleteInstituteAccount(email: String) {
+        val updated = _institutesList.value.filter { it.email != email }
+        saveInstitutesList(updated)
+    }
+
+    // === Library Subsystem (SaaS Physical Library) ===
+    private val _booksList = MutableStateFlow<List<Book>>(emptyList())
+    val booksList = _booksList.asStateFlow()
+
+    private val _bookLoansList = MutableStateFlow<List<BookLoan>>(emptyList())
+    val bookLoansList = _bookLoansList.asStateFlow()
+
+    private val _librarySeatsList = MutableStateFlow<List<LibrarySeat>>(emptyList())
+    val librarySeatsList = _librarySeatsList.asStateFlow()
+
+    private val _libraryAccounts = MutableStateFlow<List<LibraryAccount>>(emptyList())
+    val libraryAccounts = _libraryAccounts.asStateFlow()
+
+    private val _activeLibraryAccount = MutableStateFlow<LibraryAccount?>(null)
+    val activeLibraryAccount = _activeLibraryAccount.asStateFlow()
+
+    private val _libraryAttendanceLogs = MutableStateFlow<List<LibraryAttendance>>(emptyList())
+    val libraryAttendanceLogs = _libraryAttendanceLogs.asStateFlow()
+
+    private fun loadLibraryData() {
+        // Books
+        val bJson = getSafeString(sharedPrefs, "lib_books_json", "[]")
+        try {
+            val arr = JSONArray(bJson)
+            val list = mutableListOf<Book>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                list.add(
+                    Book(
+                        id = obj.optString("id", UUID.randomUUID().toString()),
+                        title = obj.optString("title", ""),
+                        author = obj.optString("author", ""),
+                        isbn = obj.optString("isbn", ""),
+                        category = obj.optString("category", ""),
+                        shelfLocation = obj.optString("shelfLocation", ""),
+                        totalCopies = obj.optInt("totalCopies", 1),
+                        availableCopies = obj.optInt("availableCopies", 1)
+                    )
+                )
+            }
+            _booksList.value = list
+        } catch (e: Exception) { e.printStackTrace() }
+
+        // Loans
+        val lJson = getSafeString(sharedPrefs, "lib_loans_json", "[]")
+        try {
+            val arr = JSONArray(lJson)
+            val list = mutableListOf<BookLoan>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                list.add(
+                    BookLoan(
+                        id = obj.optString("id", UUID.randomUUID().toString()),
+                        bookId = obj.optString("bookId", ""),
+                        studentId = obj.optLong("studentId", 0L),
+                        studentName = obj.optString("studentName", ""),
+                        issueDate = obj.optString("issueDate", ""),
+                        dueDate = obj.optString("dueDate", ""),
+                        returnDate = if (obj.isNull("returnDate")) null else obj.optString("returnDate"),
+                        fineAmount = obj.optDouble("fineAmount", 0.0)
+                    )
+                )
+            }
+            _bookLoansList.value = list
+        } catch (e: Exception) { e.printStackTrace() }
+
+        // Library Study Cabins/Seats
+        val sJson = getSafeString(sharedPrefs, "lib_seats_json", "[]")
+        try {
+            val arr = JSONArray(sJson)
+            val list = mutableListOf<LibrarySeat>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                list.add(
+                    LibrarySeat(
+                        id = obj.optString("id", UUID.randomUUID().toString()),
+                        seatNumber = obj.optString("seatNumber", ""),
+                        cabinBlock = obj.optString("cabinBlock", "Zone A"),
+                        rentPriceMonthly = obj.optDouble("rentPriceMonthly", 500.0),
+                        isBooked = obj.optBoolean("isBooked", false),
+                        bookedByStudentId = if (obj.isNull("bookedByStudentId")) null else obj.optLong("bookedByStudentId"),
+                        bookedByStudentName = if (obj.isNull("bookedByStudentName")) null else obj.optString("bookedByStudentName"),
+                        bookingStartDate = if (obj.isNull("bookingStartDate")) null else obj.optString("bookingStartDate"),
+                        bookingEndDate = if (obj.isNull("bookingEndDate")) null else obj.optString("bookingEndDate")
+                    )
+                )
+            }
+            if (list.isEmpty()) {
+                // Pre-seed some library seat desks
+                for (i in 1..20) {
+                    list.add(LibrarySeat("${System.currentTimeMillis()}-$i", "Cabin Slot #$i", "Main Quiet Hall", 400.0 + (i % 3) * 100.0, false, null, null, null, null))
+                }
+                saveLibrarySeatsList(list)
+            }
+            _librarySeatsList.value = list
+        } catch (e: Exception) { e.printStackTrace() }
+
+        // Library Accounts
+        val accountsJson = getSafeString(sharedPrefs, "lib_accounts_json", "[]")
+        try {
+            val arr = JSONArray(accountsJson)
+            val list = mutableListOf<LibraryAccount>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                list.add(
+                    LibraryAccount(
+                        rollNumber = obj.optString("rollNumber", ""),
+                        name = obj.optString("name", ""),
+                        phone = obj.optString("phone", ""),
+                        password = obj.optString("password", ""),
+                        isStaff = obj.optBoolean("isStaff", false),
+                        preferredShift = obj.optString("preferredShift", "Morning Shift (6 AM - 12 PM)"),
+                        preferredZone = obj.optString("preferredZone", "All")
+                    )
+                )
+            }
+            if (list.isEmpty()) {
+                // Completely empty - no prefilled accounts
+            }
+            _libraryAccounts.value = list
+        } catch (e: Exception) { e.printStackTrace() }
+
+        // Library Attendance Logs
+        val attJson = getSafeString(sharedPrefs, "lib_attendance_json", "[]")
+        try {
+            val arr = JSONArray(attJson)
+            val list = mutableListOf<LibraryAttendance>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                list.add(
+                    LibraryAttendance(
+                        id = obj.optString("id", UUID.randomUUID().toString()),
+                        studentName = obj.optString("studentName", ""),
+                        rollNumber = obj.optString("rollNumber", ""),
+                        phone = obj.optString("phone", ""),
+                        timestamp = obj.optString("timestamp", ""),
+                        type = obj.optString("type", "CHECK_IN")
+                    )
+                )
+            }
+            if (list.isEmpty()) {
+                saveLibraryAttendanceList(list)
+            }
+            _libraryAttendanceLogs.value = list
+        } catch (e: Exception) { e.printStackTrace() }
+    }
+
+    private fun saveBooksList(list: List<Book>) {
+        val arr = JSONArray()
+        for (b in list) {
+            val obj = JSONObject().apply {
+                put("id", b.id)
+                put("title", b.title)
+                put("author", b.author)
+                put("isbn", b.isbn)
+                put("category", b.category)
+                put("shelfLocation", b.shelfLocation)
+                put("totalCopies", b.totalCopies)
+                put("availableCopies", b.availableCopies)
+            }
+            arr.put(obj)
+        }
+        sharedPrefs.edit().putString("lib_books_json", arr.toString()).apply()
+        _booksList.value = list
+    }
+
+    private fun saveBookLoansList(list: List<BookLoan>) {
+        val arr = JSONArray()
+        for (l in list) {
+            val obj = JSONObject().apply {
+                put("id", l.id)
+                put("bookId", l.bookId)
+                put("studentId", l.studentId)
+                put("studentName", l.studentName)
+                put("issueDate", l.issueDate)
+                put("dueDate", l.dueDate)
+                if (l.returnDate == null) put("returnDate", JSONObject.NULL) else put("returnDate", l.returnDate)
+                put("fineAmount", l.fineAmount)
+            }
+            arr.put(obj)
+        }
+        sharedPrefs.edit().putString("lib_loans_json", arr.toString()).apply()
+        _bookLoansList.value = list
+    }
+
+    private fun saveLibrarySeatsList(list: List<LibrarySeat>) {
+        val arr = JSONArray()
+        for (s in list) {
+            val obj = JSONObject().apply {
+                put("id", s.id)
+                put("seatNumber", s.seatNumber)
+                put("cabinBlock", s.cabinBlock)
+                put("rentPriceMonthly", s.rentPriceMonthly)
+                put("isBooked", s.isBooked)
+                if (s.bookedByStudentId == null) put("bookedByStudentId", JSONObject.NULL) else put("bookedByStudentId", s.bookedByStudentId)
+                if (s.bookedByStudentName == null) put("bookedByStudentName", JSONObject.NULL) else put("bookedByStudentName", s.bookedByStudentName)
+                if (s.bookingStartDate == null) put("bookingStartDate", JSONObject.NULL) else put("bookingStartDate", s.bookingStartDate)
+                if (s.bookingEndDate == null) put("bookingEndDate", JSONObject.NULL) else put("bookingEndDate", s.bookingEndDate)
+            }
+            arr.put(obj)
+        }
+        sharedPrefs.edit().putString("lib_seats_json", arr.toString()).apply()
+        _librarySeatsList.value = list
+    }
+
+    fun addBook(title: String, author: String, isbn: String, category: String, shelfLocation: String, totalCopies: Int) {
+        val list = _booksList.value.toMutableList()
+        list.add(
+            Book(
+                id = UUID.randomUUID().toString(),
+                title = title,
+                author = author,
+                isbn = isbn,
+                category = category,
+                shelfLocation = shelfLocation,
+                totalCopies = totalCopies,
+                availableCopies = totalCopies
+            )
+        )
+        saveBooksList(list)
+    }
+
+    fun updateBook(book: Book) {
+        val updated = _booksList.value.map { if (it.id == book.id) book else it }
+        saveBooksList(updated)
+    }
+
+    fun deleteBook(id: String) {
+        val updated = _booksList.value.filter { it.id != id }
+        saveBooksList(updated)
+    }
+
+    private fun saveLibraryAccountsList(list: List<LibraryAccount>) {
+        val arr = JSONArray()
+        for (a in list) {
+            val obj = JSONObject().apply {
+                put("rollNumber", a.rollNumber)
+                put("name", a.name)
+                put("phone", a.phone)
+                put("password", a.password)
+                put("isStaff", a.isStaff)
+                put("preferredShift", a.preferredShift)
+                put("preferredZone", a.preferredZone)
+            }
+            arr.put(obj)
+        }
+        sharedPrefs.edit().putString("lib_accounts_json", arr.toString()).apply()
+        _libraryAccounts.value = list
+    }
+
+    private fun saveLibraryAttendanceList(list: List<LibraryAttendance>) {
+        val arr = JSONArray()
+        for (att in list) {
+            val obj = JSONObject().apply {
+                put("id", att.id)
+                put("studentName", att.studentName)
+                put("rollNumber", att.rollNumber)
+                put("phone", att.phone)
+                put("timestamp", att.timestamp)
+                put("type", att.type)
+            }
+            arr.put(obj)
+        }
+        sharedPrefs.edit().putString("lib_attendance_json", arr.toString()).apply()
+        _libraryAttendanceLogs.value = list
+    }
+
+    fun registerLibraryAccount(
+        rollNumber: String,
+        name: String,
+        phone: String,
+        pass: String,
+        isStaff: Boolean = false,
+        preferredShift: String = "Morning Shift (6 AM - 12 PM)",
+        preferredZone: String = "All"
+    ): Boolean {
+        val list = _libraryAccounts.value.toMutableList()
+        if (list.any { it.rollNumber.equals(rollNumber, ignoreCase = true) }) {
+            return false // Already exists
+        }
+        val newAcc = LibraryAccount(rollNumber, name, phone, pass, isStaff, preferredShift, preferredZone)
+        list.add(newAcc)
+        saveLibraryAccountsList(list)
+        return true
+    }
+
+    fun loginLibraryAccount(rollNumber: String, pass: String): Boolean {
+        val found = _libraryAccounts.value.find { 
+            it.rollNumber.equals(rollNumber, ignoreCase = true) && it.password == pass 
+        }
+        if (found != null) {
+            _activeLibraryAccount.value = found
+            return true
+        }
+        return false
+    }
+
+    fun logoutLibraryAccount() {
+        _activeLibraryAccount.value = null
+    }
+
+    fun addLibraryAttendance(rollNumber: String, studentName: String, phone: String, type: String): String {
+        val list = _libraryAttendanceLogs.value.toMutableList()
+        val timeFormat = java.text.SimpleDateFormat("yyyy-MM-dd hh:mm a", java.util.Locale.getDefault())
+        val timestampString = timeFormat.format(java.util.Date())
+        val newLog = LibraryAttendance(
+            id = "att_${System.currentTimeMillis()}",
+            studentName = studentName,
+            rollNumber = rollNumber,
+            phone = phone,
+            timestamp = timestampString,
+            type = type
+        )
+        list.add(0, newLog)
+        saveLibraryAttendanceList(list)
+        return timestampString
+    }
+
+    fun issueBook(bookId: String, studentId: Long, studentName: String, issueDate: String, dueDate: String) {
+        val loans = _bookLoansList.value.toMutableList()
+        loans.add(
+            BookLoan(
+                id = UUID.randomUUID().toString(),
+                bookId = bookId,
+                studentId = studentId,
+                studentName = studentName,
+                issueDate = issueDate,
+                dueDate = dueDate,
+                returnDate = null,
+                fineAmount = 0.0
+            )
+        )
+        val books = _booksList.value.map {
+            if (it.id == bookId) it.copy(availableCopies = (it.availableCopies - 1).coerceAtLeast(0)) else it
+        }
+        saveBooksList(books)
+        saveBookLoansList(loans)
+    }
+
+    fun returnBook(loanId: String, returnDate: String, fineAmount: Double) {
+        var bookIdToReplenish: String? = null
+        val updatedLoans = _bookLoansList.value.map {
+            if (it.id == loanId) {
+                bookIdToReplenish = it.bookId
+                it.copy(returnDate = returnDate, fineAmount = fineAmount)
+            } else it
+        }
+        if (bookIdToReplenish != null) {
+            val books = _booksList.value.map {
+                if (it.id == bookIdToReplenish) it.copy(availableCopies = (it.availableCopies + 1).coerceAtLeast(0).coerceAtMost(it.totalCopies)) else it
+            }
+            saveBooksList(books)
+        }
+        saveBookLoansList(updatedLoans)
+    }
+
+    fun addLibrarySeat(seatNumber: String, cabinBlock: String, rentPrice: Double) {
+        val list = _librarySeatsList.value.toMutableList()
+        list.add(
+            LibrarySeat(
+                id = UUID.randomUUID().toString(),
+                seatNumber = seatNumber,
+                cabinBlock = cabinBlock,
+                rentPriceMonthly = rentPrice,
+                isBooked = false,
+                bookedByStudentId = null,
+                bookedByStudentName = null,
+                bookingStartDate = null,
+                bookingEndDate = null
+            )
+        )
+        saveLibrarySeatsList(list)
+    }
+
+    fun bookLibrarySeat(seatId: String, studentId: Long, studentName: String, startDate: String, endDate: String) {
+        val updated = _librarySeatsList.value.map {
+            if (it.id == seatId) {
+                it.copy(
+                    isBooked = true,
+                    bookedByStudentId = studentId,
+                    bookedByStudentName = studentName,
+                    bookingStartDate = startDate,
+                    bookingEndDate = endDate
+                )
+            } else it
+        }
+        saveLibrarySeatsList(updated)
+    }
+
+    fun releaseLibrarySeat(seatId: String) {
+        val updated = _librarySeatsList.value.map {
+            if (it.id == seatId) {
+                it.copy(
+                    isBooked = false,
+                    bookedByStudentId = null,
+                    bookedByStudentName = null,
+                    bookingStartDate = null,
+                    bookingEndDate = null
+                )
+            } else it
+        }
+        saveLibrarySeatsList(updated)
+    }
+
+    fun deleteLibrarySeat(seatId: String) {
+        val updated = _librarySeatsList.value.filter { it.id != seatId }
+        saveLibrarySeatsList(updated)
     }
 
     // === Device & Safety Settings ===
@@ -469,24 +1190,72 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _googleDriveBackupFrequency = MutableStateFlow(getSafeString(sharedPrefs, "google_drive_backup_frequency", "Manual"))
     val googleDriveBackupFrequency = _googleDriveBackupFrequency.asStateFlow()
 
-    init {
-        // Seed default templates and data if database is empty
-        viewModelScope.launch {
-            try {
-                batches.first { true }.let { list ->
-                    if (list.isEmpty()) {
-                        seedInitialTamsData()
-                    }
-                }
-            } catch (e: Exception) {
-                android.util.Log.e("AppViewModel", "seedInitialTamsData query or insert failed", e)
+    // === Custom AI/Gemini API Key Configuration ===
+    private val _customGeminiApiKey = MutableStateFlow(getSafeString(sharedPrefs, "custom_gemini_api_key", ""))
+    val customGeminiApiKey = _customGeminiApiKey.asStateFlow()
+
+    // === Study Material Favorites & Personal Notes ===
+    private val _favoritedMaterialIds = MutableStateFlow<Set<String>>(getSafeStringSet(sharedPrefs, "favorited_material_ids", emptySet()))
+    val favoritedMaterialIds = _favoritedMaterialIds.asStateFlow()
+
+    private val _personalNotesMap = MutableStateFlow<Map<String, String>>(emptyMap())
+    val personalNotesMap = _personalNotesMap.asStateFlow()
+
+    fun loadPersonalNotes() {
+        val jsonStr = sharedPrefs.getString("personal_material_notes_json", "{}") ?: "{}"
+        val map = mutableMapOf<String, String>()
+        try {
+            val obj = org.json.JSONObject(jsonStr)
+            obj.keys().forEach { key ->
+                map[key] = obj.optString(key)
             }
+        } catch (e: Exception) {
+            android.util.Log.e("AppViewModel", "Failed to load personal notes", e)
         }
+        _personalNotesMap.value = map
+    }
+
+    fun toggleFavoriteMaterial(materialId: Long) {
+        val current = _favoritedMaterialIds.value.toMutableSet()
+        val idStr = materialId.toString()
+        if (current.contains(idStr)) {
+            current.remove(idStr)
+        } else {
+            current.add(idStr)
+        }
+        _favoritedMaterialIds.value = current
+        sharedPrefs.edit().putStringSet("favorited_material_ids", current).apply()
+    }
+
+    fun savePersonalNote(materialId: Long, note: String) {
+        val current = _personalNotesMap.value.toMutableMap()
+        current[materialId.toString()] = note
+        _personalNotesMap.value = current
+        
+        val obj = org.json.JSONObject()
+        current.forEach { (k, v) ->
+            obj.put(k, v)
+        }
+        sharedPrefs.edit().putString("personal_material_notes_json", obj.toString()).apply()
+    }
+
+    fun updateCustomGeminiApiKey(key: String) {
+        _customGeminiApiKey.value = key.trim()
+        sharedPrefs.edit().putString("custom_gemini_api_key", key.trim()).apply()
     }
 
     fun switchTheme(theme: String) {
         _themeMode.value = theme
         sharedPrefs.edit().putString("app_theme", theme).apply()
+    }
+
+    // === Student Dynamic SaaS Multi-tenancy Context Switcher ===
+    private val _activeStudentContext = MutableStateFlow(getSafeString(sharedPrefs, "active_student_context", "Verma Sir's Tuition"))
+    val activeStudentContext = _activeStudentContext.asStateFlow()
+
+    fun switchStudentContext(newContext: String) {
+        _activeStudentContext.value = newContext
+        sharedPrefs.edit().putString("active_student_context", newContext).apply()
     }
 
     // === Role Auth Actions ===
@@ -509,6 +1278,150 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         sharedPrefs.edit().putBoolean("biometric_locked", enabled).apply()
     }
 
+    // === Teacher Management & SaaS Partition Engine ===
+    private val _teachersList = java.util.concurrent.CopyOnWriteArrayList<TeacherAccount>()
+    private val _observableTeachersList = MutableStateFlow<List<TeacherAccount>>(emptyList())
+    val teachersList = _observableTeachersList.asStateFlow()
+
+    private val _currentTeacher = MutableStateFlow<TeacherAccount?>(null)
+    val currentTeacher = _currentTeacher.asStateFlow()
+
+    fun loadTeachers() {
+        val jsonStr = getSafeString(sharedPrefs, "registered_teachers_json", "[]")
+        try {
+            val array = JSONArray(jsonStr)
+            val list = mutableListOf<TeacherAccount>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                list.add(
+                    TeacherAccount(
+                        email = obj.optString("email", ""),
+                        name = obj.optString("name", ""),
+                        subject = obj.optString("subject", ""),
+                        centerName = obj.optString("centerName", ""),
+                        passcode = obj.optString("passcode", "1234"),
+                        isPremium = obj.optBoolean("isPremium", false),
+                        premiumPlan = obj.optString("premiumPlan", "Basic Free Tier"),
+                        premiumExpiry = obj.optString("premiumExpiry", "N/A"),
+                        salary = obj.optDouble("salary", 15000.0)
+                    )
+                )
+            }
+            _teachersList.clear()
+            _teachersList.addAll(list)
+            _observableTeachersList.value = list
+        } catch (e: Exception) {
+            android.util.Log.e("AppViewModel", "loadTeachers failed", e)
+        }
+    }
+
+    private fun saveTeachersList() {
+        val array = JSONArray()
+        for (item in _teachersList) {
+            val obj = JSONObject()
+            obj.put("email", item.email)
+            obj.put("name", item.name)
+            obj.put("subject", item.subject)
+            obj.put("centerName", item.centerName)
+            obj.put("passcode", item.passcode)
+            obj.put("isPremium", item.isPremium)
+            obj.put("premiumPlan", item.premiumPlan)
+            obj.put("premiumExpiry", item.premiumExpiry)
+            obj.put("salary", item.salary)
+            array.put(obj)
+        }
+        sharedPrefs.edit().putString("registered_teachers_json", array.toString()).apply()
+        _observableTeachersList.value = _teachersList.toList()
+    }
+
+    fun updateTeacherSalary(email: String, newSalary: Double) {
+        val emailClean = email.trim().lowercase()
+        val index = _teachersList.indexOfFirst { it.email == emailClean }
+        if (index != -1) {
+            val updated = _teachersList[index].copy(salary = newSalary)
+            _teachersList[index] = updated
+            saveTeachersList()
+            if (_currentTeacher.value?.email == emailClean) {
+                _currentTeacher.value = updated
+            }
+        }
+    }
+
+    fun registerTeacher(name: String, email: String, subject: String, centerName: String, passcode: String): Boolean {
+        if (email.isBlank() || name.isBlank() || passcode.isBlank()) return false
+        val emailClean = email.trim().lowercase()
+        if (_teachersList.any { it.email == emailClean }) return false
+        
+        val newTeacher = TeacherAccount(
+            email = emailClean,
+            name = name,
+            subject = subject,
+            centerName = centerName,
+            passcode = passcode,
+            isPremium = false,
+            premiumPlan = "Basic Free Tier",
+            premiumExpiry = "N/A"
+        )
+        _teachersList.add(newTeacher)
+        saveTeachersList()
+        return true
+    }
+
+    fun loginTeacher(email: String, passcode: String): Boolean {
+        val emailClean = email.trim().lowercase()
+        val teacher = _teachersList.find { it.email == emailClean && it.passcode == passcode }
+        if (teacher != null) {
+            _currentTeacher.value = teacher
+            
+            // Set up SaaS partition values to target this teacher's data!
+            _academyName.value = teacher.centerName
+            _directorName.value = teacher.name
+            _adminEmail.value = teacher.email
+            _adminAddress.value = "Subject: ${teacher.subject}"
+            
+            sharedPrefs.edit()
+                .putString("academy_name", teacher.centerName)
+                .putString("director_name", teacher.name)
+                .putString("admin_email", teacher.email)
+                .putString("admin_address", "Subject: ${teacher.subject}")
+                .apply()
+            
+            loginAs("TEACHER")
+            return true
+        }
+        return false
+    }
+
+    fun upgradeTeacherPremium(email: String, planName: String, priceStr: String, refId: String) {
+        val emailClean = email.trim().lowercase()
+        val index = _teachersList.indexOfFirst { it.email == emailClean }
+        if (index != -1) {
+            val updated = _teachersList[index].copy(
+                isPremium = true,
+                premiumPlan = planName,
+                premiumExpiry = "2027-06-20" // Year extension
+            )
+            _teachersList[index] = updated
+            saveTeachersList()
+            if (_currentTeacher.value?.email == emailClean) {
+                _currentTeacher.value = updated
+            }
+            
+            // Record Income & Expenses Ledger transaction representing the admin's income from this premium sale!
+            viewModelScope.launch {
+                repository.insertTransaction(
+                    FinancialTransaction(
+                        type = "INCOME",
+                        amount = priceStr.toDoubleOrNull() ?: 499.0,
+                        category = "Premium Subscription",
+                        description = "Teacher Premium Subscription purchase ($planName) by $emailClean. Ref: $refId",
+                        instituteEmail = "admin@tams.com" // Goes to primary platform admin account!
+                    )
+                )
+            }
+        }
+    }
+
     fun updateSmsSim(sim: String) {
         _preferredSmsSim.value = sim
         sharedPrefs.edit().putString("preferred_sms_sim", sim).apply()
@@ -522,26 +1435,45 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // === Batches ===
     fun addBatch(name: String, location: String, teacher: String, timings: String, days: String, capacity: Int, amount: Double, sub: String) {
         viewModelScope.launch {
-            repository.insertBatch(
-                Batch(
-                    name = name,
-                    location = location,
-                    assignedTeacher = teacher,
-                    classTimings = timings,
-                    daysOfWeek = days,
-                    maxCapacity = capacity,
-                    feesAmount = amount,
-                    subject = sub,
-                    isActive = true,
-                    instituteEmail = _adminEmail.value
-                )
+            val batch = Batch(
+                name = name,
+                location = location,
+                assignedTeacher = teacher,
+                classTimings = timings,
+                daysOfWeek = days,
+                maxCapacity = capacity,
+                feesAmount = amount,
+                subject = sub,
+                isActive = true,
+                instituteEmail = _adminEmail.value
             )
+            val insertedId = repository.insertBatch(batch)
+            // Sync with Firestore Cloud
+            try {
+                FirebaseService.initialize(context)
+                if (FirebaseService.isInitialized) {
+                    FirebaseService.syncBatchToCloud(batch.copy(id = insertedId))
+                    android.util.Log.d("AppViewModel", "New batch synced to Firestore.")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("AppViewModel", "Firestore batch sync failed: ${e.localizedMessage}")
+            }
         }
     }
 
     fun updateBatch(batch: Batch) {
         viewModelScope.launch {
             repository.updateBatch(batch)
+            // Sync with Firestore Cloud on update
+            try {
+                FirebaseService.initialize(context)
+                if (FirebaseService.isInitialized) {
+                    FirebaseService.syncBatchToCloud(batch)
+                    android.util.Log.d("AppViewModel", "Updated batch synced to Firestore.")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("AppViewModel", "Cloud sync on batch update failed: ${e.localizedMessage}")
+            }
         }
     }
 
@@ -703,15 +1635,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun saveSingleAttendance(studentId: Long, batchId: Long, dateStr: String, status: String, method: String) {
         viewModelScope.launch {
             repository.deleteAttendance(studentId, dateStr)
-            repository.insertAttendance(
-                Attendance(
-                    studentId = studentId,
-                    batchId = batchId,
-                    dateString = dateStr,
-                    status = status,
-                    trackingMethod = method
-                )
+            val attendance = Attendance(
+                studentId = studentId,
+                batchId = batchId,
+                dateString = dateStr,
+                status = status,
+                trackingMethod = method
             )
+            repository.insertAttendance(attendance)
+            // Sync with Firestore Cloud
+            try {
+                FirebaseService.initialize(context)
+                if (FirebaseService.isInitialized) {
+                    FirebaseService.syncAttendanceToCloud(attendance)
+                    android.util.Log.d("AppViewModel", "Attendance synced to Firestore.")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("AppViewModel", "Firestore attendance sync failed: ${e.localizedMessage}")
+            }
         }
     }
 
@@ -719,15 +1660,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             studentIds.forEach { sId ->
                 repository.deleteAttendance(sId, dateStr)
-                repository.insertAttendance(
-                    Attendance(
-                        studentId = sId,
-                        batchId = batchId,
-                        dateString = dateStr,
-                        status = status,
-                        trackingMethod = method
-                    )
+                val attendance = Attendance(
+                    studentId = sId,
+                    batchId = batchId,
+                    dateString = dateStr,
+                    status = status,
+                    trackingMethod = method
                 )
+                repository.insertAttendance(attendance)
+                // Sync with Firestore Cloud
+                try {
+                    FirebaseService.initialize(context)
+                    if (FirebaseService.isInitialized) {
+                        FirebaseService.syncAttendanceToCloud(attendance)
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("AppViewModel", "Firestore bulk attendance sync failed: ${e.localizedMessage}")
+                }
             }
             Toast.makeText(context, "Attendance updated in bulk for ${studentIds.size} student slots.", Toast.LENGTH_SHORT).show()
         }
@@ -1008,6 +1957,60 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun restoreDatabaseFromLocalMemory(onProgress: (String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                withContext(Dispatchers.Main) {
+                    onProgress("Scanning local phone storage directories...")
+                }
+                val rootDir = context.getExternalFilesDir(null) ?: context.filesDir
+                val backupFiles = rootDir.listFiles { _, name ->
+                    name.startsWith("TAMS_Local_Backup_") && name.endsWith(".db")
+                }
+
+                if (backupFiles.isNullOrEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        onProgress("Error: No local SQLite flat-file backup packages found on storage.")
+                    }
+                    return@launch
+                }
+
+                val latestBackupFile = backupFiles.maxByOrNull { it.lastModified() }
+                if (latestBackupFile == null) {
+                    withContext(Dispatchers.Main) {
+                        onProgress("Error: Local backup package selection failed.")
+                    }
+                    return@launch
+                }
+
+                withContext(Dispatchers.Main) {
+                    onProgress("Injecting latest database snapshot from ${latestBackupFile.name}...")
+                }
+                delay(1000)
+
+                val dbFile = context.getDatabasePath("aspirant_management_db")
+                val walFile = File(dbFile.parent, "${dbFile.name}-wal")
+                val shmFile = File(dbFile.parent, "${dbFile.name}-shm")
+                if (walFile.exists()) walFile.delete()
+                if (shmFile.exists()) shmFile.delete()
+
+                latestBackupFile.inputStream().use { input ->
+                    FileOutputStream(dbFile).use { output ->
+                        input.copyTo(output)
+                    }
+                }
+
+                withContext(Dispatchers.Main) {
+                    onProgress("Success: Restored local storage backup (${latestBackupFile.name}) successfully!\n• Recalibrating local cache profiles...\n• Please reload or restart workspace to view updated logs.")
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    onProgress("Error during local restore: ${e.localizedMessage}")
+                }
+            }
+        }
+    }
+
     fun triggerCloudSyncSnapshot(onResult: (Boolean, String) -> Unit) {
         // Safe check to sync active Room DB tables to structural cloud documents safely
         viewModelScope.launch {
@@ -1020,7 +2023,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
                 FirebaseService.initialize(context)
                 if (FirebaseService.isInitialized) {
-                    val userEmail = _adminEmail.value.ifEmpty { "smtsharma282.sks@gmail.com" }
+                    val userEmail = _adminEmail.value.ifEmpty { "admin@tams.com" }
                     val url = FirebaseService.uploadBackupSnapshotToCloud(
                         username = userEmail,
                         batches = batchList,
@@ -1062,7 +2065,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
 
-                val userEmail = _adminEmail.value.ifEmpty { "smtsharma282.sks@gmail.com" }
+                val userEmail = _adminEmail.value.ifEmpty { "admin@tams.com" }
                 // Call GoogleDriveService
                 val result = com.example.services.GoogleDriveService.uploadBackupToGoogleDrive(
                     context = context,
@@ -1106,7 +2109,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 onProgress("Connecting to Google Account cloud...")
                 delay(800)
-                val userEmail = _adminEmail.value.ifEmpty { "smtsharma282.sks@gmail.com" }
+                val userEmail = _adminEmail.value.ifEmpty { "admin@tams.com" }
                 onProgress("Querying file indices for $userEmail...")
                 delay(1000)
                 onProgress("Downloading latest encapsulated database snapshot from folder...")
@@ -1151,6 +2154,44 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             )
         )
     }
+
+    init {
+        // Init 1
+        try {
+            loadInstitutes()
+            loadSubscriberTransactions()
+            loadLibraryData()
+            loadPromoSlides()
+            loadPersonalNotes()
+        } catch (e: Exception) {
+            android.util.Log.e("AppViewModel", "loadInstitutes failed on creation", e)
+        }
+
+        // Init 2
+        try {
+            if (_trialStartDate.value == 0L) {
+                val now = System.currentTimeMillis()
+                _trialStartDate.value = now
+                sharedPrefs.edit().putLong("trial_start_date", now).apply()
+            }
+            loadStaffProfiles()
+        } catch (e: Exception) {
+            android.util.Log.e("AppViewModel", "init trial/staff failed on creation", e)
+        }
+
+        // Init 3
+        viewModelScope.launch {
+            try {
+                batches.first { true }.let { list ->
+                    if (list.isEmpty()) {
+                        seedInitialTamsData()
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("AppViewModel", "seedInitialTamsData query or insert failed", e)
+            }
+        }
+    }
 }
 
 data class StaffProfile(
@@ -1158,5 +2199,71 @@ data class StaffProfile(
     val name: String,
     val role: String,
     val phone: String,
-    val allowedScreens: Set<String>
+    val allowedScreens: Set<String>,
+    val isActive: Boolean = true
+)
+
+data class Book(
+    val id: String,
+    val title: String,
+    val author: String,
+    val isbn: String,
+    val category: String,
+    val shelfLocation: String,
+    val totalCopies: Int,
+    val availableCopies: Int
+)
+
+data class BookLoan(
+    val id: String,
+    val bookId: String,
+    val studentId: Long,
+    val studentName: String,
+    val issueDate: String,
+    val dueDate: String,
+    val returnDate: String?,
+    val fineAmount: Double
+)
+
+data class LibrarySeat(
+    val id: String,
+    val seatNumber: String,
+    val cabinBlock: String,
+    val rentPriceMonthly: Double,
+    val isBooked: Boolean,
+    val bookedByStudentId: Long?,
+    val bookedByStudentName: String?,
+    val bookingStartDate: String?,
+    val bookingEndDate: String?
+)
+
+data class LibraryAccount(
+    val rollNumber: String,
+    val name: String,
+    val phone: String,
+    val password: String,
+    val isStaff: Boolean = false,
+    val preferredShift: String = "Morning Shift (6 AM - 12 PM)",
+    val preferredZone: String = "All"
+)
+
+data class LibraryAttendance(
+    val id: String,
+    val studentName: String,
+    val rollNumber: String,
+    val phone: String,
+    val timestamp: String,
+    val type: String // "CHECK_IN" or "CHECK_OUT"
+)
+
+data class TeacherAccount(
+    val email: String,
+    val name: String,
+    val subject: String,
+    val centerName: String,
+    val passcode: String = "1234",
+    val isPremium: Boolean = false,
+    val premiumPlan: String = "Basic Free Tier",
+    val premiumExpiry: String = "N/A",
+    val salary: Double = 15000.0
 )

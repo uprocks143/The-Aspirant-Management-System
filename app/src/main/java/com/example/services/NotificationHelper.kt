@@ -76,6 +76,37 @@ object NotificationHelper {
         }
     }
 
+    fun triggerOtpNotification(context: Context, otp: String, email: String) {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            123,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val builder = NotificationCompat.Builder(context, STUDY_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("🔒 Password Reset Verification Code")
+            .setContentText("Your OTP reset code is: $otp (Sent to $email)")
+            .setStyle(NotificationCompat.BigTextStyle()
+                .bigText("TAMS Cloud Security Verification Code: $otp is your one-time password registration key to recover account credentials for $email. Do not share this OTP with anyone.")
+            )
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+
+        with(NotificationManagerCompat.from(context)) {
+            try {
+                notify(1003, builder.build())
+            } catch (e: SecurityException) {
+                // Ignore missing permissions
+            }
+        }
+    }
+
     fun triggerFeeReminderNotification(context: Context, studentName: String, amountDue: Double, month: String) {
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
