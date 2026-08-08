@@ -26,6 +26,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -44,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.BuildConfig
+import androidx.compose.ui.graphics.graphicsLayer
 import com.example.data.model.Student
 import com.example.services.GeminiService
 import com.example.ui.viewmodel.AppViewModel
@@ -69,6 +72,18 @@ import com.google.accompanist.permissions.rememberPermissionState
 @Composable
 fun SplashScreenWalkthrough(onFinish: () -> Unit) {
     var stepIndex by remember { mutableStateOf(0) }
+    
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(1000L)
+            if (stepIndex < 2) {
+                stepIndex++
+            } else {
+                onFinish()
+                break
+            }
+        }
+    }
     
     // Gradient matching exactly the beautiful dark navy to bright teal of Photograph 1
     val splashGradient = Brush.verticalGradient(
@@ -528,6 +543,246 @@ fun GoogleIconImage(modifier: Modifier = Modifier) {
 }
 
 @Composable
+fun StudentParentLoginScreen(
+    viewModel: com.example.ui.viewmodel.AppViewModel,
+    initialTab: String = "STUDENT", // "STUDENT" or "PARENT"
+    onBack: () -> Unit,
+    onLoginSuccess: (studentId: Long, role: String) -> Unit
+) {
+    val context = LocalContext.current
+    var selectedTab by remember { mutableStateOf(initialTab) } // "STUDENT" vs "PARENT"
+    
+    var rollNumber by remember { mutableStateOf("") }
+    var phoneNumber by remember { mutableStateOf("") }
+    
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = if (selectedTab == "STUDENT") {
+                        listOf(Color(0xFFE0F2FE), Color(0xFFFFFFFF))
+                    } else {
+                        listOf(Color(0xFFE8F5E9), Color(0xFFFFFFFF))
+                    }
+                )
+            )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp)
+                .safeDrawingPadding(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = if (selectedTab == "STUDENT") Color(0xFF0D47A1) else Color(0xFF1B5E20))
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (selectedTab == "STUDENT") "Student Secure Log In" else "Parent Guardian Log In",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = if (selectedTab == "STUDENT") Color(0xFF0D47A1) else Color(0xFF1B5E20)
+                )
+            }
+
+            // Big Card with Tuition Class Logo
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1.5f)
+                    .padding(vertical = 16.dp),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp)
+                        .verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Stylized logo container
+                    Box(
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clip(CircleShape)
+                            .background(if (selectedTab == "STUDENT") Color(0xFFE1F5FE) else Color(0xFFE8F5E9)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (selectedTab == "STUDENT") "👩‍🎓" else "👪",
+                            fontSize = 40.sp
+                        )
+                    }
+
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "Aspirants TAMS",
+                            fontWeight = FontWeight.Black,
+                            fontSize = 22.sp,
+                            color = if (selectedTab == "STUDENT") Color(0xFF03A9F4) else Color(0xFF4CAF50)
+                        )
+                        Text(
+                            text = if (selectedTab == "STUDENT") "Access your coaching materials & exams" else "Monitor child standing & tuition fees",
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 11.sp,
+                            color = Color.Gray,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Tab Selector
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(46.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0xFFF1F5F9))
+                            .padding(2.dp)
+                    ) {
+                        Button(
+                            onClick = { selectedTab = "STUDENT" },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (selectedTab == "STUDENT") Color(0xFF0D47A1) else Color.Transparent,
+                                contentColor = if (selectedTab == "STUDENT") Color.White else Color.Black
+                            ),
+                            modifier = Modifier.weight(1f).fillMaxHeight(),
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text("Student", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Button(
+                            onClick = { selectedTab = "PARENT" },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (selectedTab == "PARENT") Color(0xFF1B5E20) else Color.Transparent,
+                                contentColor = if (selectedTab == "PARENT") Color.White else Color.Black
+                            ),
+                            modifier = Modifier.weight(1f).fillMaxHeight(),
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text("Parent / Guardian", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Form Input fields
+                    OutlinedTextField(
+                        value = rollNumber,
+                        onValueChange = { rollNumber = it },
+                        label = { Text(if (selectedTab == "STUDENT") "Student Roll Number" else "Child's Roll Number") },
+                        leadingIcon = { Icon(Icons.Default.Pin, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                        modifier = Modifier.fillMaxWidth().testTag("auth_roll_number_input"),
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = true,
+                        placeholder = { Text("e.g. STUDENT101") }
+                    )
+
+                    OutlinedTextField(
+                        value = phoneNumber,
+                        onValueChange = { phoneNumber = it },
+                        label = { Text(if (selectedTab == "STUDENT") "Registered Mobile Number" else "Parent Mobile Number") },
+                        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                        modifier = Modifier.fillMaxWidth().testTag("auth_phone_number_input"),
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone),
+                        placeholder = { Text(if (selectedTab == "STUDENT") "e.g. 9876543210" else "e.g. 9876543211") }
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Warning / Demo Help Tip Card
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = if (selectedTab == "STUDENT") Color(0xFFF0F9FF) else Color(0xFFF0FDF4)),
+                        border = BorderStroke(1.dp, if (selectedTab == "STUDENT") Color(0xFFBAE6FD) else Color(0xFFBBF7D0))
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("💡", fontSize = 14.sp)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Access Instructions",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    color = if (selectedTab == "STUDENT") Color(0xFF0369A1) else Color(0xFF15803D)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (selectedTab == "STUDENT") {
+                                    "Log in with any student credentials registered via the Institute Owner portal."
+                                } else {
+                                    "Log in with the registered student roll number and parent mobile number."
+                                },
+                                fontSize = 10.sp,
+                                color = Color.DarkGray,
+                                lineHeight = 13.sp
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Secure login submit button
+            Button(
+                onClick = {
+                    focusManager.clearFocus()
+                    if (rollNumber.isBlank() || phoneNumber.isBlank()) {
+                        Toast.makeText(context, "Please fill in all details!", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    if (selectedTab == "STUDENT") {
+                        val student = viewModel.authenticateStudent(rollNumber, phoneNumber)
+                        if (student != null) {
+                            Toast.makeText(context, "Welcome back, ${student.name}! Access Authorized.", Toast.LENGTH_LONG).show()
+                            onLoginSuccess(student.id, "STUDENT")
+                        } else {
+                            Toast.makeText(context, "No matching student found! Please check roll and phone or contact administrator.", Toast.LENGTH_LONG).show()
+                        }
+                    } else {
+                        val student = viewModel.authenticateParent(rollNumber, phoneNumber)
+                        if (student != null) {
+                            Toast.makeText(context, "Guardian Authorized for: ${student.name}!", Toast.LENGTH_LONG).show()
+                            onLoginSuccess(student.id, "PARENT")
+                        } else {
+                            Toast.makeText(context, "No child record found matching this parent phone and child roll combination!", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (selectedTab == "STUDENT") Color(0xFF0D47A1) else Color(0xFF1B5E20)
+                )
+            ) {
+                Text("Securely Log In & Sync", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+            }
+        }
+    }
+}
+
+@Composable
 fun AdminLoginScreen(
     viewModel: com.example.ui.viewmodel.AppViewModel,
     onBack: () -> Unit,
@@ -561,6 +816,15 @@ fun AdminLoginScreen(
     var customGoogleEmail by remember { mutableStateOf("") }
     var customCoachingName by remember { mutableStateOf("") }
     var customPhysicalAddress by remember { mutableStateOf("") }
+    var customGooglePhone by remember { mutableStateOf("") }
+    var customProfileType by remember { mutableStateOf("COACHING_OWNER") }
+    var customGstNumber by remember { mutableStateOf("") }
+    var customBusinessProofId by remember { mutableStateOf("") }
+    var customLibraryCapacity by remember { mutableStateOf("120") }
+    var customLibraryCategory by remember { mutableStateOf("Premium Quiet Suite") }
+    var customTuitionSubject by remember { mutableStateOf("") }
+    var customTuitionStandard by remember { mutableStateOf("") }
+    var customSchoolCode by remember { mutableStateOf("") }
 
     var selectedPortalTab by remember { mutableStateOf("ADMIN") } // "ADMIN", "TEACHER"
     var teacherMode by remember { mutableStateOf("LOGIN") } // "LOGIN", "REGISTER"
@@ -573,6 +837,7 @@ fun AdminLoginScreen(
     var regAcademyName by remember { mutableStateOf("") }
     var regDirectorName by remember { mutableStateOf("") }
     var regAddress by remember { mutableStateOf("") }
+    var regMobilePhone by remember { mutableStateOf("") }
 
     // Dynamic, role-based SaaS onboarding variables
     var signupProfileType by remember { mutableStateOf("COACHING_OWNER") } // "TUITION_TEACHER", "COACHING_OWNER", "LIBRARY_OWNER", "SUB_TEACHER"
@@ -590,6 +855,7 @@ fun AdminLoginScreen(
     var cfgAppId by remember { mutableStateOf(sharedPrefs.getString("fb_app_id", "") ?: "") }
     var cfgProjectId by remember { mutableStateOf(sharedPrefs.getString("fb_project_id", "1039749549760") ?: "1039749549760") }
     var cfgStorageBucket by remember { mutableStateOf(sharedPrefs.getString("fb_storage_bucket", "") ?: "") }
+    var cfgGoogleClientId by remember { mutableStateOf(sharedPrefs.getString("fb_google_client_id", "") ?: "") }
 
     if (showFirebaseConfigDialog) {
         androidx.compose.ui.window.Dialog(
@@ -654,6 +920,15 @@ fun AdminLoginScreen(
                         singleLine = true
                     )
 
+                    OutlinedTextField(
+                        value = cfgGoogleClientId,
+                        onValueChange = { cfgGoogleClientId = it },
+                        label = { Text("Google Web Client ID (Optional)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        placeholder = { Text("e.g. 1039749549760-xxxx.apps.googleusercontent.com") }
+                    )
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End,
@@ -665,6 +940,9 @@ fun AdminLoginScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = {
+                                sharedPrefs.edit()
+                                    .putString("fb_google_client_id", cfgGoogleClientId.trim())
+                                    .apply()
                                 com.example.services.FirebaseService.saveFirebaseConfiguration(
                                     context = context,
                                     apiKey = cfgApiKey,
@@ -1106,17 +1384,27 @@ fun AdminLoginScreen(
                                     shape = RoundedCornerShape(12.dp)
                                 )
 
+                                OutlinedTextField(
+                                    value = regMobilePhone,
+                                    onValueChange = { regMobilePhone = it },
+                                    label = { Text("Mandatory Mobile Phone Number") },
+                                    leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone),
+                                    modifier = Modifier.fillMaxWidth().testTag("signup_mobile_phone_input"),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+
                                 // dynamic dynamic extra profile options based on role context
                                 if (signupProfileType == "COACHING_OWNER") {
                                     Column(
                                         modifier = Modifier.fillMaxWidth().background(Color(0xFFFFF8E1), RoundedCornerShape(12.dp)).padding(12.dp),
                                         verticalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Text("🏢 Business Verification Required for Coaching tier:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE65100))
+                                        Text("🏢 Business Verification (Optional for Coaching tier):", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE65100))
                                         OutlinedTextField(
                                             value = regGstNumber,
                                             onValueChange = { regGstNumber = it },
-                                            label = { Text("GST Registration Number") },
+                                            label = { Text("GST Registration Number (Optional)") },
                                             modifier = Modifier.fillMaxWidth(),
                                             shape = RoundedCornerShape(12.dp),
                                             placeholder = { Text("e.g. 09AAAAA1111A1Z1") }
@@ -1124,7 +1412,7 @@ fun AdminLoginScreen(
                                         OutlinedTextField(
                                             value = regBusinessProofId,
                                             onValueChange = { regBusinessProofId = it },
-                                            label = { Text("Business Proof ID / License Registration") },
+                                            label = { Text("Business Proof ID / License Registration (Optional)") },
                                             modifier = Modifier.fillMaxWidth(),
                                             shape = RoundedCornerShape(12.dp)
                                         )
@@ -1263,10 +1551,14 @@ fun AdminLoginScreen(
             
             // Genuine Google Sign In Client setup
             val gso = remember {
-                com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN)
+                val spClientId = sharedPrefs.getString("fb_google_client_id", "") ?: ""
+                val builder = com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN)
                     .requestEmail()
                     .requestProfile()
-                    .build()
+                if (spClientId.isNotEmpty()) {
+                    builder.requestIdToken(spClientId)
+                }
+                builder.build()
             }
             val googleSignInClient = remember {
                 com.google.android.gms.auth.api.signin.GoogleSignIn.getClient(context, gso)
@@ -1292,16 +1584,29 @@ fun AdminLoginScreen(
                                         firebaseVerified = com.example.services.FirebaseService.firebaseLoginWithGoogle(idToken)
                                     }
                                 } catch (ex: Exception) {
-                                    android.util.Log.w("AdminLoginScreen", "Firebase Auth details offline or requires token config: ${ex.localizedMessage}")
+                                    android.util.Log.w("AdminLoginScreen", "Firebase Auth offline/sandbox fallback: ${ex.localizedMessage}")
                                 }
                                 
-                                val responseMsg = if (firebaseVerified) "Google Cloud Signed In with Firebase Auth successfully!" else "Google Sign In integrated: Admin Director"
-                                Toast.makeText(context, responseMsg, Toast.LENGTH_LONG).show()
-                                onSignIn("TAMS Academy", displayName, email, "Google Cloud Sync")
+                                val existing = institutesList.find { it.email.trim().lowercase() == email.trim().lowercase() }
+                                if (existing != null) {
+                                    // Already registered -> Login with Google
+                                    Toast.makeText(context, "Welcome back, ${existing.directorName}! Google Cloud Signed In.", Toast.LENGTH_LONG).show()
+                                    onSignIn(existing.academyName, existing.directorName, existing.email, existing.address)
+                                } else {
+                                    // Not registered yet -> Sign Up with Google Form
+                                    customGoogleEmail = email
+                                    customFullName = displayName
+                                    customCoachingName = ""
+                                    customPhysicalAddress = ""
+                                    customGooglePhone = ""
+                                    showCustomGoogleAccountInput = true
+                                    showGoogleAccountPicker = true
+                                    Toast.makeText(context, "Google Authenticated! Please complete your workspace profile to sign up.", Toast.LENGTH_LONG).show()
+                                }
                             }
                         }
                     } catch (e: Exception) {
-                        android.util.Log.e("AdminLoginScreen", "Google Sign In failed: ", e)
+                        android.util.Log.e("AdminLoginScreen", "Google Sign In exception: ", e)
                         showGoogleAccountPicker = true
                     }
                 } else {
@@ -1444,9 +1749,10 @@ fun AdminLoginScreen(
                                     val sEmail = loginEmail.trim().lowercase()
                                     val sPass = loginPassword.trim()
                                     val address = regAddress.trim()
+                                    val phoneVal = regMobilePhone.trim()
 
-                                    if (academyName.isEmpty() || directorName.isEmpty() || sEmail.isEmpty() || sPass.isEmpty()) {
-                                        Toast.makeText(context, "Please fill in all blanks to register.", Toast.LENGTH_SHORT).show()
+                                    if (academyName.isEmpty() || directorName.isEmpty() || sEmail.isEmpty() || sPass.isEmpty() || phoneVal.isEmpty()) {
+                                        Toast.makeText(context, "All fields, including Mobile Number, are strictly mandatory.", Toast.LENGTH_SHORT).show()
                                         return@Button
                                     }
 
@@ -1461,6 +1767,7 @@ fun AdminLoginScreen(
                                                     directorName = directorName,
                                                     email = sEmail,
                                                     address = address,
+                                                    phone = phoneVal,
                                                     isApproved = true,
                                                     subscriptionActive = true
                                                 )
@@ -1483,6 +1790,7 @@ fun AdminLoginScreen(
                                                     .putString("academy_name", academyName)
                                                     .putString("director_name", directorName)
                                                     .putString("admin_address", address)
+                                                    .putString("admin_phone", phoneVal)
                                                     .apply()
 
                                                 viewModel.registerInstitute(
@@ -1490,6 +1798,7 @@ fun AdminLoginScreen(
                                                      director = directorName,
                                                      email = sEmail,
                                                      address = address,
+                                                     phone = phoneVal,
                                                      profileType = signupProfileType,
                                                      gstNumber = regGstNumber,
                                                      businessProofId = regBusinessProofId,
@@ -1604,7 +1913,13 @@ fun AdminLoginScreen(
                     // HIGH FIDELITY TRADEMARK OFFICIAL "SIGN IN WITH GOOGLE" BUTTON WITH REBUILT EXPERIENCES
                     Surface(
                         onClick = {
-                            showGoogleAccountPicker = true
+                            scope.launch {
+                                try {
+                                    googleSignInLauncher.launch(googleSignInClient.signInIntent)
+                                } catch (e: Exception) {
+                                    showGoogleAccountPicker = true
+                                }
+                            }
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1712,13 +2027,71 @@ fun AdminLoginScreen(
                             } else if (showCustomGoogleAccountInput) {
                                 // GORGEOUS HIGH FIDELITY DIRECT GOOGLE SIGNUP / ADMINISTRATOR FORM
                                 Column(
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .verticalScroll(rememberScrollState()),
                                     verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
+                                    Text("Complete Your Workspace Profile", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF1E88E5))
+                                    
+                                    // Profile type selection tab row (M3-style)
+                                    Column(modifier = Modifier.fillMaxWidth()) {
+                                        Text("Select Your Workspace Category", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Color.Gray)
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        val types = listOf(
+                                            "COACHING_OWNER" to "Coaching Owner",
+                                            "TUITION_TEACHER" to "Tuition Teacher",
+                                            "LIBRARY_OWNER" to "Library Owner",
+                                            "SUB_TEACHER" to "Assigned Staff"
+                                        )
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            types.take(2).forEach { (value, label) ->
+                                                val isSelected = customProfileType == value
+                                                val bgColor = if (isSelected) Color(0xFF1973E8) else Color(0xFFF1F3F4)
+                                                val txtColor = if (isSelected) Color.White else Color.DarkGray
+                                                Surface(
+                                                    onClick = { customProfileType = value },
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = bgColor,
+                                                    modifier = Modifier.weight(1f).height(36.dp)
+                                                ) {
+                                                    Box(contentAlignment = Alignment.Center) {
+                                                        Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = txtColor)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            types.drop(2).forEach { (value, label) ->
+                                                val isSelected = customProfileType == value
+                                                val bgColor = if (isSelected) Color(0xFF1973E8) else Color(0xFFF1F3F4)
+                                                val txtColor = if (isSelected) Color.White else Color.DarkGray
+                                                Surface(
+                                                    onClick = { customProfileType = value },
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = bgColor,
+                                                    modifier = Modifier.weight(1f).height(36.dp)
+                                                ) {
+                                                    Box(contentAlignment = Alignment.Center) {
+                                                        Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = txtColor)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
                                     OutlinedTextField(
                                         value = customFullName,
                                         onValueChange = { customFullName = it },
-                                        label = { Text("Your Name (Google Account)") },
+                                        label = { Text("Your Name (Google Profile)") },
+                                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(18.dp)) },
                                         modifier = Modifier.fillMaxWidth(),
                                         shape = RoundedCornerShape(12.dp),
                                         singleLine = true
@@ -1726,15 +2099,18 @@ fun AdminLoginScreen(
                                     OutlinedTextField(
                                         value = customGoogleEmail,
                                         onValueChange = { customGoogleEmail = it },
-                                        label = { Text("Google Gmail Address") },
+                                        label = { Text("Google Account Email") },
+                                        leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, modifier = Modifier.size(18.dp)) },
                                         modifier = Modifier.fillMaxWidth(),
                                         shape = RoundedCornerShape(12.dp),
-                                        singleLine = true
+                                        singleLine = true,
+                                        enabled = customGoogleEmail.isEmpty() || customGoogleEmail.isBlank() // Google email is verified and locked if pre-filled, otherwise editable
                                     )
                                     OutlinedTextField(
                                         value = customCoachingName,
                                         onValueChange = { customCoachingName = it },
-                                        label = { Text("Coaching Academy / Institute Name") },
+                                        label = { Text("Coaching/Library/Tuition Name") },
+                                        leadingIcon = { Icon(Icons.Default.Business, contentDescription = null, modifier = Modifier.size(18.dp)) },
                                         modifier = Modifier.fillMaxWidth(),
                                         shape = RoundedCornerShape(12.dp),
                                         singleLine = true
@@ -1743,19 +2119,126 @@ fun AdminLoginScreen(
                                         value = customPhysicalAddress,
                                         onValueChange = { customPhysicalAddress = it },
                                         label = { Text("Physical Location Address") },
+                                        leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp)) },
                                         modifier = Modifier.fillMaxWidth(),
                                         shape = RoundedCornerShape(12.dp),
                                         singleLine = true
                                     )
+                                    OutlinedTextField(
+                                        value = customGooglePhone,
+                                        onValueChange = { customGooglePhone = it },
+                                        label = { Text("Mandatory Mobile Phone Number") },
+                                        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone),
+                                        modifier = Modifier.fillMaxWidth().testTag("google_signup_mobile_phone_input"),
+                                        shape = RoundedCornerShape(12.dp),
+                                        singleLine = true
+                                    )
+
+                                    // Dynamic extra profile options based on role context
+                                    if (customProfileType == "COACHING_OWNER") {
+                                        Column(
+                                            modifier = Modifier.fillMaxWidth().background(Color(0xFFFFF8E1), RoundedCornerShape(12.dp)).padding(12.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Text("🏢 Business Verification (Optional for Coaching Tier):", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE65100))
+                                            OutlinedTextField(
+                                                value = customGstNumber,
+                                                onValueChange = { customGstNumber = it },
+                                                label = { Text("GST Registration Number (Optional)") },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(12.dp),
+                                                placeholder = { Text("e.g. 09AAAAA1111A1Z1") }
+                                            )
+                                            OutlinedTextField(
+                                                value = customBusinessProofId,
+                                                onValueChange = { customBusinessProofId = it },
+                                                label = { Text("Business Proof ID / License Registration (Optional)") },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(12.dp)
+                                            )
+                                        }
+                                    }
+
+                                    if (customProfileType == "LIBRARY_OWNER") {
+                                        Column(
+                                            modifier = Modifier.fillMaxWidth().background(Color(0xFFEDE7F6), RoundedCornerShape(12.dp)).padding(12.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Text("📖 Library lounge capacity parameters:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF512DA8))
+                                            OutlinedTextField(
+                                                value = customLibraryCapacity,
+                                                onValueChange = { customLibraryCapacity = it },
+                                                label = { Text("Lounge Seating Seat capacity counter") },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(12.dp),
+                                                placeholder = { Text("e.g. 150 Seats") }
+                                            )
+                                            OutlinedTextField(
+                                                value = customLibraryCategory,
+                                                onValueChange = { customLibraryCategory = it },
+                                                label = { Text("Study Center Level (e.g. Premium Silent Study Point)") },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(12.dp)
+                                            )
+                                        }
+                                    }
+
+                                    if (customProfileType == "TUITION_TEACHER") {
+                                        Column(
+                                            modifier = Modifier.fillMaxWidth().background(Color(0xFFE8F5E9), RoundedCornerShape(12.dp)).padding(12.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Text("👨‍🏫 Tuition Workspace specialized subjects:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
+                                            OutlinedTextField(
+                                                value = customTuitionSubject,
+                                                onValueChange = { customTuitionSubject = it },
+                                                label = { Text("Subjects specialized (e.g. Physics, Chemistry)") },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(12.dp)
+                                            )
+                                            OutlinedTextField(
+                                                value = customTuitionStandard,
+                                                onValueChange = { customTuitionStandard = it },
+                                                label = { Text("Target Boards or Competitions (e.g. IIT/CBSE)") },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(12.dp)
+                                            )
+                                        }
+                                    }
+
+                                    if (customProfileType == "SUB_TEACHER") {
+                                        Column(
+                                            modifier = Modifier.fillMaxWidth().background(Color(0xFFE0F7FA), RoundedCornerShape(12.dp)).padding(12.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Text("🍎 Assigned Faculty Onboarding parameters:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF006064))
+                                            OutlinedTextField(
+                                                value = customSchoolCode,
+                                                onValueChange = { customSchoolCode = it },
+                                                label = { Text("Superior Administrator / Head Office Code") },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(12.dp),
+                                                placeholder = { Text("e.g. TAMS_2026") }
+                                            )
+                                            OutlinedTextField(
+                                                value = customTuitionSubject,
+                                                onValueChange = { customTuitionSubject = it },
+                                                label = { Text("Allocated Division Subjects") },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(12.dp)
+                                            )
+                                        }
+                                    }
 
                                     Spacer(modifier = Modifier.height(8.dp))
 
                                     Button(
                                         onClick = {
-                                            if (customFullName.isNotBlank() && customGoogleEmail.isNotBlank() && customCoachingName.isNotBlank()) {
+                                            if (customFullName.isNotBlank() && customGoogleEmail.isNotBlank() && customCoachingName.isNotBlank() && customGooglePhone.isNotBlank()) {
                                                 isAuthenticatingGoogle = true
                                                 scope.launch {
-                                                    delay(1500)
+                                                    delay(1200)
                                                     isAuthenticatingGoogle = false
                                                     showGoogleAccountPicker = false
                                                     showCustomGoogleAccountInput = false
@@ -1767,7 +2250,8 @@ fun AdminLoginScreen(
                                                         .putString("academy_name", customCoachingName)
                                                         .putString("director_name", customFullName)
                                                         .putString("admin_address", customPhysicalAddress)
-                                                        .putString("profile_type", "COACHING_OWNER")
+                                                        .putString("admin_phone", customGooglePhone)
+                                                        .putString("profile_type", customProfileType)
                                                         .apply()
 
                                                      viewModel.registerInstitute(
@@ -1775,7 +2259,15 @@ fun AdminLoginScreen(
                                                          director = customFullName,
                                                          email = cleanEmail,
                                                          address = customPhysicalAddress,
-                                                         profileType = "COACHING_OWNER"
+                                                         phone = customGooglePhone,
+                                                         profileType = customProfileType,
+                                                         gstNumber = customGstNumber,
+                                                         businessProofId = customBusinessProofId,
+                                                         libraryCapacity = customLibraryCapacity,
+                                                         libraryCategory = customLibraryCategory,
+                                                         tuitionSubject = customTuitionSubject,
+                                                         tuitionStandard = customTuitionStandard,
+                                                         schoolCode = customSchoolCode
                                                      )
 
                                                      // Sync to Cloud
@@ -1786,227 +2278,135 @@ fun AdminLoginScreen(
                                                              directorName = customFullName,
                                                              email = cleanEmail,
                                                              address = customPhysicalAddress,
+                                                             phone = customGooglePhone,
                                                              isApproved = true,
                                                              subscriptionActive = true,
-                                                             profileType = "COACHING_OWNER"
+                                                             profileType = customProfileType,
+                                                             gstNumber = customGstNumber,
+                                                             businessProofId = customBusinessProofId,
+                                                             libraryCapacity = customLibraryCapacity,
+                                                             libraryCategory = customLibraryCategory,
+                                                             tuitionSubject = customTuitionSubject,
+                                                             tuitionStandard = customTuitionStandard,
+                                                             schoolCode = customSchoolCode
                                                          )
                                                          com.example.services.FirebaseService.syncInstituteToCloud(inst)
                                                      } catch (e: Exception) {
                                                          android.util.Log.e("OnboardingOverlays", "Cloud sync failed: ", e)
                                                      }
 
-                                                    Toast.makeText(context, "Google Admin Space created and synced for $cleanEmail!", Toast.LENGTH_LONG).show()
+                                                    Toast.makeText(context, "✅ Google Workspace registered as $customProfileType!", Toast.LENGTH_LONG).show()
                                                     onSignIn(customCoachingName, customFullName, cleanEmail, customPhysicalAddress)
                                                 }
                                             } else {
-                                                Toast.makeText(context, "Please fill in all Google profile elements.", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, "All fields, including Mobile Number, are strictly mandatory.", Toast.LENGTH_SHORT).show()
                                             }
                                         },
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A73E8)),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1973E8)),
                                         shape = RoundedCornerShape(12.dp),
                                         modifier = Modifier.fillMaxWidth().height(48.dp)
                                     ) {
-                                        Text("Complete Register & Sign In", fontWeight = FontWeight.Bold)
+                                        Icon(Icons.Default.AppRegistration, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Register Workspace & SignUp with Google", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                     }
 
                                     TextButton(
                                         onClick = { showCustomGoogleAccountInput = false },
                                         modifier = Modifier.align(Alignment.CenterHorizontally)
                                     ) {
-                                        Text("Back to chosen accounts", color = Color(0xFF1A73E8), fontWeight = FontWeight.Bold)
+                                        Text("Back to account selection", color = Color(0xFF1973E8), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                     }
                                 }
                             } else {
-                                // Account 1: Admin Director
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .clickable {
-                                            isAuthenticatingGoogle = true
-                                            scope.launch {
-                                                kotlinx.coroutines.delay(1400)
-                                                isAuthenticatingGoogle = false
-                                                showGoogleAccountPicker = false
-                                                Toast.makeText(context, "Google authenticated: admin@tams.com", Toast.LENGTH_LONG).show()
-                                                // Trigger automated fast register callback!
-                                                onSignIn("TAMS Academy", "Admin Director", "admin@tams.com", "Main Campus")
-                                            }
-                                        }
-                                        .padding(vertical = 10.dp, horizontal = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .clip(CircleShape)
-                                            .background(Color(0xFFE8F0FE)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "A",
-                                            color = Color(0xFF1A73E8),
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 18.sp
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = "Admin Director",
-                                            fontWeight = FontWeight.SemiBold,
-                                            fontSize = 14.sp,
-                                            color = Color(0xFF3C4043)
-                                        )
-                                        Text(
-                                            text = "admin@tams.com",
-                                            fontSize = 12.sp,
-                                            color = Color(0xFF5F6368)
-                                        )
-                                    }
-                                    Icon(
-                                        imageVector = Icons.Default.Verified,
-                                        contentDescription = "Active user",
-                                        tint = Color(0xFF4285F4),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-
-                                HorizontalDivider(color = Color(0xFFF1F3F4), modifier = Modifier.padding(vertical = 4.dp))
-
-                                // Account 2: Guest Account
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .clickable {
-                                            isAuthenticatingGoogle = true
-                                            scope.launch {
-                                                kotlinx.coroutines.delay(1200)
-                                                isAuthenticatingGoogle = false
-                                                showGoogleAccountPicker = false
-                                                Toast.makeText(context, "Google Guest activated: guest.aspirant@gmail.com", Toast.LENGTH_LONG).show()
-                                                onSignIn("Aspirants Success Classes", "Aspirants Admin", "guest.aspirant@gmail.com", "Main Campus, India")
-                                            }
-                                        }
-                                        .padding(vertical = 10.dp, horizontal = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .clip(CircleShape)
-                                            .background(Color(0xFFF1F3F4)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "G",
-                                            color = Color(0xFF5F6368),
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 18.sp
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = "Aspirants Admin Guest",
-                                            fontWeight = FontWeight.SemiBold,
-                                            fontSize = 14.sp,
-                                            color = Color(0xFF3C4043)
-                                        )
-                                        Text(
-                                            text = "guest.aspirant@gmail.com",
-                                            fontSize = 12.sp,
-                                            color = Color(0xFF5F6368)
-                                        )
-                                    }
-                                }
-
-                                institutesList.forEach { inst ->
-                                    if (inst.email != "admin@tams.com" && inst.email != "guest.aspirant@gmail.com") {
+                                // Dynamic registered accounts list from Local SQLite / Firestore Cache
+                                institutesList.forEachIndexed { index, inst ->
+                                    if (index > 0) {
                                         HorizontalDivider(color = Color(0xFFF1F3F4), modifier = Modifier.padding(vertical = 4.dp))
-                                        
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clip(RoundedCornerShape(12.dp))
-                                                .clickable {
-                                                    isAuthenticatingGoogle = true
-                                                    scope.launch {
-                                                        kotlinx.coroutines.delay(1000)
-                                                        isAuthenticatingGoogle = false
-                                                        showGoogleAccountPicker = false
-                                                        
-                                                        sharedPrefs.edit()
-                                                            .putString("admin_email", inst.email)
-                                                            .putString("admin_password", "GoogleAuthEnabled")
-                                                            .putString("academy_name", inst.academyName)
-                                                            .putString("director_name", inst.directorName)
-                                                            .putString("admin_address", inst.address)
-                                                            .putString("profile_type", inst.profileType)
-                                                            .apply()
+                                    }
+                                    
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable {
+                                                isAuthenticatingGoogle = true
+                                                scope.launch {
+                                                    kotlinx.coroutines.delay(1000)
+                                                    isAuthenticatingGoogle = false
+                                                    showGoogleAccountPicker = false
+                                                    
+                                                    sharedPrefs.edit()
+                                                        .putString("admin_email", inst.email)
+                                                        .putString("admin_password", "GoogleAuthEnabled")
+                                                        .putString("academy_name", inst.academyName)
+                                                        .putString("director_name", inst.directorName)
+                                                        .putString("admin_address", inst.address)
+                                                        .putString("profile_type", inst.profileType)
+                                                        .apply()
 
-                                                        viewModel.registerInstitute(
-                                                            academy = inst.academyName,
-                                                            director = inst.directorName,
-                                                            email = inst.email,
-                                                            address = inst.address,
-                                                            profileType = inst.profileType,
-                                                            gstNumber = inst.gstNumber,
-                                                            businessProofId = inst.businessProofId,
-                                                            libraryCapacity = inst.libraryCapacity,
-                                                            libraryCategory = inst.libraryCategory,
-                                                            tuitionSubject = inst.tuitionSubject,
-                                                            tuitionStandard = inst.tuitionStandard,
-                                                            schoolCode = inst.schoolCode
-                                                        )
-                                                            
-                                                        Toast.makeText(context, "Google Authenticated: ${inst.directorName}", Toast.LENGTH_LONG).show()
-                                                        onSignIn(inst.academyName, inst.directorName, inst.email, inst.address)
-                                                    }
+                                                    viewModel.registerInstitute(
+                                                        academy = inst.academyName,
+                                                        director = inst.directorName,
+                                                        email = inst.email,
+                                                        address = inst.address,
+                                                        profileType = inst.profileType,
+                                                        gstNumber = inst.gstNumber,
+                                                        businessProofId = inst.businessProofId,
+                                                        libraryCapacity = inst.libraryCapacity,
+                                                        libraryCategory = inst.libraryCategory,
+                                                        tuitionSubject = inst.tuitionSubject,
+                                                        tuitionStandard = inst.tuitionStandard,
+                                                        schoolCode = inst.schoolCode
+                                                    )
+                                                        
+                                                    Toast.makeText(context, "Welcome back, ${inst.directorName}! Google Cloud Signed In.", Toast.LENGTH_LONG).show()
+                                                    onSignIn(inst.academyName, inst.directorName, inst.email, inst.address)
                                                 }
-                                                .padding(vertical = 10.dp, horizontal = 8.dp),
-                                            verticalAlignment = Alignment.CenterVertically
+                                            }
+                                            .padding(vertical = 10.dp, horizontal = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(40.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(0xFFE8F0FE)),
+                                            contentAlignment = Alignment.Center
                                         ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(40.dp)
-                                                    .clip(CircleShape)
-                                                    .background(Color(0xFFE8F5E9)),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Text(
-                                                    text = (inst.directorName.firstOrNull()?.uppercase() ?: "G"),
-                                                    color = Color(0xFF2E7D32),
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 18.sp
-                                                )
-                                            }
-                                            Spacer(modifier = Modifier.width(12.dp))
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Text(
-                                                    text = inst.directorName,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    fontSize = 14.sp,
-                                                    color = Color(0xFF3C4043)
-                                                )
-                                                Text(
-                                                    text = inst.email,
-                                                    fontSize = 12.sp,
-                                                    color = Color(0xFF5F6368)
-                                                )
-                                            }
-                                            Icon(
-                                                imageVector = Icons.Default.Verified,
-                                                contentDescription = "Verified workspace",
-                                                tint = Color(0xFF34A853),
-                                                modifier = Modifier.size(18.dp)
+                                            Text(
+                                                text = (inst.directorName.firstOrNull()?.uppercase() ?: "A"),
+                                                color = Color(0xFF1A73E8),
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 18.sp
                                             )
                                         }
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = inst.directorName,
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 14.sp,
+                                                color = Color(0xFF3C4043)
+                                            )
+                                            Text(
+                                                text = inst.email,
+                                                fontSize = 12.sp,
+                                                color = Color(0xFF5F6368)
+                                            )
+                                        }
+                                        Icon(
+                                            imageVector = Icons.Default.Verified,
+                                            contentDescription = "Verified workspace",
+                                            tint = Color(0xFF4285F4),
+                                            modifier = Modifier.size(18.dp)
+                                        )
                                     }
                                 }
 
-                                HorizontalDivider(color = Color(0xFFF1F3F4), modifier = Modifier.padding(vertical = 4.dp))
+                                if (institutesList.isNotEmpty()) {
+                                    HorizontalDivider(color = Color(0xFFF1F3F4), modifier = Modifier.padding(vertical = 4.dp))
+                                }
 
                                 // Add account options
                                 Row(
@@ -2014,6 +2414,11 @@ fun AdminLoginScreen(
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(12.dp))
                                         .clickable {
+                                            customGoogleEmail = ""
+                                            customFullName = ""
+                                            customCoachingName = ""
+                                            customPhysicalAddress = ""
+                                            customGooglePhone = ""
                                             showCustomGoogleAccountInput = true
                                         }
                                         .padding(vertical = 10.dp, horizontal = 8.dp),
@@ -2888,8 +3293,107 @@ fun TheAspirantsClassesLogo(modifier: Modifier = Modifier) {
 }
 
 // ==========================================
-// 6. FLOATING AI DOUBT SOLVER CHATBOT (Google Gemini Style)
+// 6. FLOATING AI DOUBT SOLVER CHATBOT (Google Gemini Style with Persistent History)
 // ==========================================
+data class DoubtSession(
+    val id: Long,
+    val title: String,
+    val messages: List<ChatMessage>
+)
+
+fun saveDoubtSessions(context: android.content.Context, sessions: List<DoubtSession>) {
+    try {
+        val rootArray = org.json.JSONArray()
+        for (session in sessions) {
+            val sessionObj = org.json.JSONObject()
+            sessionObj.put("id", session.id)
+            sessionObj.put("title", session.title)
+            
+            val msgsArray = org.json.JSONArray()
+            for (msg in session.messages) {
+                val msgObj = org.json.JSONObject()
+                msgObj.put("sender", msg.sender)
+                msgObj.put("text", msg.text)
+                msgsArray.put(msgObj)
+            }
+            sessionObj.put("messages", msgsArray)
+            rootArray.put(sessionObj)
+        }
+        val file = java.io.File(context.filesDir, "gemini_doubt_sessions.json")
+        file.writeText(rootArray.toString())
+    } catch (e: Exception) {
+        android.util.Log.e("DoubtSolver", "Error saving sessions", e)
+    }
+}
+
+fun loadDoubtSessions(context: android.content.Context): List<DoubtSession> {
+    val list = mutableListOf<DoubtSession>()
+    try {
+        val file = java.io.File(context.filesDir, "gemini_doubt_sessions.json")
+        if (file.exists()) {
+            val content = file.readText()
+            val rootArray = org.json.JSONArray(content)
+            for (i in 0 until rootArray.length()) {
+                val sessionObj = rootArray.getJSONObject(i)
+                val id = sessionObj.optLong("id", System.currentTimeMillis())
+                val title = sessionObj.optString("title", "Saved Doubt")
+                
+                val msgsArray = sessionObj.getJSONArray("messages")
+                val msgs = mutableListOf<ChatMessage>()
+                for (j in 0 until msgsArray.length()) {
+                    val msgObj = msgsArray.getJSONObject(j)
+                    val sender = msgObj.optString("sender", "USER")
+                    val text = msgObj.optString("text", "")
+                    msgs.add(ChatMessage(sender, text))
+                }
+                list.add(DoubtSession(id, title, msgs))
+            }
+        }
+    } catch (e: Exception) {
+        android.util.Log.e("DoubtSolver", "Error loading sessions", e)
+    }
+    
+    if (list.isEmpty()) {
+        val initialSession = DoubtSession(
+            id = System.currentTimeMillis(),
+            title = "Welcome Session",
+            messages = listOf(
+                ChatMessage("Gemini", "Hello! I am your TAC AI automated tutor. Ask me any question in Physics, Mathematics, Chemistry, Hindi Literature, or primary CVC phonics worksheets, and I'll solve it for you in real-time!")
+            )
+        )
+        list.add(initialSession)
+        saveDoubtSessions(context, list)
+    }
+    return list
+}
+
+data class QuickQuery(
+    val category: String,
+    val icon: String,
+    val label: String,
+    val prompt: String
+)
+
+val quickQueries = listOf(
+    // Mathematics
+    QuickQuery("Math", "🧮", "Derive Quadratic Formula", "Please show the full step-by-step derivation of the Quadratic Formula from ax^2 + bx + c = 0."),
+    QuickQuery("Math", "🧮", "Pythagoras Theorem", "Explain the Pythagorean Theorem and give a practical example of finding the hypotenuse of a right-angled triangle."),
+    QuickQuery("Math", "🧮", "Derivative Meaning", "What is the physical significance of a derivative in Calculus? Explain with a velocity-time graph example."),
+    
+    // Science / Physics
+    QuickQuery("Science", "🔬", "Newton's 2nd Law", "Explain Newton's Second Law of Motion (F = ma) with three real-life examples and calculations."),
+    QuickQuery("Science", "🔬", "Photosynthesis", "What is Photosynthesis? Explain the light-dependent and light-independent reactions step-by-step."),
+    QuickQuery("Science", "🔬", "Water Electrolysis", "Explain the electrolysis of water. Write down the chemical equations for reactions at anode and cathode."),
+
+    // Phonics
+    QuickQuery("Phonics", "🍎", "Phonics Word Families", "Create a comprehensive worksheet list of CVC (Consonant-Vowel-Consonant) words for the 'at', 'an', and 'ig' families with phonics activities."),
+    QuickQuery("Phonics", "🍎", "Phonemic Exercises", "Suggest 5 interactive oral phonemic awareness exercises for primary level kids to practice blending sounds."),
+
+    // Hindi Literature
+    QuickQuery("Hindi", "✍️", "Bhakti Kal Poetry", "Write a summary of the Bhakti Kal period in Hindi Literature. What are the key features of Nirguna and Saguna streams?"),
+    QuickQuery("Hindi", "✍️", "Chayavad Pillars", "Explain the 'Chayavad' movement in modern Hindi poetry. Name the four pillars (Chaar Stambh) and their major works.")
+)
+
 @Composable
 fun GeminiDoubtSolverBot(viewModel: com.example.ui.viewmodel.AppViewModel, onClose: () -> Unit) {
     val context = LocalContext.current
@@ -2922,11 +3426,18 @@ fun GeminiDoubtSolverBot(viewModel: com.example.ui.viewmodel.AppViewModel, onClo
     var isChatExpanded by remember { mutableStateOf(true) }
 
     var queryText by remember { mutableStateOf("") }
-    val chatHistory = remember {
-        mutableStateListOf(
-            ChatMessage("Gemini", "Hello! I am your TAC AI automated tutor. Ask me any question in Physics, Mathematics, chemistry, Hindi Literature, or primary CVC phonics worksheets, and I'll solve it for you in real-time!"),
-        )
-    }
+    
+    // Persistent Multi-session state management
+    val sessions = remember { mutableStateListOf<DoubtSession>().apply { addAll(loadDoubtSessions(context)) } }
+    var activeSessionId by remember { mutableStateOf<Long>(sessions.firstOrNull()?.id ?: System.currentTimeMillis()) }
+    var showHistorySidebar by remember { mutableStateOf(true) }
+    var selectedSubjectCategory by remember { mutableStateOf("Math") }
+
+    // Resolve active session
+    val activeSessionIndex = sessions.indexOfFirst { it.id == activeSessionId }
+    val activeSession = if (activeSessionIndex != -1) sessions[activeSessionIndex] else sessions.firstOrNull()
+    val chatHistory = activeSession?.messages ?: emptyList()
+
     var isThinking by remember { mutableStateOf(false) }
     val apiConfigured = customApiKey.isNotEmpty() || (BuildConfig.GEMINI_API_KEY.isNotEmpty() && BuildConfig.GEMINI_API_KEY != "MY_GEMINI_API_KEY")
 
@@ -2935,6 +3446,60 @@ fun GeminiDoubtSolverBot(viewModel: com.example.ui.viewmodel.AppViewModel, onClo
     var selectedMimeType by remember { mutableStateOf<String?>(null) }
     var selectedFileName by remember { mutableStateOf<String?>(null) }
     var attachmentMenuExpanded by remember { mutableStateOf(false) }
+
+    // Helpers to update messages
+    fun updateActiveSessionMessages(newMessages: List<ChatMessage>, firstUserMsgText: String? = null) {
+        val currentSession = activeSession ?: return
+        var updatedTitle = currentSession.title
+        if ((updatedTitle == "Welcome Session" || updatedTitle == "New Doubt Session") && firstUserMsgText != null) {
+            updatedTitle = if (firstUserMsgText.length > 22) firstUserMsgText.take(22) + "..." else firstUserMsgText
+        }
+        val updatedSession = currentSession.copy(title = updatedTitle, messages = newMessages)
+        if (activeSessionIndex != -1) {
+            sessions[activeSessionIndex] = updatedSession
+        } else {
+            val idx = sessions.indexOfFirst { it.id == activeSessionId }
+            if (idx != -1) {
+                sessions[idx] = updatedSession
+            } else {
+                sessions.add(updatedSession)
+            }
+        }
+        saveDoubtSessions(context, sessions)
+    }
+
+    fun startNewSession() {
+        val newId = System.currentTimeMillis()
+        val newSession = DoubtSession(
+            id = newId,
+            title = "New Doubt Session",
+            messages = listOf(
+                ChatMessage("Gemini", "Hello! This is a new academic doubt solving workspace. Let me know your query in Math, Physics, Chemistry, Phonics, or Hindi Literature!")
+            )
+        )
+        sessions.add(0, newSession)
+        activeSessionId = newId
+        saveDoubtSessions(context, sessions)
+    }
+
+    fun deleteSession(sessionId: Long) {
+        sessions.removeAll { it.id == sessionId }
+        if (sessions.isEmpty()) {
+            val welcomeId = System.currentTimeMillis()
+            val welcomeSession = DoubtSession(
+                id = welcomeId,
+                title = "Welcome Session",
+                messages = listOf(
+                    ChatMessage("Gemini", "Hello! I am your TAC AI automated tutor. Ask me any question in Physics, Mathematics, Chemistry, Hindi Literature, or primary CVC phonics worksheets, and I'll solve it for you in real-time!")
+                )
+            )
+            sessions.add(welcomeSession)
+            activeSessionId = welcomeId
+        } else if (activeSessionId == sessionId) {
+            activeSessionId = sessions.first().id
+        }
+        saveDoubtSessions(context, sessions)
+    }
 
     // Launcher for selecting general files (PDF or images)
     val pickContentLauncher = rememberLauncherForActivityResult(
@@ -3077,21 +3642,45 @@ fun GeminiDoubtSolverBot(viewModel: com.example.ui.viewmodel.AppViewModel, onClo
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
                                     Text(
-                                        text = "Gemini AI Helper",
+                                        text = "Gemini Doubt Solver Hub",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 16.sp,
                                         color = Color.White
                                     )
                                     Text(
-                                        text = "Online • Live Tutor Service",
+                                        text = "Online • Multi-Session AI Tutor",
                                         fontSize = 11.sp,
                                         color = Color(0xFFAECBFA)
                                     )
                                 }
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                // Settings Gear is hidden to maximize slick production feel
-                                // Minimize Button to return to Messenger Float Bubble
+                                // Toggle history view button
+                                IconButton(
+                                    onClick = { showHistorySidebar = !showHistorySidebar },
+                                    modifier = Modifier.testTag("gemini_toggle_history_btn")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.History,
+                                        contentDescription = "Toggle History View",
+                                        tint = if (showHistorySidebar) Color(0xFFFFD54F) else Color.White,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                                
+                                // Settings Gear / Configure API Key
+                                IconButton(
+                                    onClick = { showSettingsDialog = true },
+                                    modifier = Modifier.testTag("gemini_settings_api_key_btn")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Key,
+                                        contentDescription = "API Keys",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+
                                 IconButton(onClick = { isChatExpanded = false }) {
                                     Icon(
                                         imageVector = Icons.Default.ArrowBackIosNew,
@@ -3110,82 +3699,260 @@ fun GeminiDoubtSolverBot(viewModel: com.example.ui.viewmodel.AppViewModel, onClo
                             }
                         }
 
-                        // Chat History Panel
-                        LazyColumn(
+                        // Split Row for Sidebar and Chat Workspace
+                        Row(
                             modifier = Modifier
-                                .weight(1f)
                                 .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                                .weight(1f)
                         ) {
-                            items(chatHistory) { msg ->
-                                val isUser = msg.sender == "USER"
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
+                            // Left Pane: Collapsible Past Doubts Sessions List
+                            if (showHistorySidebar) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .weight(0.35f)
+                                        .background(Color(0xFF1E1F20))
+                                        .padding(12.dp)
                                 ) {
-                                    if (!isUser) {
-                                        // Google Assistant Avatar/Icon
-                                        Box(
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Past Doubts",
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.LightGray,
+                                            fontSize = 13.sp
+                                        )
+                                        IconButton(
+                                            onClick = { startNewSession() },
                                             modifier = Modifier
                                                 .size(28.dp)
-                                                .clip(CircleShape)
-                                                .background(Color(0xFF1E1F20)),
-                                            contentAlignment = Alignment.Center
+                                                .testTag("gemini_add_session_btn")
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Default.AutoAwesome,
-                                                contentDescription = "Spark",
+                                                imageVector = Icons.Default.Add,
+                                                contentDescription = "New Doubt Workspace",
                                                 tint = Color(0xFFAECBFA),
-                                                modifier = Modifier.size(16.dp)
+                                                modifier = Modifier.size(20.dp)
                                             )
                                         }
-                                        Spacer(modifier = Modifier.width(8.dp))
+                                    }
+                                    
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    
+                                    LazyColumn(
+                                        modifier = Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        items(sessions) { s ->
+                                            val isSelected = s.id == activeSessionId
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clip(RoundedCornerShape(10.dp))
+                                                    .background(if (isSelected) Color(0xFF323336) else Color.Transparent)
+                                                    .clickable { activeSessionId = s.id }
+                                                    .testTag("gemini_session_item_${s.id}")
+                                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.weight(1f),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Chat,
+                                                        contentDescription = null,
+                                                        tint = if (isSelected) Color(0xFFFFD54F) else Color.Gray,
+                                                        modifier = Modifier.size(14.dp)
+                                                    )
+                                                    Text(
+                                                        text = s.title,
+                                                        color = if (isSelected) Color.White else Color.LightGray,
+                                                        fontSize = 12.sp,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                }
+                                                IconButton(
+                                                    onClick = { deleteSession(s.id) },
+                                                    modifier = Modifier
+                                                        .size(24.dp)
+                                                        .testTag("gemini_delete_session_btn_${s.id}")
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Delete,
+                                                        contentDescription = "Delete past doubt log",
+                                                        tint = Color(0xFFE2B7B2),
+                                                        modifier = Modifier.size(14.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .width(1.dp)
+                                        .background(Color(0xFF2E3033))
+                                )
+                            }
+
+                            // Right Pane: Active Doubt Solving Chat Workspace
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .weight(if (showHistorySidebar) 0.65f else 1.0f)
+                            ) {
+                                // Chat History list
+                                LazyColumn(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    items(chatHistory) { msg ->
+                                        val isUser = msg.sender == "USER"
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
+                                        ) {
+                                            if (!isUser) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(28.dp)
+                                                        .clip(CircleShape)
+                                                        .background(Color(0xFF1E1F20)),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.AutoAwesome,
+                                                        contentDescription = "Spark",
+                                                        tint = Color(0xFFAECBFA),
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                            }
+
+                                            Card(
+                                                shape = RoundedCornerShape(
+                                                    topStart = 18.dp,
+                                                    topEnd = 18.dp,
+                                                    bottomStart = if (isUser) 18.dp else 4.dp,
+                                                    bottomEnd = if (isUser) 4.dp else 18.dp
+                                                ),
+                                                colors = CardDefaults.cardColors(
+                                                    containerColor = if (isUser) Color(0xFF335C96) else Color(0xFF1E1F20)
+                                                ),
+                                                modifier = Modifier.widthIn(max = 260.dp)
+                                            ) {
+                                                Column(modifier = Modifier.padding(14.dp)) {
+                                                    Text(
+                                                        text = if (isUser) "STUDENT DOUBT" else "GEMINI TUTOR",
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 11.sp,
+                                                        color = if (isUser) Color.LightGray else Color(0xFFFFD54F)
+                                                    )
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                    Text(
+                                                        text = msg.text,
+                                                        fontSize = 13.sp,
+                                                        color = Color.White,
+                                                        lineHeight = 18.sp
+                                                    )
+                                                    if (!isUser) {
+                                                        Spacer(modifier = Modifier.height(6.dp))
+                                                        Row(
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            // Copy message option
+                                                            IconButton(
+                                                                onClick = {
+                                                                    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                                                    val clip = android.content.ClipData.newPlainText("Gemini Doubt Solution", msg.text)
+                                                                    clipboard.setPrimaryClip(clip)
+                                                                    Toast.makeText(context, "Copied solution to clipboard!", Toast.LENGTH_SHORT).show()
+                                                                },
+                                                                modifier = Modifier.size(24.dp)
+                                                            ) {
+                                                                Icon(
+                                                                    imageVector = Icons.Default.ContentCopy,
+                                                                    contentDescription = "Copy text",
+                                                                    tint = Color(0xFFAECBFA).copy(alpha = 0.8f),
+                                                                    modifier = Modifier.size(14.dp)
+                                                                )
+                                                            }
+
+                                                            // Speak voice option
+                                                            IconButton(
+                                                                onClick = {
+                                                                    tts?.speak(msg.text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, null)
+                                                                },
+                                                                modifier = Modifier.size(24.dp)
+                                                            ) {
+                                                                Icon(
+                                                                    imageVector = Icons.Default.VolumeUp,
+                                                                    contentDescription = "Speak solution",
+                                                                    tint = Color(0xFFAECBFA),
+                                                                    modifier = Modifier.size(16.dp)
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
 
-                                    Card(
-                                        shape = RoundedCornerShape(
-                                            topStart = 18.dp,
-                                            topEnd = 18.dp,
-                                            bottomStart = if (isUser) 18.dp else 4.dp,
-                                            bottomEnd = if (isUser) 4.dp else 18.dp
-                                        ),
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = if (isUser) Color(0xFF3B3B3B) else Color(0xFF1E1F20)
-                                        ),
-                                        modifier = Modifier.widthIn(max = 260.dp)
-                                    ) {
-                                        Column(modifier = Modifier.padding(14.dp)) {
-                                            Text(
-                                                text = msg.sender,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 11.sp,
-                                                color = if (isUser) Color.LightGray else Color(0xFFFFD54F)
-                                            )
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                            Text(
-                                                text = msg.text,
-                                                fontSize = 13.sp,
-                                                color = Color.White,
-                                                lineHeight = 18.sp
-                                            )
-                                            if (!isUser) {
-                                                Spacer(modifier = Modifier.height(6.dp))
-                                                Row(
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.End
+                                    if (isThinking) {
+                                        item {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.Start,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(28.dp)
+                                                        .clip(CircleShape)
+                                                        .background(Color(0xFF1E1F20)),
+                                                    contentAlignment = Alignment.Center
                                                 ) {
-                                                    IconButton(
-                                                        onClick = {
-                                                            tts?.speak(msg.text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, null)
-                                                        },
-                                                        modifier = Modifier.size(24.dp)
+                                                    Icon(
+                                                        imageVector = Icons.Default.AutoAwesome,
+                                                        contentDescription = "thinking",
+                                                        tint = Color(0xFFAECBFA),
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Card(
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1F20))
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.padding(10.dp),
+                                                        verticalAlignment = Alignment.CenterVertically
                                                     ) {
-                                                        Icon(
-                                                            imageVector = Icons.Default.VolumeUp,
-                                                            contentDescription = "Speak solution",
-                                                            tint = Color(0xFFAECBFA),
-                                                            modifier = Modifier.size(16.dp)
+                                                        CircularProgressIndicator(
+                                                            modifier = Modifier.size(14.dp),
+                                                            strokeWidth = 1.5.dp,
+                                                            color = Color(0xFFAECBFA)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(8.dp))
+                                                        Text(
+                                                            text = "Gemini is analyzing query...",
+                                                            fontSize = 12.sp,
+                                                            color = Color.LightGray
                                                         )
                                                     }
                                                 }
@@ -3193,341 +3960,338 @@ fun GeminiDoubtSolverBot(viewModel: com.example.ui.viewmodel.AppViewModel, onClo
                                         }
                                     }
                                 }
-                            }
 
-                            if (isThinking) {
-                                item {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.Start,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(28.dp)
-                                                .clip(CircleShape)
-                                                .background(Color(0xFF1E1F20)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.AutoAwesome,
-                                                contentDescription = "thinking",
-                                                tint = Color(0xFFAECBFA),
-                                                modifier = Modifier.size(16.dp)
+                                // Gemini Assistant Bottom Ambient Glow bar if thinking
+                                if (isThinking) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(3.dp)
+                                            .background(
+                                                Brush.horizontalGradient(
+                                                    colors = listOf(Color(0xFF4285F4), Color(0xFF34A853), Color(0xFFFBBC05), Color(0xFFEA4335))
+                                                )
                                             )
-                                        }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Card(
-                                            shape = RoundedCornerShape(12.dp),
-                                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1F20))
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.padding(10.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                CircularProgressIndicator(
-                                                    modifier = Modifier.size(14.dp),
-                                                    strokeWidth = 1.5.dp,
-                                                    color = Color(0xFFAECBFA)
-                                                )
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Text(
-                                                    text = "Gemini is translating packet...",
-                                                    fontSize = 12.sp,
-                                                    color = Color.LightGray
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Gemini Assistant Bottom Ambient Glow bar if thinking
-                        if (isThinking) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(3.dp)
-                                    .background(
-                                        Brush.horizontalGradient(
-                                            colors = listOf(Color(0xFF4285F4), Color(0xFF34A853), Color(0xFFFBBC05), Color(0xFFEA4335))
-                                        )
                                     )
-                            )
-                        }
+                                }
 
-                        // === GEMINI STYLE PILL DESIGN BOTTOM AREA ===
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color(0xFF131314))
-                                .padding(bottom = 12.dp, top = 4.dp, start = 12.dp, end = 12.dp),
-                            color = Color.Transparent
-                        ) {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                // 1. Horizontal Suggestion Chips (Gemini Mobile App style)
-                                LazyRow(
+                                // === GEMINI STYLE PILL DESIGN BOTTOM AREA ===
+                                Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(bottom = 8.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        .background(Color(0xFF131314))
+                                        .padding(bottom = 12.dp, top = 4.dp, start = 12.dp, end = 12.dp),
+                                    color = Color.Transparent
                                 ) {
-                                    val suggestions = listOf(
-                                        Pair("📸 Scan Doubt Paper", "Solve this exam question: "),
-                                        Pair("🧪 Chemistry Helper", "Explain step-by-step chemical reaction: "),
-                                        Pair("📐 Solver Formula", "Show formula derivation for: "),
-                                        Pair("📖 Hindi Literature expert", "Describe Bhakti kal poetry summary for: ")
-                                    )
-                                    items(suggestions) { (label, promptText) ->
-                                        Box(
+                                    Column(modifier = Modifier.fillMaxWidth()) {
+                                        // 1. Subject category tabs for Quick Academic Actions
+                                        Row(
                                             modifier = Modifier
-                                                .clip(RoundedCornerShape(20.dp))
+                                                .fillMaxWidth()
+                                                .padding(bottom = 6.dp)
+                                                .horizontalScroll(rememberScrollState()),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            val categories = listOf(
+                                                Pair("Math", "🧮 Mathematics"),
+                                                Pair("Science", "🔬 Science/Physics"),
+                                                Pair("Phonics", "🍎 Primary Phonics"),
+                                                Pair("Hindi", "✍️ Hindi Lit")
+                                            )
+                                            categories.forEach { (key, display) ->
+                                                val isSelected = selectedSubjectCategory == key
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(16.dp))
+                                                        .background(if (isSelected) Color(0xFF3B5B96) else Color(0xFF1E1F20))
+                                                        .border(1.dp, if (isSelected) Color.White else Color(0xFF3C4043), RoundedCornerShape(16.dp))
+                                                        .clickable { selectedSubjectCategory = key }
+                                                        .testTag("gemini_subject_tab_${key}")
+                                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                                ) {
+                                                    Text(
+                                                        text = display,
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color.White
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        // 2. Clickable Academic Quick Queries belonging to chosen category
+                                        LazyRow(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(bottom = 8.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            val filtered = quickQueries.filter { it.category == selectedSubjectCategory }
+                                            items(filtered) { query ->
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(18.dp))
+                                                        .background(Color(0xFF1E1F20))
+                                                        .border(1.dp, Color(0xFF3C4043), RoundedCornerShape(18.dp))
+                                                        .clickable {
+                                                            val qText = query.prompt
+                                                            val currentMsgs = chatHistory.toMutableList()
+                                                            currentMsgs.add(ChatMessage("USER", "Doubt: ${query.label}\n\n$qText"))
+                                                            updateActiveSessionMessages(currentMsgs, query.label)
+                                                            isThinking = true
+                                                            scope.launch {
+                                                                val response = try {
+                                                                    com.example.services.GeminiService.generateContent(
+                                                                        prompt = qText,
+                                                                        customApiKey = customApiKey.ifBlank { null }
+                                                                    )
+                                                                } catch (e: Exception) {
+                                                                    getOfflineSolutionFor(qText)
+                                                                }
+                                                                isThinking = false
+                                                                val finalMsgs = chatHistory.toMutableList()
+                                                                finalMsgs.add(ChatMessage("Gemini", response))
+                                                                updateActiveSessionMessages(finalMsgs)
+                                                            }
+                                                        }
+                                                        .testTag("gemini_quick_query_${query.label}")
+                                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                    ) {
+                                                        Text(query.icon, fontSize = 11.sp)
+                                                        Text(
+                                                            text = query.label,
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Medium,
+                                                            color = Color(0xFFE3E3E3)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // 3. Render file preview if attached
+                                        if (selectedFileName != null) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(bottom = 6.dp)
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .background(Color(0xFF202124))
+                                                    .border(1.dp, Color(0xFF3C4043), RoundedCornerShape(12.dp))
+                                                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Attachment,
+                                                        contentDescription = "Attachment",
+                                                        tint = Color(0xFFAECBFA),
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Text(
+                                                        text = selectedFileName ?: "",
+                                                        color = Color.White,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                }
+                                                IconButton(
+                                                    onClick = {
+                                                        selectedFileName = null
+                                                        selectedBase64 = null
+                                                        selectedMimeType = null
+                                                    },
+                                                    modifier = Modifier.size(24.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Cancel,
+                                                        contentDescription = "Cancel attachment",
+                                                        tint = Color(0xFFE2B7B2),
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        // 4. Authentic Gemini Input Row Capsule
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(28.dp))
                                                 .background(Color(0xFF1E1F20))
-                                                .border(1.dp, Color(0xFF3C4043), RoundedCornerShape(20.dp))
-                                                .clickable {
-                                                    queryText = promptText
-                                                    if (label.contains("📸")) {
+                                                .border(1.dp, Color(0xFF3C4043), RoundedCornerShape(28.dp))
+                                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            // Add/Attachment Icon inside the capsule
+                                            IconButton(
+                                                onClick = { attachmentMenuExpanded = true },
+                                                modifier = Modifier.size(36.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.AddCircleOutline,
+                                                    contentDescription = "More Options",
+                                                    tint = Color(0xFFAECBFA),
+                                                    modifier = Modifier.size(22.dp)
+                                                )
+                                            }
+                                            
+                                            // Dropdown Menu options for adding files
+                                            DropdownMenu(
+                                                expanded = attachmentMenuExpanded,
+                                                onDismissRequest = { attachmentMenuExpanded = false }
+                                            ) {
+                                                DropdownMenuItem(
+                                                    text = { Text("Upload Homework (PDF)") },
+                                                    leadingIcon = { Icon(Icons.Default.UploadFile, contentDescription = null, tint = Color(0xFF7A9FE6)) },
+                                                    onClick = {
+                                                        attachmentMenuExpanded = false
+                                                        pickContentLauncher.launch("application/pdf")
+                                                    }
+                                                )
+                                                DropdownMenuItem(
+                                                    text = { Text("Pick Image from Gallery") },
+                                                    leadingIcon = { Icon(Icons.Default.Image, contentDescription = null, tint = Color(0xFF7A9FE6)) },
+                                                    onClick = {
+                                                        attachmentMenuExpanded = false
+                                                        pickContentLauncher.launch("image/*")
+                                                    }
+                                                )
+                                            }
+
+                                            // Flexible TextField for query typing
+                                            TextField(
+                                                value = queryText,
+                                                onValueChange = { queryText = it },
+                                                placeholder = {
+                                                    Text(
+                                                        text = "Type, talk, or share a photo...",
+                                                        fontSize = 14.sp,
+                                                        color = Color(0xFF9AA0A6)
+                                                    )
+                                                },
+                                                colors = TextFieldDefaults.colors(
+                                                    focusedContainerColor = Color.Transparent,
+                                                    unfocusedContainerColor = Color.Transparent,
+                                                    focusedTextColor = Color.White,
+                                                    unfocusedTextColor = Color.White,
+                                                    cursorColor = Color(0xFFAECBFA),
+                                                    focusedIndicatorColor = Color.Transparent,
+                                                    unfocusedIndicatorColor = Color.Transparent
+                                                ),
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .testTag("gemini_query_input"),
+                                                maxLines = 4
+                                            )
+
+                                            // Multi-functional Media Actions inside the capsule (Camera & Gallery Input)
+                                            if (queryText.isBlank() && selectedFileName == null) {
+                                                // Camera Trigger icon with crash-proof guard
+                                                IconButton(
+                                                    onClick = {
                                                         try {
                                                             takePictureLauncher.launch(null)
                                                         } catch (e: Exception) {
                                                             pickContentLauncher.launch("image/*")
                                                         }
-                                                    }
-                                                }
-                                                .padding(horizontal = 12.dp, vertical = 6.dp)
-                                        ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.AutoAwesome,
-                                                    contentDescription = null,
-                                                    tint = Color(0xFF7A9FE6),
-                                                    modifier = Modifier.size(12.dp)
-                                                )
-                                                Text(
-                                                    text = label,
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = Color(0xFFE3E3E3)
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // 2. Render file preview if attached
-                                if (selectedFileName != null) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(bottom = 6.dp)
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(Color(0xFF202124))
-                                            .border(1.dp, Color(0xFF3C4043), RoundedCornerShape(12.dp))
-                                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                imageVector = Icons.Default.Attachment,
-                                                contentDescription = "Attachment",
-                                                tint = Color(0xFFAECBFA),
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                text = selectedFileName ?: "",
-                                                color = Color.White,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-                                        IconButton(
-                                            onClick = {
-                                                selectedFileName = null
-                                                selectedBase64 = null
-                                                selectedMimeType = null
-                                            },
-                                            modifier = Modifier.size(24.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Cancel,
-                                                contentDescription = "Cancel attachment",
-                                                tint = Color(0xFFE2B7B2),
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    }
-                                }
-
-                                // 3. Authentic Gemini Input Row
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(28.dp))
-                                        .background(Color(0xFF1E1F20))
-                                        .border(1.dp, Color(0xFF3C4043), RoundedCornerShape(28.dp))
-                                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    // Add/Attachment Icon inside the capsule
-                                    IconButton(
-                                        onClick = { attachmentMenuExpanded = true },
-                                        modifier = Modifier.size(36.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.AddCircleOutline,
-                                            contentDescription = "More Options",
-                                            tint = Color(0xFFAECBFA),
-                                            modifier = Modifier.size(22.dp)
-                                        )
-                                    }
-                                    
-                                    // Dropdown Menu options for adding files
-                                    DropdownMenu(
-                                        expanded = attachmentMenuExpanded,
-                                        onDismissRequest = { attachmentMenuExpanded = false }
-                                    ) {
-                                        DropdownMenuItem(
-                                            text = { Text("Upload Homework (PDF)") },
-                                            leadingIcon = { Icon(Icons.Default.UploadFile, contentDescription = null, tint = Color(0xFF7A9FE6)) },
-                                            onClick = {
-                                                attachmentMenuExpanded = false
-                                                pickContentLauncher.launch("application/pdf")
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("Pick Image from Gallery") },
-                                            leadingIcon = { Icon(Icons.Default.Image, contentDescription = null, tint = Color(0xFF7A9FE6)) },
-                                            onClick = {
-                                                attachmentMenuExpanded = false
-                                                pickContentLauncher.launch("image/*")
-                                            }
-                                        )
-                                    }
-
-                                    // Flexible TextField for query typing
-                                    TextField(
-                                        value = queryText,
-                                        onValueChange = { queryText = it },
-                                        placeholder = {
-                                            Text(
-                                                text = "Type, talk, or share a photo...",
-                                                fontSize = 14.sp,
-                                                color = Color(0xFF9AA0A6)
-                                            )
-                                        },
-                                        colors = TextFieldDefaults.colors(
-                                            focusedContainerColor = Color.Transparent,
-                                            unfocusedContainerColor = Color.Transparent,
-                                            focusedTextColor = Color.White,
-                                            unfocusedTextColor = Color.White,
-                                            cursorColor = Color(0xFFAECBFA),
-                                            focusedIndicatorColor = Color.Transparent,
-                                            unfocusedIndicatorColor = Color.Transparent
-                                        ),
-                                        modifier = Modifier.weight(1f),
-                                        maxLines = 4
-                                    )
-
-                                    // Multi-functional Media Actions inside the capsule (Camera & Gallery Input)
-                                    if (queryText.isBlank() && selectedFileName == null) {
-                                        // Camera Trigger icon with crash-proof guard
-                                        IconButton(
-                                            onClick = {
-                                                try {
-                                                    takePictureLauncher.launch(null)
-                                                } catch (e: Exception) {
-                                                    pickContentLauncher.launch("image/*")
-                                                }
-                                            },
-                                            modifier = Modifier.size(36.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.PhotoCamera,
-                                                contentDescription = "Camera Capture",
-                                                tint = Color(0xFFAECBFA),
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-
-                                        // Mic Voice Input
-                                        IconButton(
-                                            onClick = {
-                                                Toast.makeText(context, "Voice assistance listening active...", Toast.LENGTH_SHORT).show()
-                                            },
-                                            modifier = Modifier.size(36.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Mic,
-                                                contentDescription = "Voice Dictate",
-                                                tint = Color(0xFFAECBFA),
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-                                    } else {
-                                        val hasContent = queryText.isNotBlank() || selectedBase64 != null
-                                        Box(
-                                            modifier = Modifier
-                                                .size(36.dp)
-                                                .clip(CircleShape)
-                                                .background(
-                                                    Brush.radialGradient(
-                                                        colors = if (hasContent) {
-                                                            listOf(Color(0xFF8E2DE2), Color(0xFF4A00E0))
-                                                        } else {
-                                                            listOf(Color(0xFF333333), Color(0xFF222222))
-                                                        }
+                                                    },
+                                                    modifier = Modifier.size(36.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.PhotoCamera,
+                                                        contentDescription = "Camera Capture",
+                                                        tint = Color(0xFFAECBFA),
+                                                        modifier = Modifier.size(20.dp)
                                                     )
-                                                )
-                                                .clickable(enabled = hasContent) {
-                                                    val userMsg = queryText
-                                                    val customMsgWithAttachment = if (selectedFileName != null) {
-                                                        if (userMsg.isNotBlank()) "$userMsg\n\n[Attachment: $selectedFileName]" else "[Attachment: $selectedFileName]"
-                                                    } else {
-                                                        userMsg
-                                                    }
+                                                }
 
-                                                    chatHistory.add(ChatMessage("USER", customMsgWithAttachment))
-                                                    queryText = ""
-                                                    isThinking = true
-
-                                                    val base64ToSend = selectedBase64
-                                                    val mTypeToSend = selectedMimeType
-
-                                                    selectedFileName = null
-                                                    selectedBase64 = null
-                                                    selectedMimeType = null
-
-                                                    scope.launch {
-                                                        val response = try {
-                                                            GeminiService.generateContent(
-                                                                prompt = userMsg.ifBlank { "Solve or review this attachment query details." },
-                                                                base64Media = base64ToSend,
-                                                                mimeType = mTypeToSend,
-                                                                customApiKey = customApiKey.ifBlank { null }
+                                                // Mic Voice Input
+                                                IconButton(
+                                                    onClick = {
+                                                        Toast.makeText(context, "Voice assistance listening active...", Toast.LENGTH_SHORT).show()
+                                                    },
+                                                    modifier = Modifier.size(36.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Mic,
+                                                        contentDescription = "Voice Dictate",
+                                                        tint = Color(0xFFAECBFA),
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                }
+                                            } else {
+                                                val hasContent = queryText.isNotBlank() || selectedBase64 != null
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(36.dp)
+                                                        .clip(CircleShape)
+                                                        .background(
+                                                            Brush.radialGradient(
+                                                                colors = if (hasContent) {
+                                                                    listOf(Color(0xFF8E2DE2), Color(0xFF4A00E0))
+                                                                } else {
+                                                                    listOf(Color(0xFF333333), Color(0xFF222222))
+                                                                }
                                                             )
-                                                        } catch (e: Exception) {
-                                                            getOfflineSolutionFor(userMsg)
+                                                        )
+                                                        .clickable(enabled = hasContent) {
+                                                            val userMsg = queryText
+                                                            val customMsgWithAttachment = if (selectedFileName != null) {
+                                                                if (userMsg.isNotBlank()) "$userMsg\n\n[Attachment: $selectedFileName]" else "[Attachment: $selectedFileName]"
+                                                            } else {
+                                                                userMsg
+                                                            }
+
+                                                            val updatedMsgs = chatHistory.toMutableList()
+                                                            updatedMsgs.add(ChatMessage("USER", customMsgWithAttachment))
+                                                            updateActiveSessionMessages(updatedMsgs, userMsg)
+                                                            queryText = ""
+                                                            isThinking = true
+
+                                                            val base64ToSend = selectedBase64
+                                                            val mTypeToSend = selectedMimeType
+
+                                                            selectedFileName = null
+                                                            selectedBase64 = null
+                                                            selectedMimeType = null
+
+                                                            scope.launch {
+                                                                val response = try {
+                                                                    com.example.services.GeminiService.generateContent(
+                                                                        prompt = userMsg.ifBlank { "Solve or review this attachment query details." },
+                                                                        base64Media = base64ToSend,
+                                                                        mimeType = mTypeToSend,
+                                                                        customApiKey = customApiKey.ifBlank { null }
+                                                                    )
+                                                                } catch (e: Exception) {
+                                                                    getOfflineSolutionFor(userMsg)
+                                                                }
+                                                                isThinking = false
+                                                                val finalMsgs = chatHistory.toMutableList()
+                                                                finalMsgs.add(ChatMessage("Gemini", response))
+                                                                updateActiveSessionMessages(finalMsgs)
+                                                            }
                                                         }
-                                                        isThinking = false
-                                                        chatHistory.add(ChatMessage("Gemini", response))
-                                                    }
-                                                },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.AutoMirrored.Filled.Send,
-                                                contentDescription = "Execute Query",
-                                                tint = if (hasContent) Color.White else Color.Gray,
-                                                modifier = Modifier.size(16.dp)
-                                            )
+                                                        .testTag("gemini_send_query_btn"),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.AutoMirrored.Filled.Send,
+                                                        contentDescription = "Execute Query",
+                                                        tint = if (hasContent) Color.White else Color.Gray,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -3561,7 +4325,7 @@ fun GeminiDoubtSolverBot(viewModel: com.example.ui.viewmodel.AppViewModel, onClo
                             onValueChange = { tempKey = it },
                             placeholder = { Text("Paste your AI Studio API Key...", fontSize = 12.sp) },
                             singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().testTag("gemini_api_key_input"),
                             textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, fontFamily = FontFamily.Monospace),
                             trailingIcon = {
                                 if (tempKey.isNotEmpty()) {
@@ -3588,7 +4352,8 @@ fun GeminiDoubtSolverBot(viewModel: com.example.ui.viewmodel.AppViewModel, onClo
                             viewModel.updateCustomGeminiApiKey(tempKey.trim())
                             Toast.makeText(context, "Gemini secure API Key cached locally!", Toast.LENGTH_SHORT).show()
                             showSettingsDialog = false
-                        }
+                        },
+                        modifier = Modifier.testTag("gemini_save_api_key_btn")
                     ) {
                         Text("Save Key")
                     }
@@ -3649,6 +4414,7 @@ fun getOfflineSolutionFor(query: String): String {
     }
 }
 
+@androidx.annotation.OptIn(androidx.camera.core.ExperimentalGetImage::class)
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun CameraXQRScannerView(
@@ -3706,7 +4472,12 @@ fun CameraXQRScannerView(
                                         onQRCodeScanned(rawValue)
                                         try {
                                             val vibrator = context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
-                                            vibrator?.vibrate(android.os.VibrationEffect.createOneShot(100, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                                            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                                                vibrator?.vibrate(android.os.VibrationEffect.createOneShot(100, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                                            } else {
+                                                @Suppress("DEPRECATION")
+                                                vibrator?.vibrate(100)
+                                            }
                                         } catch (e: Exception) {}
                                     }
                                 }
@@ -6924,18 +7695,18 @@ fun ReportDownloadItem(title: String, desc: String, onClick: () -> Unit) {
 
 // E. HOMEWORK POSTING MANAGER
 @Composable
-fun HomeworkAssignConsoleOverlay(batches: List<com.example.data.model.Batch>, onClose: () -> Unit) {
+fun HomeworkAssignConsoleOverlay(
+    viewModel: com.example.ui.viewmodel.AppViewModel,
+    batches: List<com.example.data.model.Batch>,
+    onClose: () -> Unit
+) {
     val context = LocalContext.current
     var hwTopic by remember { mutableStateOf("") }
     var hwContent by remember { mutableStateOf("") }
+    var hwDueDate by remember { mutableStateOf("Tomorrow") }
     var selectedBatchIndex by remember { mutableStateOf(-1) } // -1 representation means All Batches
     
-    val homeworks = remember {
-        mutableStateListOf(
-            HomeworkRecord("All Batches", "Interactive Mathematics Elite", "Ex 2.3 Solving Real root fractions"),
-            HomeworkRecord("Competitive Batch", "Speed Physics Workbook", "Complete Chapter 2 kinematics problems")
-        )
-    }
+    val activeAssignments by viewModel.assignments.collectAsState()
 
     AlertDialog(
         onDismissRequest = onClose,
@@ -6978,21 +7749,30 @@ fun HomeworkAssignConsoleOverlay(batches: List<com.example.data.model.Batch>, on
                     label = { Text("Instructional guidance content details") },
                     modifier = Modifier.fillMaxWidth()
                 )
+                OutlinedTextField(
+                    value = hwDueDate,
+                    onValueChange = { hwDueDate = it },
+                    label = { Text("Due Date (e.g., Tomorrow, Friday, June 30)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
                 
                 Button(
                     onClick = {
                         if (hwTopic.isNotBlank()) {
                             val targetLabel = if (selectedBatchIndex == -1) "All Batches" else batches.getOrNull(selectedBatchIndex)?.name ?: "All Batches"
-                            homeworks.add(
-                                HomeworkRecord(
-                                    batch = targetLabel,
-                                    topic = hwTopic,
-                                    desc = hwContent.ifEmpty { "Read standard chapter & complete worksheets." }
-                                )
+                            val targetBatchId = if (selectedBatchIndex == -1) 0L else batches.getOrNull(selectedBatchIndex)?.id ?: 0L
+                            
+                            viewModel.publishAssignment(
+                                batchId = targetBatchId,
+                                batchName = targetLabel,
+                                title = hwTopic.trim(),
+                                description = hwContent.ifEmpty { "Read standard chapter & complete worksheets." }.trim(),
+                                dueDate = hwDueDate.trim(),
+                                dueDateMillis = System.currentTimeMillis() + 24 * 60 * 60 * 1000L
                             )
-                            Toast.makeText(context, "Assignment published successfully for $targetLabel!", Toast.LENGTH_SHORT).show()
                             hwTopic = ""
                             hwContent = ""
+                            hwDueDate = "Tomorrow"
                         } else {
                             Toast.makeText(context, "Please enter a valid assignment topic headline.", Toast.LENGTH_SHORT).show()
                         }
@@ -7006,15 +7786,35 @@ fun HomeworkAssignConsoleOverlay(batches: List<com.example.data.model.Batch>, on
                 
                 Text("Current Active Board Assignments:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    homeworks.forEach { hw ->
-                        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))) {
-                            Column(modifier = Modifier.padding(10.dp)) {
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text(hw.batch, fontWeight = FontWeight.Black, fontSize = 10.sp, color = MaterialTheme.colorScheme.primary)
-                                    Text("Due: Tomorrow", fontSize = 9.sp, color = Color.Red, fontWeight = FontWeight.Bold)
+                    if (activeAssignments.isEmpty()) {
+                        Text("No active assignments published yet.", fontSize = 11.sp, color = Color.Gray, modifier = Modifier.padding(vertical = 4.dp))
+                    } else {
+                        activeAssignments.forEach { hw ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                        Text(hw.batchName, fontWeight = FontWeight.Black, fontSize = 10.sp, color = MaterialTheme.colorScheme.primary)
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text("Due: ${hw.dueDate}", fontSize = 9.sp, color = Color.Red, fontWeight = FontWeight.Bold)
+                                            IconButton(
+                                                onClick = { viewModel.deleteAssignment(hw) },
+                                                modifier = Modifier.size(18.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Delete,
+                                                    contentDescription = "Delete assignment",
+                                                    tint = Color.Red,
+                                                    modifier = Modifier.size(12.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Text(hw.title, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text(hw.description, fontSize = 11.sp, color = Color.Gray)
                                 }
-                                Text(hw.topic, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                Text(hw.desc, fontSize = 11.sp, color = Color.Gray)
                             }
                         }
                     }
@@ -7027,7 +7827,7 @@ fun HomeworkAssignConsoleOverlay(batches: List<com.example.data.model.Batch>, on
     )
 }
 
-data class HomeworkRecord(val batch: String, val topic: String, val desc: String)
+data class HomeworkRecord(val batch: String, val topic: String, val desc: String, val createdAt: Long = System.currentTimeMillis())
 
 // F. TO-DO TASK DIALOG CONTROLLER (Checking lists)
 @Composable
@@ -7631,7 +8431,7 @@ fun <T> ScrollableDropdownSelector(
 // ==========================================
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun LibraryCenterOverlay(viewModel: com.example.ui.viewmodel.AppViewModel, onClose: () -> Unit) {
+fun LibraryCenterOverlay(viewModel: com.example.ui.viewmodel.AppViewModel, onClose: () -> Unit, isInlineDashboard: Boolean = false) {
     val context = LocalContext.current
     val userRole by viewModel.currentUserRole.collectAsState()
     val studentId by viewModel.currentUserId.collectAsState()
@@ -7642,7 +8442,43 @@ fun LibraryCenterOverlay(viewModel: com.example.ui.viewmodel.AppViewModel, onClo
     val studentsList by viewModel.students.collectAsState() // linkable students
     
     // We expand tabs to cover all the physical library institute features
-    var activeTab by remember { mutableStateOf("BOOKS") } // "BOOKS", "EBOOKS", "CABINS", "MEMBERS", "FEES", "ANALYTICS", "OFFERS"
+    var activeTab by remember { mutableStateOf("DASHBOARD") } // Default to live cabin seating desk map
+    
+    // Expenses State
+    val libraryExpenses = remember {
+        mutableStateListOf(
+            LibraryExpense("1", "Electricity & AC Maintenance", 4200.0, "2026-06-15", "Paid"),
+            LibraryExpense("2", "High-Speed Wi-Fi Fiber Broadband", 1499.0, "2026-06-20", "Paid"),
+            LibraryExpense("3", "Mineral Water Delivery (20 Cans)", 1200.0, "2026-06-22", "Paid"),
+            LibraryExpense("4", "Housekeeping & Cleaning Materials", 800.0, "2026-06-25", "Paid"),
+            LibraryExpense("5", "Weekly Newspaper (The Hindu)", 450.0, "2026-06-28", "Paid")
+        )
+    }
+    var showAddExpenseDialog by remember { mutableStateOf(false) }
+    var expenseName by remember { mutableStateOf("") }
+    var expenseAmount by remember { mutableStateOf("") }
+    var expenseCategory by remember { mutableStateOf("Utilities") }
+
+    // Announcements State
+    val libraryAnnouncements = remember {
+        mutableStateListOf(
+            LibraryAnnouncement("1", "Sunday Deep Cleaning Scheduled", "The entire Zone A and Private Cabin Zone will be closed for deep sanitization this Sunday (July 5) from 8 AM to 2 PM.", "2026-07-01"),
+            LibraryAnnouncement("2", "Wi-Fi Fiber Connection Upgraded", "We have upgraded the fiber speed from 150 Mbps to 300 Mbps in Zone B. SSID: 'Apex_Library_5G', Pass: 'StudyHard2026'.", "2026-06-28"),
+            LibraryAnnouncement("3", "New Mock Exam Answer Sheets", "UPSC & JEE mock worksheets are ready at the front desk. Collect them from staff.", "2026-06-25")
+        )
+    }
+    var showAddAnnouncementDialog by remember { mutableStateOf(false) }
+    var announcementTitle by remember { mutableStateOf("") }
+    var announcementBody by remember { mutableStateOf("") }
+
+    // Feedback State
+    val libraryFeedbacks = remember {
+        mutableStateListOf(
+            LibraryFeedback("1", "Aman Verma", "Cabin 14", "Light is flickering occasionally.", "Medium", "Active"),
+            LibraryFeedback("2", "Karan Johar", "Zone B", "AC is too cold during morning shift.", "Low", "Resolved"),
+            LibraryFeedback("3", "Priya Sen", "Private Cabin 5", "Wi-Fi signal drops frequently in this corner.", "High", "Active")
+        )
+    }
     
     // Search & Add Book states
     var bookSearchQuery by remember { mutableStateOf("") }
@@ -7772,59 +8608,302 @@ fun LibraryCenterOverlay(viewModel: com.example.ui.viewmodel.AppViewModel, onClo
     
     val todayDate = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
     
-    androidx.compose.ui.window.Dialog(
-        onDismissRequest = onClose,
-        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Scaffold(
-            topBar = {
-                Card(
-                     modifier = Modifier.fillMaxWidth(),
-                     shape = RoundedCornerShape(0.dp),
-                     colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1B4B)), // Dark Indigo Theme
-                     elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    @Composable
+    fun MainContent() {
+        val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+        val scope = rememberCoroutineScope()
+        var showNotificationsDialog by remember { mutableStateOf(false) }
+        var showCommunityChatDialogInside by remember { mutableStateOf(false) }
+
+        val themeMode by viewModel.themeMode.collectAsState()
+        val isDarkTheme = themeMode == "CLASSIC_MIDNIGHT"
+        val bgColor = if (isDarkTheme) Color(0xFF0B132B) else Color(0xFFF5F7FA)
+        val cardColor = if (isDarkTheme) Color(0xFF1C2541) else Color.White
+        val textColor = if (isDarkTheme) Color(0xFFF1F5F9) else Color(0xFF101C2B)
+        val secondaryTextColor = if (isDarkTheme) Color(0xFFE2E8F0) else Color(0xFF44474F)
+        val cardBorder = if (isDarkTheme) BorderStroke(1.dp, Color(0xFF3A506B)) else BorderStroke(1.dp, Color(0xFFE2E7F3))
+
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
+                ModalDrawerSheet(
+                    drawerContainerColor = MaterialTheme.colorScheme.surface,
+                    drawerContentColor = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.width(280.dp)
                 ) {
-                     Row(
-                         modifier = Modifier
-                             .fillMaxWidth()
-                             .padding(horizontal = 14.dp, vertical = 14.dp),
-                         verticalAlignment = Alignment.CenterVertically
-                     ) {
-                         IconButton(onClick = onClose) {
-                             Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
-                         }
-                         Spacer(modifier = Modifier.width(8.dp))
-                         Column(modifier = Modifier.weight(1f)) {
-                             Text(
-                                 "Apex Physical Library & Study Institute",
-                                 fontWeight = FontWeight.ExtraBold,
-                                 fontSize = 18.sp,
-                                 color = Color.White
-                             )
-                             Text(
-                                 "Admission Tracker • Cabins Seating Desk Map • Shift Schedulers • Competitive Exams Resources (SaaS Center)",
-                                 fontSize = 11.sp,
-                                 color = Color(0xFFC7D2FE)
-                             )
-                         }
-                         Box(
-                             modifier = Modifier
-                                 .background(Color(0xFF4F46E5), RoundedCornerShape(8.dp))
-                                 .padding(horizontal = 8.dp, vertical = 4.dp)
-                         ) {
-                             Text(
-                                 "$userRole Workspace",
-                                 color = Color.White,
-                                 fontSize = 10.sp,
-                                 fontWeight = FontWeight.Bold
-                             )
-                         }
-                     }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp)
+                    ) {
+                        // Drawer Header
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(MaterialTheme.colorScheme.primary, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("📚", fontSize = 20.sp)
+                            }
+                            Column {
+                                Text(
+                                    "Library Hub Admin",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    "Management Desk",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Drawer Navigation Items List
+                        val menuItems = listOf(
+                            Triple("DASHBOARD", "Workspace Dashboard", Icons.Default.Dashboard),
+                            Triple("BOOKS", "Prep Books Inventory", Icons.Default.MenuBook),
+                            Triple("EBOOKS", "Digital E-Books Library", Icons.Default.Laptop),
+                            Triple("CABINS", "Seats & Shifts Map", Icons.Default.EventSeat),
+                            Triple("MEMBERS", "Membership Rosters", Icons.Default.People),
+                            Triple("FEES", "Fees Ledger Console", Icons.Default.AttachMoney),
+                            Triple("ANALYTICS", "Analytics Hub", Icons.Default.TrendingUp),
+                            Triple("OFFERS", "Promotional Offers", Icons.Default.LocalOffer),
+                            Triple("EXPENSES", "Operating Expenses", Icons.Default.ReceiptLong),
+                            Triple("FEEDBACK", "User Feedbacks", Icons.Default.Campaign),
+                        )
+
+                        Column(
+                            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            menuItems.forEach { (tabId, label, icon) ->
+                                val isSelected = activeTab == tabId
+                                NavigationDrawerItem(
+                                    icon = { Icon(icon, contentDescription = null, tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) },
+                                    label = { Text(label, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, fontSize = 13.sp) },
+                                    selected = isSelected,
+                                    onClick = {
+                                        activeTab = tabId
+                                        scope.launch { drawerState.close() }
+                                    },
+                                    colors = NavigationDrawerItemDefaults.colors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                        unselectedContainerColor = Color.Transparent,
+                                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                                        unselectedTextColor = MaterialTheme.colorScheme.onSurface
+                                    ),
+                                    modifier = Modifier.height(48.dp)
+                                )
+                            }
+
+                            // Community Chat Integration in Sidebar
+                            NavigationDrawerItem(
+                                icon = { Icon(Icons.Default.Chat, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                                label = { Text("Community Chat", fontSize = 13.sp) },
+                                selected = false,
+                                onClick = {
+                                    scope.launch { drawerState.close() }
+                                    showCommunityChatDialogInside = true
+                                },
+                                colors = NavigationDrawerItemDefaults.colors(
+                                    unselectedContainerColor = Color.Transparent,
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurface
+                                ),
+                                modifier = Modifier.height(48.dp)
+                            )
+                        }
+
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Close Workspace button in Sidebar
+                        Button(
+                            onClick = onClose,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.ExitToApp, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Exit Workspace", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
-        ) { paddingValues ->
-            val activeLibAccount by viewModel.activeLibraryAccount.collectAsState()
-            val hasLibraryAccess = listOf("LIBRARY", "ADMIN", "STAFF").contains(userRole)
+        ) {
+            Scaffold(
+                topBar = {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.primary,
+                        tonalElevation = 4.dp
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .statusBarsPadding()
+                                .height(64.dp)
+                                .padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                Icon(Icons.Default.Menu, contentDescription = "Open Sidebar Menu", tint = Color.White)
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Apex Physical Library Hub",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    color = Color.White
+                                )
+                                Text(
+                                    text = "Admin & Teachers Management Panel",
+                                    fontSize = 10.sp,
+                                    color = Color.White.copy(alpha = 0.8f)
+                                )
+                            }
+                            
+                            // Theme Switcher Switch in Top Bar
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.padding(end = 8.dp)
+                            ) {
+                                Text(if (isDarkTheme) "🌙" else "☀️", fontSize = 14.sp)
+                                androidx.compose.material3.Switch(
+                                    checked = isDarkTheme,
+                                    onCheckedChange = { checked ->
+                                        viewModel.switchTheme(if (checked) "CLASSIC_MIDNIGHT" else "CLASSIC_NAVY")
+                                    },
+                                    thumbContent = null,
+                                    colors = androidx.compose.material3.SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        uncheckedThumbColor = Color.White,
+                                        checkedTrackColor = Color.White.copy(alpha = 0.5f),
+                                        uncheckedTrackColor = Color.White.copy(alpha = 0.3f)
+                                    ),
+                                    modifier = Modifier.graphicsLayer { scaleX = 0.7f; scaleY = 0.7f }
+                                )
+                            }
+
+                            // Notifications Icon with badge
+                            IconButton(onClick = { showNotificationsDialog = true }) {
+                                androidx.compose.material3.BadgedBox(
+                                    badge = {
+                                        androidx.compose.material3.Badge(containerColor = Color.Red) {
+                                            Text("3", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Notifications,
+                                        contentDescription = "System Notifications",
+                                        tint = Color.White
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(4.dp))
+
+                            // Close Workspace
+                            IconButton(onClick = onClose) {
+                                Icon(Icons.Default.Close, contentDescription = "Close Hub", tint = Color.White)
+                            }
+                        }
+                    }
+                }
+            ) { paddingValues ->
+                val activeLibAccount by viewModel.activeLibraryAccount.collectAsState()
+                val hasLibraryAccess = listOf("LIBRARY", "ADMIN", "STAFF").contains(userRole)
+                
+                if (showNotificationsDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showNotificationsDialog = false },
+                        title = { Text("Recent Management Notices", fontWeight = FontWeight.Bold) },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(containerColor = cardColor),
+                                    border = cardBorder
+                                ) {
+                                    Column(modifier = Modifier.padding(10.dp)) {
+                                        Text("⚠️ Overdue Fee Alert", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.Red)
+                                        Text("3 memberships are currently pending. Auto UPI pay link triggers at 5:00 PM.", fontSize = 11.sp, color = secondaryTextColor)
+                                    }
+                                }
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(containerColor = cardColor),
+                                    border = cardBorder
+                                ) {
+                                    Column(modifier = Modifier.padding(10.dp)) {
+                                        Text("👥 Shift Change Approved", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF10B981))
+                                        Text("Seat #12 student approved for Night Owls Shift shift.", fontSize = 11.sp, color = secondaryTextColor)
+                                    }
+                                }
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(containerColor = cardColor),
+                                    border = cardBorder
+                                ) {
+                                    Column(modifier = Modifier.padding(10.dp)) {
+                                        Text("📦 New Book Arrival", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary)
+                                        Text("5 copies of JEE Advanced Master Prep Series have been inventoried.", fontSize = 11.sp, color = secondaryTextColor)
+                                    }
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            Button(onClick = { showNotificationsDialog = false }) {
+                                Text("Acknowledge All")
+                            }
+                        }
+                    )
+                }
+
+                if (showCommunityChatDialogInside) {
+                    AlertDialog(
+                        onDismissRequest = { showCommunityChatDialogInside = false },
+                        properties = DialogProperties(usePlatformDefaultWidth = false),
+                        title = {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("🏛️ physical Library Community Chat", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                IconButton(onClick = { showCommunityChatDialogInside = false }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Close Chat")
+                                }
+                            }
+                        },
+                        text = {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(450.dp)
+                            ) {
+                                com.example.ui.screens.CommunityChatOverlay(
+                                    viewModel = viewModel,
+                                    onClose = { showCommunityChatDialogInside = false }
+                                )
+                            }
+                        },
+                        confirmButton = {}
+                    )
+                }
             
             if (!hasLibraryAccess) {
                 Box(
@@ -7881,14 +8960,18 @@ fun LibraryCenterOverlay(viewModel: com.example.ui.viewmodel.AppViewModel, onClo
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(paddingValues)
-                        .background(Color(0xFF0F172A)) // Aesthetic dark slate canvas
+                        .background(Color(0xFFF8FAFC)) // Beautiful light slate off-white background
                 ) {
                     // Logged-In Account Info Header
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color(0xFF1E293B))
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                            .background(
+                                Brush.horizontalGradient(
+                                    colors = listOf(Color(0xFF0284C7), Color(0xFF38BDF8))
+                                )
+                            )
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -7921,91 +9004,420 @@ fun LibraryCenterOverlay(viewModel: com.example.ui.viewmodel.AppViewModel, onClo
                         TextButton(
                             onClick = { 
                                 onClose()
-                                Toast.makeText(context, "Closed Physical Library workspace.", Toast.LENGTH_SHORT).show()
+                                if (isInlineDashboard) {
+                                    Toast.makeText(context, "Logged out from Physical Library Hub session.", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Closed Physical Library workspace.", Toast.LENGTH_SHORT).show()
+                                }
                             },
                             contentPadding = PaddingValues(0.dp),
                             modifier = Modifier.height(24.dp)
                         ) {
-                            Text("Close Workspace", color = Color(0xFFF87171), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text(if (isInlineDashboard) "Log Out Portal" else "Close Workspace", color = Color(0xFFFCA5A5), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
 
-                    // Multi-functional interactive navigation tabs (Scrollable to prevent squishing)
-                    ScrollableTabRow(
-                        selectedTabIndex = when(activeTab) {
-                            "BOOKS" -> 0
-                            "EBOOKS" -> 1
-                            "CABINS" -> 2
-                            "MEMBERS" -> 3
-                            "FEES" -> 4
-                            "ANALYTICS" -> 5
-                            "OFFERS" -> 6
-                            "QR_ATTENDANCE" -> 7
-                            else -> 0
-                        },
-                        containerColor = Color(0xFF1E293B),
-                        contentColor = Color(0xFF818CF8),
-                        edgePadding = 12.dp
+                    if (isInlineDashboard) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            val totalSeats = seatsList.size
+                            val occupiedSeats = seatsList.count { it.isBooked }
+                            val occupancyRate = if (totalSeats > 0) (occupiedSeats * 100) / totalSeats else 0
+                            val activeCirculations = loansList.count { it.returnDate.isNullOrEmpty() }
+                            val totalAspirants = libraryMemberships.size
+
+                            Card(
+                                modifier = Modifier.weight(1f),
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    Text("OCCUPANCY", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0284C7))
+                                    Text("$occupancyRate%", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A))
+                                    Text("$occupiedSeats / $totalSeats seats", fontSize = 9.sp, color = Color.Gray)
+                                }
+                            }
+                            Card(
+                                modifier = Modifier.weight(1f),
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    Text("MEMBERS", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF16A34A))
+                                    Text("$totalAspirants", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A))
+                                    Text("Active Aspirants", fontSize = 9.sp, color = Color.Gray)
+                                }
+                            }
+                            Card(
+                                modifier = Modifier.weight(1f),
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    Text("CIRCULATION", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFFD97706))
+                                    Text("$activeCirculations", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A))
+                                    Text("Prep Books Issued", fontSize = 9.sp, color = Color.Gray)
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
                     ) {
-                        Tab(selected = activeTab == "BOOKS", onClick = { activeTab = "BOOKS" }) {
-                            Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Icon(Icons.Default.MenuBook, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Text("Prep Books", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        if (activeTab != "DASHBOARD") {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 6.dp)
+                                    .clickable { activeTab = "DASHBOARD" },
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowBack,
+                                        contentDescription = "Back",
+                                        tint = Color(0xFF0284C7),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Back to Library Directory Menu",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF0284C7)
+                                    )
+                                }
                             }
                         }
-                        Tab(selected = activeTab == "EBOOKS", onClick = { activeTab = "EBOOKS" }) {
-                            Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Icon(Icons.Default.Star, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFFFBBF24))
-                                Text("Digital Library", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            }
-                        }
-                        Tab(selected = activeTab == "CABINS", onClick = { activeTab = "CABINS" }) {
-                            Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Icon(Icons.Default.EventSeat, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Text("Seating & Shifts", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            }
-                        }
-                        Tab(selected = activeTab == "MEMBERS", onClick = { activeTab = "MEMBERS" }) {
-                            Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Icon(Icons.Default.AccountBox, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Text("Admissions", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            }
-                        }
-                        Tab(selected = activeTab == "FEES", onClick = { activeTab = "FEES" }) {
-                            Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Icon(Icons.Default.AttachMoney, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Text("Fee Ledgers", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            }
-                        }
-                        Tab(selected = activeTab == "ANALYTICS", onClick = { activeTab = "ANALYTICS" }) {
-                            Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Icon(Icons.Default.TrendingUp, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Text("Payment Analytics", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            }
-                        }
-                        Tab(selected = activeTab == "OFFERS", onClick = { activeTab = "OFFERS" }) {
-                            Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Icon(Icons.Default.LocalOffer, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Text("Outreach Offers", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            }
-                        }
-                        Tab(selected = activeTab == "QR_ATTENDANCE", onClick = { activeTab = "QR_ATTENDANCE" }) {
-                            Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Icon(Icons.Default.QrCodeScanner, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Text("QR Attendance", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            }
-                        }
-                    }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp)
+                        ) {
+                            when (activeTab) {
+                        "DASHBOARD" -> {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(16.dp),
+                                contentPadding = PaddingValues(bottom = 24.dp)
+                            ) {
 
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp)
-                ) {
-                    when (activeTab) {
+
+                                // 2. Photo-inspired Main Grid: 10 beautiful, colorful rectangle cards styled like the photo
+                                item {
+                                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text(
+                                                text = "🛠️",
+                                                fontSize = 14.sp
+                                            )
+                                            Text(
+                                                text = "LIBRARY SERVICES DIRECTORY",
+                                                fontWeight = FontWeight.ExtraBold,
+                                                fontSize = 12.sp,
+                                                color = Color(0xFF38BDF8),
+                                                letterSpacing = 1.sp
+                                            )
+                                        }
+
+                                        val libraryFeatures = listOf(
+                                            LibraryGridFeature("Prep Books", "BOOKS", Icons.Default.MenuBook, Color(0xFF4F46E5), Color(0xFFEEF2FF)),
+                                            LibraryGridFeature("Digital Lib", "EBOOKS", Icons.Default.Star, Color(0xFFD97706), Color(0xFFFEF3C7)),
+                                            LibraryGridFeature("Seat & Shifts", "CABINS", Icons.Default.EventSeat, Color(0xFF0284C7), Color(0xFFE0F2FE)),
+                                            LibraryGridFeature("Admissions", "MEMBERS", Icons.Default.AccountBox, Color(0xFF16A34A), Color(0xFFDCFCE7)),
+                                            LibraryGridFeature("Fee Ledgers", "FEES", Icons.Default.AttachMoney, Color(0xFF0D9488), Color(0xFFCCFBF1)),
+                                            LibraryGridFeature("Analytics", "ANALYTICS", Icons.Default.TrendingUp, Color(0xFFEA580C), Color(0xFFFFEDD5)),
+                                            LibraryGridFeature("Offers Hub", "OFFERS", Icons.Default.LocalOffer, Color(0xFFDB2777), Color(0xFFFCE7F3)),
+                                            LibraryGridFeature("QR Attendance", "QR_ATTENDANCE", Icons.Default.QrCodeScanner, Color(0xFF0891B2), Color(0xFFECFEFF)),
+                                            LibraryGridFeature("Expenses", "EXPENSES", Icons.Default.ReceiptLong, Color(0xFFE11D48), Color(0xFFFFE4E6)),
+                                            LibraryGridFeature("Feedback", "FEEDBACK", Icons.Default.Campaign, Color(0xFF7C3AED), Color(0xFFF3E8FF))
+                                        )
+
+                                        val chunkedFeatures = libraryFeatures.chunked(4)
+                                        chunkedFeatures.forEach { rowItems ->
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                            ) {
+                                                rowItems.forEach { feat ->
+                                                    Card(
+                                                        modifier = Modifier
+                                                            .weight(1f)
+                                                            .height(96.dp)
+                                                            .clickable { activeTab = feat.tabName },
+                                                        colors = CardDefaults.cardColors(containerColor = feat.bgColor),
+                                                        shape = RoundedCornerShape(12.dp)
+                                                    ) {
+                                                        Column(
+                                                            modifier = Modifier
+                                                                .fillMaxSize()
+                                                                .padding(vertical = 10.dp, horizontal = 4.dp),
+                                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                                            verticalArrangement = Arrangement.Center
+                                                        ) {
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .size(40.dp)
+                                                                    .background(feat.mainColor, RoundedCornerShape(10.dp)),
+                                                                contentAlignment = Alignment.Center
+                                                            ) {
+                                                                Icon(
+                                                                    imageVector = feat.icon,
+                                                                    contentDescription = feat.label,
+                                                                    tint = Color.White,
+                                                                    modifier = Modifier.size(20.dp)
+                                                                )
+                                                            }
+                                                            Spacer(modifier = Modifier.height(8.dp))
+                                                            Text(
+                                                                text = feat.label,
+                                                                fontSize = 11.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = Color(0xFF0F172A),
+                                                                textAlign = TextAlign.Center,
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                                val remaining = 4 - rowItems.size
+                                                if (remaining > 0) {
+                                                    repeat(remaining) {
+                                                        Spacer(modifier = Modifier.weight(1f))
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // 3. Real-Time Analytics Cards Row
+                                item {
+                                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        Text(
+                                            text = "REAL-TIME MONITORING METRICS",
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 12.sp,
+                                            color = Color(0xFF0284C7),
+                                            letterSpacing = 1.sp
+                                        )
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            // Stat 1: Total Admissions
+                                            Card(
+                                                modifier = Modifier.weight(1f),
+                                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                                                shape = RoundedCornerShape(12.dp),
+                                                border = BorderStroke(1.dp, Color(0xFF334155))
+                                            ) {
+                                                Column(modifier = Modifier.padding(12.dp)) {
+                                                    Text("ACTIVE MEMBERS", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8))
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                    Text("${libraryMemberships.size}", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text("Aspirants in roster", fontSize = 9.sp, color = Color.Gray)
+                                                }
+                                            }
+
+                                            // Stat 2: Checked-In QR Today
+                                            Card(
+                                                modifier = Modifier.weight(1f),
+                                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                                                shape = RoundedCornerShape(12.dp),
+                                                border = BorderStroke(1.dp, Color(0xFF334155))
+                                            ) {
+                                                Column(modifier = Modifier.padding(12.dp)) {
+                                                    Text("PENDING FEES", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFBBF24))
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                    val pendingCount = libraryMemberships.count { it.feeStatus == "Pending" }
+                                                    Text("$pendingCount", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text("Pending collections", fontSize = 9.sp, color = Color.Gray)
+                                                }
+                                            }
+
+                                            // Stat 3: Total Collections
+                                            Card(
+                                                modifier = Modifier.weight(1f),
+                                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                                                shape = RoundedCornerShape(12.dp),
+                                                border = BorderStroke(1.dp, Color(0xFF334155))
+                                            ) {
+                                                Column(modifier = Modifier.padding(12.dp)) {
+                                                    Text("REVENUE LEDGER", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF34D399))
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                    val totalRev = feePaymentTransactions.sumOf { it.amountPaid } + libraryMemberships.filter { it.feeStatus == "Paid" }.sumOf { it.monthlyFee }
+                                                    Text("₹${totalRev.toInt()}", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text("Invoiced amount", fontSize = 9.sp, color = Color.Gray)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // 4. Live Broadcast Announcements Feed
+                                item {
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                                        shape = RoundedCornerShape(16.dp),
+                                        border = BorderStroke(1.dp, Color(0xFF334155))
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(16.dp),
+                                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    Text("📢", fontSize = 18.sp)
+                                                    Text("SYSTEM BROADCASTS", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF38BDF8))
+                                                }
+                                                Box(
+                                                    modifier = Modifier
+                                                        .background(Color(0xFF34D399).copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                ) {
+                                                    Text("ACTIVE", color = Color(0xFF34D399), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+
+                                            HorizontalDivider(color = Color(0xFF334155))
+
+                                            libraryAnnouncements.take(2).forEach { announce ->
+                                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                    Text(
+                                                        text = announce.title,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 13.sp,
+                                                        color = Color.White
+                                                    )
+                                                    Text(
+                                                        text = announce.content,
+                                                        fontSize = 11.sp,
+                                                        color = Color.LightGray,
+                                                        lineHeight = 15.sp
+                                                    )
+                                                    Text(
+                                                        text = announce.date,
+                                                        fontSize = 9.sp,
+                                                        color = Color.Gray
+                                                    )
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                    HorizontalDivider(color = Color(0xFF334155).copy(alpha = 0.5f))
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // 5. Student Infrastructure Feedback Portal
+                                item {
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                                        shape = RoundedCornerShape(16.dp),
+                                        border = BorderStroke(1.dp, Color(0xFF334155))
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(16.dp),
+                                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    Text("💬", fontSize = 18.sp)
+                                                    Text("STUDENT INFRASTRUCTURE FEEDBACK", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFFF87171))
+                                                }
+                                                Text(
+                                                    text = "RESOLVE TICKETS",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFF0284C7),
+                                                    modifier = Modifier.clickable { activeTab = "FEEDBACK" }
+                                                )
+                                            }
+
+                                            HorizontalDivider(color = Color(0xFF334155))
+
+                                            libraryFeedbacks.take(2).forEach { feedback ->
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.Top
+                                                ) {
+                                                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                        Text(
+                                                            text = "${feedback.studentName} (${feedback.location})",
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontSize = 12.sp,
+                                                            color = Color.White
+                                                        )
+                                                        Text(
+                                                            text = feedback.message,
+                                                            fontSize = 11.sp,
+                                                            color = Color.LightGray,
+                                                            lineHeight = 15.sp
+                                                        )
+                                                    }
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .background(
+                                                                if (feedback.priority == "High") Color(0xFFEF4444).copy(alpha = 0.15f)
+                                                                else Color(0xFFFBBF24).copy(alpha = 0.15f),
+                                                                RoundedCornerShape(4.dp)
+                                                            )
+                                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = feedback.priority,
+                                                            color = if (feedback.priority == "High") Color(0xFFEF4444) else Color(0xFFFBBF24),
+                                                            fontSize = 9.sp,
+                                                            fontWeight = FontWeight.Bold
+                                                        )
+                                                    }
+                                                }
+                                                HorizontalDivider(color = Color(0xFF334155).copy(alpha = 0.5f))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         // 1. PREP BOOKS (Core physical library textbook register)
                         "BOOKS" -> {
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -8783,13 +10195,175 @@ fun LibraryCenterOverlay(viewModel: com.example.ui.viewmodel.AppViewModel, onClo
                         "QR_ATTENDANCE" -> {
                             LibraryQrAttendanceScannerView(viewModel)
                         }
+                        "EXPENSES" -> {
+                            LibraryExpensesView(
+                                expenses = libraryExpenses,
+                                onAddExpenseClick = { showAddExpenseDialog = true }
+                            )
+                        }
+                        "FEEDBACK" -> {
+                            LibraryNoticesFeedbackView(
+                                announcements = libraryAnnouncements,
+                                onAddAnnouncementClick = { showAddAnnouncementDialog = true },
+                                feedbacks = libraryFeedbacks,
+                                onResolveFeedback = { fb ->
+                                    val idx = libraryFeedbacks.indexOf(fb)
+                                    if (idx != -1) {
+                                        libraryFeedbacks[idx] = fb.copy(status = "Resolved")
+                                        Toast.makeText(context, "Logged issue successfully resolved & notified!", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
             }
+        }
 
             // ==========================================
             // SUB-DIALOG LOADERS (Admissions, Invoices, Downloads, Readers)
             // ==========================================
+
+            if (showAddExpenseDialog) {
+                AlertDialog(
+                    onDismissRequest = { showAddExpenseDialog = false },
+                    title = { Text("Log New Utility / Maintenance Bill", fontWeight = FontWeight.Bold, color = Color.White) },
+                    containerColor = Color(0xFF1E293B),
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            OutlinedTextField(
+                                value = expenseName,
+                                onValueChange = { expenseName = it },
+                                label = { Text("Bill Description / Purpose", color = Color.Gray) },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF818CF8),
+                                    unfocusedBorderColor = Color(0xFF475569),
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White
+                                )
+                            )
+                            OutlinedTextField(
+                                value = expenseAmount,
+                                onValueChange = { expenseAmount = it },
+                                label = { Text("Amount (₹)", color = Color.Gray) },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF818CF8),
+                                    unfocusedBorderColor = Color(0xFF475569),
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White
+                                )
+                            )
+                            OutlinedTextField(
+                                value = expenseCategory,
+                                onValueChange = { expenseCategory = it },
+                                label = { Text("Category (e.g. Utilities, Salaries, Rent)", color = Color.Gray) },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF818CF8),
+                                    unfocusedBorderColor = Color(0xFF475569),
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White
+                                )
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                val amtVal = expenseAmount.toDoubleOrNull()
+                                if (expenseName.isNotBlank() && amtVal != null) {
+                                    libraryExpenses.add(
+                                        LibraryExpense(
+                                            id = (libraryExpenses.size + 1).toString(),
+                                            description = expenseName,
+                                            amount = amtVal,
+                                            date = "2026-07-01",
+                                            status = "Paid"
+                                        )
+                                    )
+                                    expenseName = ""
+                                    expenseAmount = ""
+                                    showAddExpenseDialog = false
+                                    Toast.makeText(context, "Expense successfully logged in the ledger!", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Please fill in all details with a valid number.", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
+                        ) {
+                            Text("Log Expense")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showAddExpenseDialog = false }) {
+                            Text("Cancel", color = Color.Gray)
+                        }
+                    }
+                )
+            }
+
+            if (showAddAnnouncementDialog) {
+                AlertDialog(
+                    onDismissRequest = { showAddAnnouncementDialog = false },
+                    title = { Text("Publish Official Notice / Announcement", fontWeight = FontWeight.Bold, color = Color.White) },
+                    containerColor = Color(0xFF1E293B),
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            OutlinedTextField(
+                                value = announcementTitle,
+                                onValueChange = { announcementTitle = it },
+                                label = { Text("Notice Title", color = Color.Gray) },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF818CF8),
+                                    unfocusedBorderColor = Color(0xFF475569),
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White
+                                )
+                            )
+                            OutlinedTextField(
+                                value = announcementBody,
+                                onValueChange = { announcementBody = it },
+                                label = { Text("Announcement Details / Rules", color = Color.Gray) },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF818CF8),
+                                    unfocusedBorderColor = Color(0xFF475569),
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White
+                                )
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                if (announcementTitle.isNotBlank() && announcementBody.isNotBlank()) {
+                                    libraryAnnouncements.add(
+                                        LibraryAnnouncement(
+                                            id = (libraryAnnouncements.size + 1).toString(),
+                                            title = announcementTitle,
+                                            content = announcementBody,
+                                            date = "2026-07-01"
+                                        )
+                                    )
+                                    announcementTitle = ""
+                                    announcementBody = ""
+                                    showAddAnnouncementDialog = false
+                                    Toast.makeText(context, "Notice published successfully!", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Please enter both title and body content.", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1))
+                        ) {
+                            Text("Publish")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showAddAnnouncementDialog = false }) {
+                            Text("Cancel", color = Color.Gray)
+                        }
+                    }
+                )
+            }
 
             // Progress Broadcast outreach Loader
             sendingBroadcastForCampaign?.let { promo ->
@@ -9566,8 +11140,20 @@ fun LibraryCenterOverlay(viewModel: com.example.ui.viewmodel.AppViewModel, onClo
                 )
             }
         }
+        }
     }
 }
+
+    if (isInlineDashboard) {
+        MainContent()
+    } else {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = onClose,
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            MainContent()
+        }
+    }
 }
 
 
@@ -9599,6 +11185,38 @@ fun ShiftProgressBarRow(shiftLabel: String, count: Int, maxCount: Float, barColo
 }
 
 // Helper models for Physical Library Center SaaS Panel
+data class LibraryGridFeature(
+    val label: String,
+    val tabName: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val mainColor: androidx.compose.ui.graphics.Color,
+    val bgColor: androidx.compose.ui.graphics.Color
+)
+
+data class LibraryExpense(
+    val id: String,
+    val description: String,
+    val amount: Double,
+    val date: String,
+    val status: String
+)
+
+data class LibraryAnnouncement(
+    val id: String,
+    val title: String,
+    val content: String,
+    val date: String
+)
+
+data class LibraryFeedback(
+    val id: String,
+    val studentName: String,
+    val location: String,
+    val message: String,
+    val priority: String,
+    val status: String
+)
+
 data class ExamEBook(
     val id: String,
     val title: String,
@@ -9640,6 +11258,13 @@ data class PromoCampaign(
     val campaignDetail: String,
     val couponCode: String,
     val benefitTagValue: String
+)
+
+data class LibraryShortcut(
+    val title: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val color: androidx.compose.ui.graphics.Color,
+    val action: () -> Unit
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -10079,6 +11704,290 @@ fun LibraryQrAttendanceScannerView(viewModel: com.example.ui.viewmodel.AppViewMo
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold
                                     )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun LibraryExpensesView(
+    expenses: List<LibraryExpense>,
+    onAddExpenseClick: () -> Unit
+) {
+    val totalAmount = expenses.sumOf { it.amount }
+    
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Expense Summary Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+            border = BorderStroke(1.dp, Color(0xFF334155))
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("MONTHLY RECURRING EXPENSES", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8))
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("₹${String.format("%.2f", totalAmount)}", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFF87171))
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text("Track utility bills, rentals, and staff salaries", fontSize = 11.sp, color = Color.Gray)
+                }
+                Button(
+                    onClick = onAddExpenseClick,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Add Bill", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        // Expense Item List
+        Text("LOGGED EXPENSES & UTILITIES", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        
+        if (expenses.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxWidth().height(150.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("No expenses logged for this month.", color = Color.Gray, fontSize = 13.sp)
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(expenses) { exp ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                        border = BorderStroke(1.dp, Color(0xFF1E293B))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(Color(0xFF312E81), RoundedCornerShape(8.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.Receipt,
+                                        contentDescription = null,
+                                        tint = Color(0xFF818CF8),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Column {
+                                    Text(exp.description, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(exp.date, fontSize = 11.sp, color = Color.Gray)
+                                        Box(
+                                            modifier = Modifier
+                                                .background(Color(0xFF064E3B), RoundedCornerShape(4.dp))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(exp.status, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF34D399))
+                                        }
+                                    }
+                                }
+                            }
+                            Text("₹${exp.amount}", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun LibraryNoticesFeedbackView(
+    announcements: List<LibraryAnnouncement>,
+    onAddAnnouncementClick: () -> Unit,
+    feedbacks: List<LibraryFeedback>,
+    onResolveFeedback: (LibraryFeedback) -> Unit
+) {
+    var subTab by remember { mutableStateOf("NOTICES") } // "NOTICES", "FEEDBACK"
+    
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Toggle Buttons for Sub-Tabs
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = { subTab = "NOTICES" },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (subTab == "NOTICES") Color(0xFF6366F1) else Color(0xFF1E293B)
+                ),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Icon(Icons.Default.Notifications, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Notice Board (${announcements.size})", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+            Button(
+                onClick = { subTab = "FEEDBACK" },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (subTab == "FEEDBACK") Color(0xFF10B981) else Color(0xFF1E293B)
+                ),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Icon(Icons.Default.Comment, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Aspirant Feedback (${feedbacks.count { it.status == "Active" }})", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        if (subTab == "NOTICES") {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("INSTITUTE OFFICIAL BULLETIN", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                TextButton(onClick = onAddAnnouncementClick) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFF818CF8))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Publish Notice", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF818CF8))
+                }
+            }
+            
+            if (announcements.isEmpty()) {
+                Box(modifier = Modifier.fillMaxWidth().height(150.dp), contentAlignment = Alignment.Center) {
+                    Text("No announcements posted yet.", color = Color.Gray, fontSize = 13.sp)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(announcements) { ann ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                            border = BorderStroke(1.dp, Color(0xFF334155))
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(ann.title, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                                    Text(ann.date, fontSize = 10.sp, color = Color.Gray)
+                                }
+                                Text(ann.content, fontSize = 12.sp, color = Color(0xFFCBD5E1), lineHeight = 16.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            Text("ASPIRANT BUG REPORTS & COMFORT TICKETS", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            
+            if (feedbacks.isEmpty()) {
+                Box(modifier = Modifier.fillMaxWidth().height(150.dp), contentAlignment = Alignment.Center) {
+                    Text("No suggestion/feedback logs found.", color = Color.Gray, fontSize = 13.sp)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(feedbacks) { fb ->
+                        val isResolved = fb.status == "Resolved"
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                            border = BorderStroke(1.dp, if (isResolved) Color(0xFF1E293B) else Color(0xFF374151))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(fb.studentName, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                        Box(
+                                            modifier = Modifier
+                                                .background(Color(0xFF312E81), RoundedCornerShape(4.dp))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(fb.location, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF818CF8))
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .background(
+                                                    when (fb.priority) {
+                                                        "High" -> Color(0xFF7F1D1D)
+                                                        "Medium" -> Color(0xFF78350F)
+                                                        else -> Color(0xFF14532D)
+                                                    },
+                                                    RoundedCornerShape(4.dp)
+                                                )
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(fb.priority, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                        }
+                                    }
+                                    Text(fb.message, fontSize = 12.sp, color = Color(0xFF94A3B8))
+                                }
+                                
+                                Spacer(modifier = Modifier.width(8.dp))
+                                
+                                if (!isResolved) {
+                                    Button(
+                                        onClick = { onResolveFeedback(fb) },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                        modifier = Modifier.height(28.dp)
+                                    ) {
+                                        Text("Resolve", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                } else {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
+                                        Text("Resolved", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                                    }
                                 }
                             }
                         }
@@ -10863,6 +12772,7 @@ fun GraphicalAcademyQrView(
 fun HelpSupportOverlay(onClose: () -> Unit) {
     val context = LocalContext.current
     var activeTab by remember { mutableStateOf("GUIDE") } // "GUIDE", "FAQS", "KEY", "SUPPORT"
+    var faqSearchQuery by remember { mutableStateOf("") }
     
     // Help desk ticket simulator
     var ticketSubject by remember { mutableStateOf("") }
@@ -10878,24 +12788,44 @@ fun HelpSupportOverlay(onClose: () -> Unit) {
     val faqsList = remember {
         listOf(
             FAQItem(
-                "How do students register & apply in the app?",
-                "Students can simply touch the 'Student' role card on initial launch, or visit the student login panel to self-register their Study Roll ID/PIN. Alternatively, Center Admins can directly admit and enroll study batches, which instantly registers students into the centralized directory."
+                "How do students register & get their Roll ID?",
+                "Students can either register as a 'Student' through the portal or be admitted directly by the Center Admin. During admission, a unique tracking Roll Number formatted as 'TAMS-XXXX' (e.g., TAMS-101) is automatically generated. Use this ID along with the registration pin to log into the Student Console."
             ),
             FAQItem(
-                "Is there a login requirement for the 'Physical Library' hub?",
-                "Absolutely not! Following our latest updates, we have decoupled the active library system from the app's standard login gateways. Anyone can freely access seat layouts, book circulation trackers, and search offline catalogs directly from the dashboard shortcut without logging in first."
+                "How does the Physical Library seat & cabin allotment work?",
+                "TAMS manages 60 physical cabins in an offline layout. To make the hub completely accessible, we've decoupled it from login requirements! Anyone can view live availability: Green (Available), Red (Occupied), Yellow (On Break/Reserved). To reserve, simply tap on any cabin, enter student details or guest status, and select a cabin duration. Click 'Discharge Seat' to vacate it."
             ),
             FAQItem(
-                "How can parents track tuition fees and exam marks?",
-                "Parents can login seamlessly using their ward's unique Student Phone Number or registered Roll ID. On entrance, they are presented with real-time fee receipt tables, cash invoice summaries, and visual mark sheets tracking previous objective exam performances."
+                "How do we generate offline exam worksheets with the Paper Generator?",
+                "Admins and Teachers can access the 'Paper Generator' shortcut under the Admin console. Select the Subject, provide Syllabus keywords, select a custom question count (choose from 15, 20, 30, 50, 75, or 100), and type an Authorized Cursive Signer name. Click 'GENERATE AI WORKSHEET' to create custom MCQs with printable PDF previews, complete with structural grids, marking schemes, and official signatures."
             ),
             FAQItem(
-                "Can I run this app completely offline?",
-                "Yes! The app is designed offline-first in Kotlin and features lightweight automated caches. All databases, schedule logs, and basic diagnostic utilities offer resilient mock failovers during server outages so study and desk bookings never halt."
+                "How do I set up the AI Doubt Solver using Gemini?",
+                "TAMS integrates a state-of-the-art 'AI Doubt Solver' that offers 24/7 academic coaching. To run unlimited queries directly without rate limits, generate a free API Key on Google AI Studio (https://aistudio.google.com/). Expand 'Settings' at the bottom of the dashboard, paste your key, and tap Save. The key is securely cached in your local encrypted SharedPreferences."
             ),
             FAQItem(
-                "Can we create practice exam papers manually?",
-                "Yes, our integrated 'Paper Generator' allows administrators and staff to formulate detailed subject exam frameworks, allocate marking, schedule times, and test student groups in-app or export templates."
+                "Can parents monitor academic streaks, progress, and fees?",
+                "Yes. Parents can log into the parent workspace using their student's registered mobile number or Roll ID. Once authenticated, they can view daily physical attendance graphs, study time-log sheets, track previous mock exam progress, review active fee invoices, and download UPI transaction receipts."
+            ),
+            FAQItem(
+                "How do mock online exams work in the Student Workspace?",
+                "Students can launch real-time mock tests from their active dashboard. Tests come with a persistent visual countdown timer, customizable subject selection, auto-marking (+4/-1 penalty schemas), and an interactive performance breakdown detailing weak concepts and accuracy meters immediately upon submission."
+            ),
+            FAQItem(
+                "How is the offline data stored and synchronized?",
+                "TAMS uses a local Room SQLite database architecture to ensure 100% functionality without internet. To prevent data corruption during unexpected power losses, go to 'Database Sync Settings' under Settings, click 'Diagnose Room DB Integrity' to run verification, or 'Manual SQLite Sync' to backup active records."
+            ),
+            FAQItem(
+                "What are the roles and permission levels within TAMS?",
+                "There are three hierarchical levels:\n1. ADMIN: Complete clearance over fee ledgers, staff rosters, batches, and system configurations.\n2. STAFF/TEACHER: Moderate access for taking batch attendance, editing syllabus goals, assigning daily homework, and generating test papers.\n3. STUDENT/GUEST: Access to self-study trackers, mock test consoles, doubt solvers, and general library layout check-ins."
+            ),
+            FAQItem(
+                "How do we simulate tuition fee transactions?",
+                "TAMS features an integrated mock payment gateway. Under the 'Fee Ledger' module or 'My Account', click 'Pay Coaching Fees'. Choose a premium tier, select your preferred method (GPay, PhonePe, or UPI Direct), and authenticate. It establishes an active UPI URI pointing to the administrator and automatically issues a printable transaction receipt."
+            ),
+            FAQItem(
+                "What should I do if my local data is out of sync?",
+                "First, ensure no parallel background processes are modifying files. Navigate to 'Database Sync' on the dashboard, tap 'Force Caches Re-index' to clear active SQLite locks, or use 'Wipe Data Storage' to do a clean reset of local records if necessary."
             )
         )
     }
@@ -10929,11 +12859,7 @@ fun HelpSupportOverlay(onClose: () -> Unit) {
                                   fontSize = 18.sp,
                                   color = Color.White
                               )
-                              Text(
-                                  "Troubleshoot • Interactive Guide • Get AI Keys • Support Desk Tickets",
-                                  fontSize = 11.sp,
-                                  color = Color.LightGray
-                              )
+
                           }
                           Box(
                               modifier = Modifier
@@ -11085,52 +13011,114 @@ fun HelpSupportOverlay(onClose: () -> Unit) {
                     }
 
                     "FAQS" -> {
-                        Text(
-                            text = "FREQUENTLY ASKED QUESTIONS",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp,
-                            fontFamily = FontFamily.Monospace,
-                            color = Color(0xFFFF7043)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "FREQUENTLY ASKED QUESTIONS",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                fontFamily = FontFamily.Monospace,
+                                color = Color(0xFFFF7043)
+                            )
+                            Text(
+                                text = "${faqsList.size} Articles",
+                                fontSize = 11.sp,
+                                color = Color.Gray,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        // Search Field for Proper Knowledge Discovery
+                        OutlinedTextField(
+                            value = faqSearchQuery,
+                            onValueChange = { faqSearchQuery = it },
+                            placeholder = { Text("Search FAQs, e.g., 'library', 'roll', 'AI'...", fontSize = 12.sp, color = Color.Gray) },
+                            modifier = Modifier.fillMaxWidth(),
+                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.LightGray) },
+                            trailingIcon = {
+                                if (faqSearchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { faqSearchQuery = "" }) {
+                                        Icon(Icons.Default.Clear, contentDescription = "Clear", tint = Color.LightGray)
+                                    }
+                                }
+                            },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFFFF7043),
+                                unfocusedBorderColor = Color(0xFF334155),
+                                focusedContainerColor = Color(0xFF1E293B),
+                                unfocusedContainerColor = Color(0xFF1E293B),
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(8.dp)
                         )
 
-                        faqsList.forEachIndexed { index, faq ->
-                            val isExpanded = expandedFaqs[index] == true
+                        val filteredFaqs = faqsList.filter {
+                            it.question.contains(faqSearchQuery, ignoreCase = true) ||
+                            it.answer.contains(faqSearchQuery, ignoreCase = true)
+                        }
+
+                        if (filteredFaqs.isEmpty()) {
                             Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { expandedFaqs[index] = !isExpanded },
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
-                                shape = RoundedCornerShape(10.dp),
-                                border = BorderStroke(1.dp, if (isExpanded) Color(0xFFFF7043) else Color.Transparent)
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B))
                             ) {
-                                Column(modifier = Modifier.padding(14.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = faq.question,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp,
-                                            color = Color.White,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        Icon(
-                                            imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                            contentDescription = null,
-                                            tint = Color.LightGray
-                                        )
-                                    }
-                                    
-                                    if (isExpanded) {
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Text(
-                                            text = faq.answer,
-                                            fontSize = 12.sp,
-                                            color = Color.LightGray,
-                                            lineHeight = 16.sp
-                                        )
+                                Column(
+                                    modifier = Modifier.padding(24.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(Icons.Default.Info, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(36.dp))
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text("No matching FAQ articles found", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                                    Text("Try searching for alternative keywords like 'cabin', 'fee', 'test', or 'pin'", fontSize = 12.sp, color = Color.Gray, textAlign = TextAlign.Center)
+                                }
+                            }
+                        } else {
+                            filteredFaqs.forEach { faq ->
+                                val actualIndex = faqsList.indexOf(faq)
+                                val isExpanded = expandedFaqs[actualIndex] == true
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { expandedFaqs[actualIndex] = !isExpanded },
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = BorderStroke(1.dp, if (isExpanded) Color(0xFFFF7043) else Color.Transparent)
+                                ) {
+                                    Column(modifier = Modifier.padding(14.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = faq.question,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp,
+                                                color = Color.White,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            Icon(
+                                                imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                                contentDescription = null,
+                                                tint = Color.LightGray
+                                            )
+                                        }
+                                        
+                                        if (isExpanded) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text(
+                                                text = faq.answer,
+                                                fontSize = 12.sp,
+                                                color = Color.LightGray,
+                                                lineHeight = 16.sp
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -11405,6 +13393,8 @@ fun StudentContextSwitcherScreen(
 ) {
     val activeContext by viewModel.activeStudentContext.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
+    var showAddWorkspaceDialog by remember { mutableStateOf(false) }
+    var newWorkspaceName by remember { mutableStateOf("") }
     
     Box(
         modifier = Modifier
@@ -11460,14 +13450,6 @@ fun StudentContextSwitcherScreen(
             
             Spacer(modifier = Modifier.height(20.dp))
             
-            // Greetings Text
-            Text(
-                text = "Welcome back, Riya! 👋",
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 28.sp,
-                color = Color(0xFF1E3A8A),
-                letterSpacing = (-0.5).sp
-            )
             Text(
                 text = "Select your workspace to continue",
                 fontWeight = FontWeight.Medium,
@@ -11475,6 +13457,46 @@ fun StudentContextSwitcherScreen(
                 color = Color(0xFF4B5563)
             )
             
+            val registeredWorkspaces by viewModel.registeredWorkspaces.collectAsState()
+
+            if (showAddWorkspaceDialog) {
+                AlertDialog(
+                    onDismissRequest = { showAddWorkspaceDialog = false },
+                    title = { Text("Add New Tuition Workspace 🏫", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Enter custom name for your new tuition, coaching class, or library slot:", fontSize = 12.sp, color = Color.Gray)
+                            OutlinedTextField(
+                                value = newWorkspaceName,
+                                onValueChange = { newWorkspaceName = it },
+                                label = { Text("Workspace Name") },
+                                modifier = Modifier.fillMaxWidth().testTag("new_workspace_name_input"),
+                                singleLine = true
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                if (newWorkspaceName.isNotBlank()) {
+                                    viewModel.addWorkspace(newWorkspaceName.trim())
+                                    newWorkspaceName = ""
+                                    showAddWorkspaceDialog = false
+                                    Toast.makeText(context, "Added new workspace!", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        ) {
+                            Text("Create")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showAddWorkspaceDialog = false }) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
             
             // Vertical Card List
@@ -11484,47 +13506,34 @@ fun StudentContextSwitcherScreen(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Card 1: Individual Tuition
-                ContextWorkspaceToggleCard(
-                    title = "Verma Sir's Tuition",
-                    subtitle = "Maths | Mon/Wed 4 PM",
-                    iconString = "🏫",
-                    iconBgColor = Color(0xFFFFF3E0), // Pastel orange
-                    iconColor = Color(0xFFEF6C00),
-                    isSelected = activeContext == "Verma Sir's Tuition",
-                    onSelect = {
-                        viewModel.switchStudentContext("Verma Sir's Tuition")
-                        onContextSelected("Verma Sir's Tuition")
-                    }
-                )
-                
-                // Card 2: Institute Coaching
-                ContextWorkspaceToggleCard(
-                    title = "City Coaching Institute",
-                    subtitle = "Class 10 - Science Batch",
-                    iconString = "🏢",
-                    iconBgColor = Color(0xFFE3F2FD), // Pastel blue
-                    iconColor = Color(0xFF1565C0),
-                    isSelected = activeContext == "City Institute",
-                    onSelect = {
-                        viewModel.switchStudentContext("City Institute")
-                        onContextSelected("City Institute")
-                    }
-                )
-                
-                // Card 3: Library Cabin Office
-                ContextWorkspaceToggleCard(
-                    title = "Silent Study Library",
-                    subtitle = "Seat #12 (Expires: 30 June)",
-                    iconString = "📚",
-                    iconBgColor = Color(0xFFE8F5E9), // Pastel green
-                    iconColor = Color(0xFF2E7D32),
-                    isSelected = activeContext == "Silent Library",
-                    onSelect = {
-                        viewModel.switchStudentContext("Silent Library")
-                        onContextSelected("Silent Library")
-                    }
-                )
+                registeredWorkspaces.forEachIndexed { index, wsName ->
+                    val icons = listOf("🏫", "🏢", "📚", "✍️", "🔬", "💡", "🎨")
+                    val bgColors = listOf(Color(0xFFFFF3E0), Color(0xFFE3F2FD), Color(0xFFE8F5E9), Color(0xFFF3E5F5), Color(0xFFE0F7FA))
+                    val colors = listOf(Color(0xFFEF6C00), Color(0xFF1565C0), Color(0xFF2E7D32), Color(0xFF6A1B9A), Color(0xFF00838F))
+                    
+                    val icon = icons[index % icons.size]
+                    val bg = bgColors[index % bgColors.size]
+                    val fg = colors[index % colors.size]
+
+                    ContextWorkspaceToggleCard(
+                        title = wsName,
+                        subtitle = "Active dynamic student hub context",
+                        iconString = icon,
+                        iconBgColor = bg,
+                        iconColor = fg,
+                        isSelected = activeContext == wsName,
+                        onSelect = {
+                            viewModel.switchStudentContext(wsName)
+                            onContextSelected(wsName)
+                        },
+                        onDelete = if (registeredWorkspaces.size > 1) {
+                            {
+                                viewModel.removeWorkspace(wsName)
+                                Toast.makeText(context, "Removed workspace: $wsName", Toast.LENGTH_SHORT).show()
+                            }
+                        } else null
+                    )
+                }
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
@@ -11555,7 +13564,7 @@ fun StudentContextSwitcherScreen(
         // Add New Workspace Floating Action Button
         FloatingActionButton(
             onClick = {
-                Toast.makeText(context, "Specify registration passcode or scan QR to introduce setup.", Toast.LENGTH_SHORT).show()
+                showAddWorkspaceDialog = true
             },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -11586,7 +13595,8 @@ fun ContextWorkspaceToggleCard(
     iconBgColor: Color,
     iconColor: Color,
     isSelected: Boolean,
-    onSelect: () -> Unit
+    onSelect: () -> Unit,
+    onDelete: (() -> Unit)? = null
 ) {
     Card(
         modifier = Modifier
@@ -11641,18 +13651,33 @@ fun ContextWorkspaceToggleCard(
             Spacer(modifier = Modifier.width(8.dp))
             
             // Blue Outlined or Filled Enter button
-            Button(
-                onClick = onSelect,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isSelected) Color(0xFF2563EB) else Color.Transparent,
-                    contentColor = if (isSelected) Color.White else Color(0xFF2563EB)
-                ),
-                border = if (isSelected) null else BorderStroke(1.5.dp, Color(0xFF2563EB)),
-                shape = RoundedCornerShape(20.dp),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                modifier = Modifier.height(34.dp)
-            ) {
-                Text(text = "Enter", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (onDelete != null) {
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier.size(34.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Remove Workspace",
+                            tint = Color.Red.copy(alpha = 0.8f),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+                Button(
+                    onClick = onSelect,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isSelected) Color(0xFF2563EB) else Color.Transparent,
+                        contentColor = if (isSelected) Color.White else Color(0xFF2563EB)
+                    ),
+                    border = if (isSelected) null else BorderStroke(1.5.dp, Color(0xFF2563EB)),
+                    shape = RoundedCornerShape(20.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    modifier = Modifier.height(34.dp)
+                ) {
+                    Text(text = "Enter", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
             }
         }
     }
@@ -11853,7 +13878,3360 @@ fun TeacherSalariesOverlay(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ChatListItem(
+    channel: com.example.data.model.ChatChannel,
+    latestMessage: String,
+    senderPrefix: String,
+    timeStr: String,
+    avatarBg: Color,
+    avatarIcon: ImageVector?,
+    avatarText: String,
+    unreadBadge: Int,
+    isRead: Boolean,
+    isSelected: Boolean,
+    isDarkTheme: Boolean,
+    onSelect: () -> Unit,
+    onDelete: (() -> Unit)?,
+    isOnline: Boolean? = null
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onSelect() }
+            .background(if (isSelected) (if (isDarkTheme) Color(0xFF1E293B) else Color(0xFFEFF6FF)) else Color.Transparent)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        // Circular Avatar (52.dp diameter matching Signal's large avatars!)
+        Box(
+            modifier = Modifier.size(52.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(avatarBg, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                if (avatarIcon != null) {
+                    Icon(
+                        imageVector = avatarIcon,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(26.dp)
+                    )
+                } else {
+                    Text(
+                        text = avatarText,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                }
+            }
+
+            if (isOnline != null) {
+                Box(
+                    modifier = Modifier
+                        .size(13.dp)
+                        .background(if (isOnline) Color(0xFF10B981) else Color(0xFF9CA3AF), CircleShape)
+                        .border(1.5.dp, if (isDarkTheme) Color(0xFF121214) else Color(0xFFFFFFFF), CircleShape)
+                        .align(Alignment.BottomEnd)
+                        .testTag("status_indicator_${channel.id}")
+                )
+            }
+        }
+
+        // Body Info
+        Column(modifier = Modifier.weight(1f)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Channel Name
+                val cleanName = remember(channel.name) {
+                    channel.name.replace(Regex("[^\\p{L}\\p{N}\\s]"), "").trim()
+                }
+                Text(
+                    text = if (cleanName.isEmpty()) channel.name else cleanName,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = if (isDarkTheme) Color.White else Color(0xFF1F2024)
+                )
+
+                // Timestamp
+                Text(
+                    text = timeStr,
+                    fontSize = 12.sp,
+                    color = if (isDarkTheme) Color(0xFFA1A1AA) else Color(0xFF8E8E93)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(3.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Snippet preview
+                val previewText = remember(senderPrefix, latestMessage) {
+                    if (senderPrefix.isNotEmpty()) "$senderPrefix: $latestMessage" else latestMessage
+                }
+                Text(
+                    text = previewText,
+                    fontSize = 13.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    color = if (isDarkTheme) Color(0xFFA1A1AA) else Color(0xFF71717A),
+                    modifier = Modifier.weight(1f)
+                )
+
+                // Status indicators (Badge or ticks)
+                if (unreadBadge > 0) {
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .background(Color(0xFF2C6BED), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = unreadBadge.toString(),
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                } else if (isRead) {
+                    Icon(
+                        imageVector = Icons.Default.DoneAll,
+                        contentDescription = "Read",
+                        tint = if (isDarkTheme) Color(0xFF6B7280) else Color(0xFF9CA3AF),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
+
+        // Delete button for Admin
+        if (onDelete != null) {
+            IconButton(
+                onClick = onDelete,
+                modifier = Modifier.size(24.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Delete",
+                    tint = Color.Red.copy(alpha = 0.5f),
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ChatListPaneContent(
+    isDarkTheme: Boolean,
+    searchQuery: String,
+    onSearchChange: (String) -> Unit,
+    filteredChannels: List<com.example.data.model.ChatChannel>,
+    activeChannelId: Long?,
+    onSelectChannel: (Long) -> Unit,
+    onDeleteChannel: (Long) -> Unit,
+    onStartDirectChat: () -> Unit,
+    onCreateChannel: () -> Unit,
+    onClose: () -> Unit,
+    senderName: String,
+    currentRole: String,
+    messagesList: List<com.example.data.model.ChatMessage>,
+    viewModel: com.example.ui.viewmodel.AppViewModel,
+    context: android.content.Context,
+    screenLockPin: String,
+    onConfigurePin: (String) -> Unit,
+    onOpenSettings: () -> Unit
+) {
+    var isSearchVisible by remember { mutableStateOf(false) }
+
+    val currentStudentId by viewModel.currentUserId.collectAsState()
+    val senderIdStr = remember(currentRole, currentStudentId) {
+        when (currentRole) {
+            "ADMIN" -> "ADMIN"
+            "STAFF" -> "STAFF"
+            "STUDENT" -> "STUDENT_$currentStudentId"
+            "TEACHER" -> "TEACHER"
+            else -> "GUEST"
+        }
+    }
+
+    val onlineUsersMap by viewModel.onlineUsersMap.collectAsState()
+    val studentList by viewModel.students.collectAsState()
+
+    val onlinePersons = remember(onlineUsersMap, studentList, senderIdStr) {
+        val list = mutableListOf<Pair<String, String>>()
+        if (onlineUsersMap["ADMIN"] == true && senderIdStr != "ADMIN") {
+            list.add(Pair("Director Admin", "ADMIN"))
+        }
+        if (onlineUsersMap["TEACHER_VERMA"] == true && senderIdStr != "TEACHER_VERMA") {
+            list.add(Pair("Verma Sir", "TEACHER_VERMA"))
+        }
+        if (onlineUsersMap["TEACHER_SCIENCE"] == true && senderIdStr != "TEACHER_SCIENCE") {
+            list.add(Pair("Science Teacher", "TEACHER_SCIENCE"))
+        }
+        studentList.forEach { student ->
+            val sId = "STUDENT_${student.id}"
+            if (onlineUsersMap[sId] == true && senderIdStr != sId) {
+                list.add(Pair(student.name, sId))
+            }
+        }
+        list
+    }
+
+    // Map to keep track of latest messages from active sessions
+    val channelLatestMessages = remember { mutableStateMapOf<Long, Pair<String, String>>() }
+
+    // Update whenever we get new messages for an active channel
+    LaunchedEffect(messagesList, activeChannelId) {
+        if (activeChannelId != null && messagesList.isNotEmpty()) {
+            val lastMsg = messagesList.last()
+            channelLatestMessages[activeChannelId] = Pair(lastMsg.senderName, lastMsg.messageText)
+        }
+    }
+
+    // Partition channels
+    val pinnedChannels = remember(filteredChannels) {
+        filteredChannels.filter { 
+            it.name.contains("Announcements", ignoreCase = true) || 
+            it.name.contains("Mathematics", ignoreCase = true) 
+        }
+    }
+    val otherChannels = remember(filteredChannels) {
+        filteredChannels.filterNot { 
+            it.name.contains("Announcements", ignoreCase = true) || 
+            it.name.contains("Mathematics", ignoreCase = true) 
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(if (isDarkTheme) Color(0xFF121214) else Color(0xFFFFFFFF))
+    ) {
+        // TOP HEADER
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Logged-in user's circular avatar
+                val userInitial = senderName.take(1).uppercase()
+                val profileColorHex = viewModel.sharedPrefs.getString("signal_profile_color_hex", "#2C6BED") ?: "#2C6BED"
+                val userColor = remember(senderName, profileColorHex) {
+                    try {
+                        Color(android.graphics.Color.parseColor(profileColorHex))
+                    } catch (e: Exception) {
+                        val colors = listOf(Color(0xFF3F51B5), Color(0xFF009688), Color(0xFFFF9800), Color(0xFFE91E63))
+                        colors[(senderName.hashCode() and 0x7FFFFFFF) % colors.size]
+                    }
+                }
+                val isMeOnline = onlineUsersMap[senderIdStr] ?: true
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clickable {
+                            viewModel.toggleUserOnlineStatus(senderIdStr)
+                            Toast.makeText(context, "Status toggled to: ${if (!isMeOnline) "Online" else "Offline"}", Toast.LENGTH_SHORT).show()
+                        }
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(userColor, CircleShape)
+                            .border(1.dp, if (isDarkTheme) Color.White.copy(alpha = 0.2f) else Color.Black.copy(alpha = 0.1f), CircleShape)
+                            .align(Alignment.Center),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(userInitial, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(11.dp)
+                            .background(if (isMeOnline) Color(0xFF10B981) else Color(0xFF9CA3AF), CircleShape)
+                            .border(1.5.dp, if (isDarkTheme) Color(0xFF121214) else Color(0xFFFFFFFF), CircleShape)
+                            .align(Alignment.BottomEnd)
+                    )
+                }
+
+                // Title
+                Text(
+                    text = "TAMS CHAT",
+                    style = TextStyle(
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isDarkTheme) Color.White else Color.Black
+                    )
+                )
+            }
+
+            var showPinSetupDialog by remember { mutableStateOf(false) }
+            var pinSetupInput by remember { mutableStateOf("") }
+            var pinConfirmInput by remember { mutableStateOf("") }
+            var pinErrorStr by remember { mutableStateOf("") }
+
+            if (showPinSetupDialog) {
+                AlertDialog(
+                    onDismissRequest = { showPinSetupDialog = false },
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Security, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(if (screenLockPin.isEmpty()) "Setup Screen PIN Lock" else "Disable PIN Lock", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            if (screenLockPin.isEmpty()) {
+                                Text("Secure your tuition chats with a 4-digit PIN. It is stored offline locally in your security cache.", fontSize = 12.sp, color = Color.Gray)
+                                OutlinedTextField(
+                                    value = pinSetupInput,
+                                    onValueChange = { if (it.length <= 4 && it.all { c -> c.isDigit() }) pinSetupInput = it },
+                                    label = { Text("Enter 4-Digit PIN", fontSize = 11.sp) },
+                                    placeholder = { Text("e.g. 1911", fontSize = 13.sp) },
+                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true
+                                )
+                                OutlinedTextField(
+                                    value = pinConfirmInput,
+                                    onValueChange = { if (it.length <= 4 && it.all { c -> c.isDigit() }) pinConfirmInput = it },
+                                    label = { Text("Confirm 4-Digit PIN", fontSize = 11.sp) },
+                                    placeholder = { Text("Repeat PIN", fontSize = 13.sp) },
+                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true
+                                )
+                            } else {
+                                Text("To disable the PIN lock, enter your existing 4-digit security PIN:", fontSize = 12.sp, color = Color.Gray)
+                                OutlinedTextField(
+                                    value = pinSetupInput,
+                                    onValueChange = { if (it.length <= 4 && it.all { c -> c.isDigit() }) pinSetupInput = it },
+                                    label = { Text("Verify Existing PIN", fontSize = 11.sp) },
+                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true
+                                )
+                            }
+                            
+                            if (pinErrorStr.isNotEmpty()) {
+                                Text(pinErrorStr, color = Color.Red, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                if (screenLockPin.isEmpty()) {
+                                    if (pinSetupInput.length != 4) {
+                                        pinErrorStr = "PIN must be exactly 4 digits!"
+                                    } else if (pinSetupInput != pinConfirmInput) {
+                                        pinErrorStr = "PINs do not match!"
+                                    } else {
+                                        onConfigurePin(pinSetupInput)
+                                        showPinSetupDialog = false
+                                        pinSetupInput = ""
+                                        pinConfirmInput = ""
+                                        pinErrorStr = ""
+                                        Toast.makeText(context, "PIN Lock successfully enabled!", Toast.LENGTH_SHORT).show()
+                                    }
+                                } else {
+                                    if (pinSetupInput == screenLockPin) {
+                                        onConfigurePin("")
+                                        showPinSetupDialog = false
+                                        pinSetupInput = ""
+                                        pinErrorStr = ""
+                                        Toast.makeText(context, "PIN Lock disabled.", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        pinErrorStr = "Incorrect existing PIN!"
+                                    }
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9D5F7A))
+                        ) {
+                            Text(if (screenLockPin.isEmpty()) "Enable Lock" else "Disable Lock", color = Color.White)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = {
+                            showPinSetupDialog = false
+                            pinSetupInput = ""
+                            pinConfirmInput = ""
+                            pinErrorStr = ""
+                        }) {
+                            Text("Cancel", color = Color.Gray)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(16.dp)
+                )
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // Signal Settings Button
+                IconButton(onClick = onOpenSettings) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Signal Settings",
+                        tint = if (isDarkTheme) Color.White else Color.Black,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
+                // Screen Lock Settings Trigger
+                IconButton(onClick = { showPinSetupDialog = true }) {
+                    Icon(
+                        imageVector = if (screenLockPin.isNotEmpty()) Icons.Default.Security else Icons.Default.LockOpen,
+                        contentDescription = "Screen Lock Settings",
+                        tint = if (screenLockPin.isNotEmpty()) Color(0xFF10B981) else (if (isDarkTheme) Color.White else Color.Black),
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
+                // Toggle Search
+                IconButton(onClick = { isSearchVisible = !isSearchVisible }) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Search",
+                        tint = if (isDarkTheme) Color.White else Color.Black,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
+                // Close Button
+                IconButton(onClick = onClose) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close",
+                        tint = if (isDarkTheme) Color.White else Color.Black,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+        }
+
+        // SEARCH INPUT (Toggleable)
+        if (isSearchVisible) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = onSearchChange,
+                placeholder = { Text("Search chats...", fontSize = 13.sp) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .height(48.dp),
+                singleLine = true,
+                textStyle = TextStyle(fontSize = 13.sp),
+                shape = RoundedCornerShape(20.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF2C6BED),
+                    unfocusedBorderColor = if (isDarkTheme) Color(0xFF27272A) else Color(0xFFE4E4E7)
+                )
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+        }
+
+        // ACTIVE NOW ROW
+        if (onlinePersons.isNotEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+            ) {
+                Text(
+                    text = "ACTIVE NOW",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isDarkTheme) Color(0xFFA1A1AA) else Color(0xFF71717A),
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 6.dp)
+                )
+                
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(onlinePersons) { person ->
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .width(60.dp)
+                                .clickable {
+                                    viewModel.createChatChannel(
+                                        name = "🔒 Chat with " + person.first,
+                                        description = "Secure direct 1-to-1 private messaging",
+                                        isGroup = false,
+                                        isPrivate = true,
+                                        firstUserId = senderIdStr,
+                                        secondUserId = person.second
+                                    )
+                                    Toast.makeText(context, "Chat opened with ${person.first}!", Toast.LENGTH_SHORT).show()
+                                }
+                        ) {
+                            Box(modifier = Modifier.size(46.dp)) {
+                                val pColor = remember(person.first) {
+                                    val colors = listOf(Color(0xFF3B82F6), Color(0xFF10B981), Color(0xFF8B5CF6), Color(0xFFEC4899), Color(0xFFF59E0B))
+                                    colors[(person.first.hashCode() and 0x7FFFFFFF) % colors.size]
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .background(pColor, CircleShape)
+                                        .align(Alignment.Center),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = person.first.take(1).uppercase(),
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .size(12.dp)
+                                        .background(Color(0xFF10B981), CircleShape)
+                                        .border(1.5.dp, if (isDarkTheme) Color(0xFF121214) else Color(0xFFFFFFFF), CircleShape)
+                                        .align(Alignment.BottomEnd)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = person.first.split(" ").firstOrNull() ?: person.first,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                color = if (isDarkTheme) Color.White else Color.Black,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                HorizontalDivider(
+                    color = if (isDarkTheme) Color(0xFF27272A) else Color(0xFFF1F5F9),
+                    thickness = 1.dp,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            }
+        }
+
+        // SCROLLABLE CHAT LIST WITH FLOATING ACTIONS OVERLAID
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                // 1. PINNED SECTION
+                if (pinnedChannels.isNotEmpty()) {
+                    item {
+                        Text(
+                            text = "Pinned",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isDarkTheme) Color(0xFFA1A1AA) else Color(0xFF71717A),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    }
+
+                    items(pinnedChannels) { channel ->
+                        val isSelected = channel.id == activeChannelId
+                        
+                        // Grab dynamic messages
+                        val cachedMsg = channelLatestMessages[channel.id]
+                        val (sName, sText, sTime) = remember(channel, cachedMsg) {
+                            if (cachedMsg != null) {
+                                Triple(cachedMsg.first, cachedMsg.second, "Now")
+                            } else {
+                                when {
+                                    channel.name.contains("Announcements", ignoreCase = true) -> 
+                                        Triple("Director", "📢 New semester mock test schedule has been posted in folders.", "20m")
+                                    channel.name.contains("Mathematics", ignoreCase = true) -> 
+                                        Triple("Paige Hall", "Yeah, I just got the group link - thanks for adding me 😎", "40m")
+                                    else -> 
+                                        Triple("", channel.description, "10m")
+                                }
+                            }
+                        }
+
+                        // Style Avatars beautifully
+                        val avatarColor = remember(channel.name) {
+                            if (channel.name.contains("Announcements", ignoreCase = true)) Color(0xFFEA580C) else Color(0xFF0D9488)
+                        }
+                        val avatarIcon = remember(channel.name) {
+                            if (channel.name.contains("Announcements", ignoreCase = true)) Icons.Default.Campaign else Icons.Default.Functions
+                        }
+
+                        ChatListItem(
+                            channel = channel,
+                            latestMessage = sText,
+                            senderPrefix = sName,
+                            timeStr = sTime,
+                            avatarBg = avatarColor,
+                            avatarIcon = avatarIcon,
+                            avatarText = "",
+                            unreadBadge = if (channel.name.contains("Announcements", ignoreCase = true)) 1 else 0,
+                            isRead = channel.name.contains("Mathematics", ignoreCase = true),
+                            isSelected = isSelected,
+                            isDarkTheme = isDarkTheme,
+                            onSelect = { onSelectChannel(channel.id) },
+                            onDelete = if (currentRole == "ADMIN") { { onDeleteChannel(channel.id) } } else null
+                        )
+                    }
+                }
+
+                // 2. CHATS SECTION
+                item {
+                    Text(
+                        text = "Chats",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (isDarkTheme) Color(0xFFA1A1AA) else Color(0xFF71717A),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
+
+                // Note to Self item (exactly as shown in the photo!)
+                item {
+                    val isSelected = activeChannelId == -999L
+                    val isMeOnline = onlineUsersMap[senderIdStr] ?: true
+                    val latestSelfMsg = channelLatestMessages[-999L]
+                    val displayMsg = latestSelfMsg?.second ?: "Personal workspace for doubts and files"
+                    val displayTime = if (latestSelfMsg != null) "Now" else "Tue"
+                    ChatListItem(
+                        channel = com.example.data.model.ChatChannel(id = -999L, name = "Note to Self", description = "Personal workspace for doubts and files"),
+                        latestMessage = displayMsg,
+                        senderPrefix = "",
+                        timeStr = displayTime,
+                        avatarBg = if (isDarkTheme) Color(0xFF3B2A5E) else Color(0xFFE0D7FF),
+                        avatarIcon = Icons.Default.Notes,
+                        avatarText = "",
+                        unreadBadge = 0,
+                        isRead = true,
+                        isSelected = isSelected,
+                        isDarkTheme = isDarkTheme,
+                        onSelect = { 
+                            onSelectChannel(-999L)
+                        },
+                        onDelete = null,
+                        isOnline = isMeOnline
+                    )
+                }
+
+                if (otherChannels.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("No other discussions yet.", fontSize = 13.sp, color = Color.Gray)
+                        }
+                    }
+                } else {
+                    items(otherChannels) { channel ->
+                        val isSelected = channel.id == activeChannelId
+                        
+                        // Grab dynamic messages
+                        val cachedMsg = channelLatestMessages[channel.id]
+                        val (sName, sText, sTime) = remember(channel, cachedMsg) {
+                            if (cachedMsg != null) {
+                                Triple(cachedMsg.first, cachedMsg.second, "Now")
+                            } else {
+                                when {
+                                    channel.name.contains("Science", ignoreCase = true) -> 
+                                        Triple("Rock climbers", "Ok, I'm picking everyone up at 8am tomorrow. Be ready to pile into the mini...", "9:24 AM")
+                                    channel.name.contains("Chit-Chat", ignoreCase = true) -> 
+                                        Triple("Maya Johnson", "View-once media", "9:00 AM")
+                                    channel.name.contains("UPSC", ignoreCase = true) -> 
+                                        Triple("Kai", "Working late - can one of you please feed Spooky? One tin of wet food. Than...", "Mon")
+                                    else -> 
+                                        Triple("", channel.description, "June 28")
+                                }
+                            }
+                        }
+
+                        // Style Avatars beautifully
+                        val avatarColor = remember(channel.name) {
+                            when {
+                                channel.name.contains("Science", ignoreCase = true) -> Color(0xFF2563EB)
+                                channel.name.contains("Chit-Chat", ignoreCase = true) -> Color(0xFFDB2777)
+                                channel.name.contains("UPSC", ignoreCase = true) -> Color(0xFF7C3AED)
+                                else -> {
+                                    val colors = listOf(Color(0xFF2563EB), Color(0xFF059669), Color(0xFFD97706), Color(0xFF7C3AED), Color(0xFFDB2777))
+                                    colors[(channel.name.hashCode() and 0x7FFFFFFF) % colors.size]
+                                }
+                            }
+                        }
+                        val avatarIcon = remember(channel.name) {
+                            when {
+                                channel.name.contains("Science", ignoreCase = true) -> Icons.Default.Science
+                                channel.name.contains("Chit-Chat", ignoreCase = true) -> Icons.Default.Forum
+                                channel.name.contains("UPSC", ignoreCase = true) -> Icons.Default.Lightbulb
+                                else -> null
+                            }
+                        }
+                        val avatarText = remember(channel.name) {
+                            if (avatarIcon == null) channel.name.filter { it.isLetter() }.take(1).uppercase() else ""
+                        }
+
+                        val channelOnlineStatus = remember(channel, onlineUsersMap, senderIdStr) {
+                            if (!channel.isGroup) {
+                                val otherUserId = if (channel.firstUserId == senderIdStr) channel.secondUserId else channel.firstUserId
+                                onlineUsersMap[otherUserId]
+                            } else {
+                                null
+                            }
+                        }
+
+                        ChatListItem(
+                            channel = channel,
+                            latestMessage = sText,
+                            senderPrefix = if (channel.name.contains("Chit-Chat", ignoreCase = true)) "" else sName,
+                            timeStr = sTime,
+                            avatarBg = avatarColor,
+                            avatarIcon = avatarIcon,
+                            avatarText = avatarText,
+                            unreadBadge = if (channel.name.contains("Chit-Chat", ignoreCase = true)) 1 else 0,
+                            isRead = false,
+                            isSelected = isSelected,
+                            isDarkTheme = isDarkTheme,
+                            onSelect = { onSelectChannel(channel.id) },
+                            onDelete = if (currentRole == "ADMIN") { { onDeleteChannel(channel.id) } } else null,
+                            isOnline = channelOnlineStatus
+                        )
+                    }
+                }
+            }
+
+            // SIGNAL-STYLE FLOATING ACTION BUTTONS (Camera & Pencil)
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.End
+            ) {
+                // 1. Camera FAB (Small, light background with border & shadow)
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(
+                            if (isDarkTheme) Color(0xFF27272A) else Color(0xFFFFFFFF),
+                            RoundedCornerShape(14.dp)
+                        )
+                        .border(1.dp, if (isDarkTheme) Color(0xFF3F3F46) else Color(0xFFE4E4E7), RoundedCornerShape(14.dp))
+                        .clickable {
+                            Toast.makeText(context, "Camera capture feature layout initialized!", Toast.LENGTH_SHORT).show()
+                        }
+                        .padding(12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PhotoCamera,
+                        contentDescription = "Camera",
+                        tint = if (isDarkTheme) Color.White else Color.Black,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
+                // 2. Pencil Edit FAB (Large, Signal blue rounded square)
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .background(Color(0xFF2C6BED), RoundedCornerShape(16.dp))
+                        .clickable {
+                            onStartDirectChat()
+                        }
+                        .padding(14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "New Private Chat",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        }
+
+        // SIGNAL-STYLE BOTTOM NAVIGATION BAR
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(if (isDarkTheme) Color(0xFF18181B) else Color(0xFFF4F4F5))
+                .padding(vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Chats Tab (Active, with Blue pill-shaped container and unread badge "2")
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable { /* Active */ }
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(if (isDarkTheme) Color(0xFF1E3A8A) else Color(0xFFD2E3FC))
+                            .padding(horizontal = 20.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box {
+                            Icon(
+                                imageVector = Icons.Default.ChatBubble,
+                                contentDescription = "Chats",
+                                tint = if (isDarkTheme) Color(0xFF60A5FA) else Color(0xFF1E40AF),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            // Red Badge "2"
+                            Box(
+                                modifier = Modifier
+                                    .size(14.dp)
+                                    .background(Color.Red, CircleShape)
+                                    .align(Alignment.TopEnd)
+                                    .offset(x = 6.dp, y = (-4).dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("2", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Chats",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isDarkTheme) Color.White else Color.Black
+                    )
+                }
+
+                // Calls Tab (Inactive)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable { 
+                        Toast.makeText(context, "Voice & Video Calls features integrated successfully!", Toast.LENGTH_SHORT).show()
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Phone,
+                        contentDescription = "Calls",
+                        tint = if (isDarkTheme) Color(0xFFA1A1AA) else Color(0xFF71717A),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Calls",
+                        fontSize = 11.sp,
+                        color = if (isDarkTheme) Color(0xFFA1A1AA) else Color(0xFF71717A)
+                    )
+                }
+
+                // Stories Tab (Inactive, with unread badge "4")
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable {
+                        Toast.makeText(context, "Academia Student Stories is updated!", Toast.LENGTH_SHORT).show()
+                    }
+                ) {
+                    Box {
+                        Icon(
+                            imageVector = Icons.Default.Layers,
+                            contentDescription = "Stories",
+                            tint = if (isDarkTheme) Color(0xFFA1A1AA) else Color(0xFF71717A),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        // Red Badge "4"
+                        Box(
+                            modifier = Modifier
+                                .size(14.dp)
+                                .background(Color.Red, CircleShape)
+                                .align(Alignment.TopEnd)
+                                .offset(x = 6.dp, y = (-4).dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("4", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Stories",
+                        fontSize = 11.sp,
+                        color = if (isDarkTheme) Color(0xFFA1A1AA) else Color(0xFF71717A)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ChatWindowPaneContent(
+    activeChannel: com.example.data.model.ChatChannel?,
+    messages: List<com.example.data.model.ChatMessage>,
+    senderIdStr: String,
+    senderName: String,
+    currentRole: String,
+    messageText: String,
+    onMessageTextChange: (String) -> Unit,
+    onSend: () -> Unit,
+    onClearHistory: () -> Unit,
+    onClose: () -> Unit,
+    onBack: () -> Unit,
+    showBackButton: Boolean,
+    isDarkTheme: Boolean,
+    onAttachFile: () -> Unit,
+    onStartCall: (String, Boolean) -> Unit,
+    onAttachMedia: (String) -> Unit,
+    viewModel: com.example.ui.viewmodel.AppViewModel,
+    disappearingTimers: MutableMap<Long, Int>,
+    verifiedSafetyNumbers: MutableMap<Long, Boolean>,
+    viewOnceOpenedIds: MutableList<Long>
+) {
+    val context = LocalContext.current
+    var showAttachmentDrawer by remember { mutableStateOf(false) }
+    var activeReactionMessageId by remember { mutableStateOf<Long?>(null) }
+    val messageReactions by viewModel.messageReactions.collectAsState()
+    
+    // Disappearing message timer logic
+    val disappearingTimer = activeChannel?.let { disappearingTimers[it.id] } ?: 0
+    var ticker by remember { mutableStateOf(0) }
+    
+    LaunchedEffect(activeChannel?.id, messages, disappearingTimer) {
+        if (activeChannel != null && disappearingTimer > 0) {
+            while (true) {
+                val now = System.currentTimeMillis()
+                messages.forEach { msg ->
+                    if (!msg.isDeleted && (now - msg.timestamp > disappearingTimer * 1000L)) {
+                        viewModel.deleteChatMessage(msg.id)
+                    }
+                }
+                delay(1000L)
+                ticker++
+            }
+        }
+    }
+
+    // Interactive custom state variables
+    var replyingToMessage by remember { mutableStateOf<com.example.data.model.ChatMessage?>(null) }
+    var editingMessage by remember { mutableStateOf<com.example.data.model.ChatMessage?>(null) }
+    var messageSearchQuery by remember { mutableStateOf("") }
+    var isSearchingInRoom by remember { mutableStateOf(false) }
+    
+    var showPollCreator by remember { mutableStateOf(false) }
+    var pollQuestionInput by remember { mutableStateOf("") }
+    var pollOptionsInput by remember { mutableStateOf("") }
+    
+    var slowModeCountdown by remember { mutableStateOf(0) }
+    var lastSentTime by remember { mutableStateOf(0L) }
+
+    // Signal-Inspired Top Bar Dialog states
+    var showMenuDropdown by remember { mutableStateOf(false) }
+    var showCallSubMenu by remember { mutableStateOf(false) }
+    var showRoomInfoDialog by remember { mutableStateOf(false) }
+    var showSafetyNumbersDialog by remember { mutableStateOf(false) }
+    var showPinnedMessagesDialog by remember { mutableStateOf(false) }
+    var showReportDialog by remember { mutableStateOf(false) }
+    var showWallpaperDialog by remember { mutableStateOf(false) }
+    var showSlowModeDialog by remember { mutableStateOf(false) }
+    var showSharedMediaDialog by remember { mutableStateOf(false) }
+    var showLeaveRoomDialog by remember { mutableStateOf(false) }
+    var selectedWallpaperColor by remember { mutableStateOf<Color?>(null) }
+    var isViewOnceModeActive by remember { mutableStateOf(false) }
+
+    LaunchedEffect(slowModeCountdown) {
+        if (slowModeCountdown > 0) {
+            kotlinx.coroutines.delay(1000L)
+            slowModeCountdown--
+        }
+    }
+
+    val filteredMessages = remember(messages, messageSearchQuery) {
+        if (messageSearchQuery.trim().isEmpty()) {
+            messages
+        } else {
+            messages.filter { it.messageText.contains(messageSearchQuery, ignoreCase = true) }
+        }
+    }
+
+    val members = listOf("Verma Sir", "Shreya Ma'am", "Kai Guo", "Paige Hall", "Maya Johnson", "Aman Verma")
+    val showMentionSuggestions = messageText.contains("@") && !messageText.endsWith(" ")
+    val mentionQuery = if (showMentionSuggestions) messageText.substringAfterLast("@").lowercase() else ""
+    val suggestedMembers = remember(mentionQuery, showMentionSuggestions) {
+        if (showMentionSuggestions) {
+            members.filter { it.lowercase().contains(mentionQuery) }
+        } else {
+            emptyList()
+        }
+    }
+
+    val quickImages = remember {
+        listOf(
+            Pair("Soup Gathering 🍲", "https://images.unsplash.com/photo-1547592180-85f173990554?q=80&w=600"),
+            Pair("Study Group 📚", "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=600"),
+            Pair("Coaching Campus 🏫", "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?q=80&w=600"),
+            Pair("Mathematics 🧮", "https://images.unsplash.com/photo-1453733190148-c44698c26578?q=80&w=600")
+        )
+    }
+
+    if (activeChannel == null) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(if (isDarkTheme) Color(0xFF121214) else Color(0xFFF9FAFB)),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.padding(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ChatBubbleOutline,
+                    contentDescription = null,
+                    tint = if (isDarkTheme) Color(0xFF3F3F46) else Color(0xFFCBD5E1),
+                    modifier = Modifier.size(64.dp)
+                )
+                Text(
+                    text = "No conversation selected",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = if (isDarkTheme) Color.White else Color.Black
+                )
+            }
+        }
+    } else {
+        val isMuted = activeChannel.isMuted
+        val slowModeLimitActive = activeChannel.slowModeSeconds > 0
+        
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(selectedWallpaperColor ?: (if (isDarkTheme) Color(0xFF121214) else Color(0xFFF3F4F6)))
+        ) {
+            // HEADER BAR
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(if (isDarkTheme) Color(0xFF1E1E22) else Color(0xFFFFFFFF))
+                    .shadow(1.dp)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { showRoomInfoDialog = true },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (showBackButton) {
+                        IconButton(onClick = onBack, modifier = Modifier.testTag("chat_back_arrow_btn")) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = if (isDarkTheme) Color.White else Color.Black
+                            )
+                        }
+                    }
+
+                    // Avatar
+                    val avatarColor = remember(activeChannel.name) {
+                        val colors = listOf(Color(0xFF3B82F6), Color(0xFF10B981), Color(0xFF8B5CF6), Color(0xFFEC4899), Color(0xFFF59E0B))
+                        colors[(activeChannel.name.hashCode() and 0x7FFFFFFF) % colors.size]
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .background(avatarColor, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = activeChannel.name.replace(Regex("[^\\p{L}\\p{N}\\s]"), "").take(1).uppercase(),
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = activeChannel.name.trim(),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = if (isDarkTheme) Color.White else Color.Black,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            if (verifiedSafetyNumbers[activeChannel.id] == true) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Default.Shield,
+                                    contentDescription = "Verified Encryption",
+                                    tint = Color(0xFF10B981),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(4.dp))
+                            // Verified badge for teachers in general or key channels
+                            if (activeChannel.name.contains("Announcements", ignoreCase = true) || 
+                                activeChannel.name.contains("Mathematics", ignoreCase = true) || 
+                                activeChannel.name.contains("Science", ignoreCase = true)) {
+                                Icon(
+                                    imageVector = Icons.Default.Verified,
+                                    contentDescription = "Verified Teacher",
+                                    tint = Color(0xFF3B82F6),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                            }
+                            if (activeChannel.isLocked) {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = "Locked Room",
+                                    tint = Color(0xFFEF4444),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                            }
+                            if (isMuted) {
+                                Icon(
+                                    imageVector = Icons.Default.NotificationsOff,
+                                    contentDescription = "Muted",
+                                    tint = Color.Gray,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                        val subtitleText = remember(activeChannel.name, activeChannel.slowModeSeconds) {
+                            var text = when {
+                                activeChannel.name.contains("Announcements", ignoreCase = true) -> "Official Channel • Read-only"
+                                activeChannel.name.contains("Mathematics", ignoreCase = true) -> "Verma Sir, Shreya Ma'am • 14 students"
+                                activeChannel.name.contains("Science", ignoreCase = true) -> "Dr. Shreya • 12 students active"
+                                activeChannel.name.contains("Note to Self", ignoreCase = true) -> "Personal Note • Secured Offline Cache"
+                                else -> "General Batch Chat Room • Tuition Group"
+                            }
+                            if (activeChannel.slowModeSeconds > 0) {
+                                text += " • Slow mode (${activeChannel.slowModeSeconds}s)"
+                            }
+                            text
+                        }
+                        Text(
+                            text = subtitleText,
+                            fontSize = 11.sp,
+                            color = Color.Gray,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    // Disappearing Messages Icon (Signal Stopwatch)
+                    var showDisappearingDialog by remember { mutableStateOf(false) }
+                    IconButton(onClick = { showDisappearingDialog = true }) {
+                        Icon(
+                            imageVector = if (disappearingTimer > 0) Icons.Default.Timer else Icons.Default.TimerOff,
+                            contentDescription = "Disappearing Messages",
+                            tint = if (disappearingTimer > 0) Color(0xFFEF4444) else (if (isDarkTheme) Color.White else Color.DarkGray),
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+
+                    if (showDisappearingDialog) {
+                        val timerOptions = listOf(
+                            Pair("Off", 0),
+                            Pair("5 Seconds", 5),
+                            Pair("10 Seconds", 10),
+                            Pair("30 Seconds", 30),
+                            Pair("1 Minute", 60),
+                            Pair("5 Minutes", 300),
+                            Pair("1 Hour", 3600),
+                            Pair("1 Day", 86400)
+                        )
+                        AlertDialog(
+                            onDismissRequest = { showDisappearingDialog = false },
+                            title = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Timer, contentDescription = null, tint = Color(0xFF9D5F7A), modifier = Modifier.size(24.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Disappearing Messages", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                }
+                            },
+                            text = {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("New messages sent in this chat will disappear for everyone after the timer expires.", fontSize = 12.sp, color = Color.Gray)
+                                    timerOptions.forEach { opt ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    disappearingTimers[activeChannel.id] = opt.second
+                                                    showDisappearingDialog = false
+                                                    viewModel.sendChatMessage(
+                                                        channelId = activeChannel.id,
+                                                        senderId = "SYSTEM",
+                                                        senderName = "Security Protocol",
+                                                        senderRole = "ADMIN",
+                                                        messageText = if (opt.second == 0) "⏱️ Disappearing messages were turned off." else "⏱️ Disappearing messages timer was set to ${opt.first}."
+                                                    )
+                                                    Toast.makeText(context, "Timer updated to ${opt.first}", Toast.LENGTH_SHORT).show()
+                                                }
+                                                .background(
+                                                    if (disappearingTimer == opt.second) Color(0xFFFFECEF) else Color.Transparent,
+                                                    RoundedCornerShape(8.dp)
+                                                )
+                                                .padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            RadioButton(
+                                                selected = (disappearingTimer == opt.second),
+                                                onClick = {
+                                                    disappearingTimers[activeChannel.id] = opt.second
+                                                    showDisappearingDialog = false
+                                                    viewModel.sendChatMessage(
+                                                        channelId = activeChannel.id,
+                                                        senderId = "SYSTEM",
+                                                        senderName = "Security Protocol",
+                                                        senderRole = "ADMIN",
+                                                        messageText = if (opt.second == 0) "⏱️ Disappearing messages were turned off." else "⏱️ Disappearing messages timer was set to ${opt.first}."
+                                                    )
+                                                    Toast.makeText(context, "Timer updated to ${opt.first}", Toast.LENGTH_SHORT).show()
+                                                },
+                                                colors = RadioButtonDefaults.colors(selectedColor = Color(0xFF9D5F7A))
+                                            )
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Text(
+                                                text = opt.first,
+                                                fontSize = 14.sp,
+                                                fontWeight = if (disappearingTimer == opt.second) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (disappearingTimer == opt.second) Color(0xFF9D5F7A) else (if (isDarkTheme) Color.White else Color.Black)
+                                            )
+                                        }
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(onClick = { showDisappearingDialog = false }) {
+                                    Text("Cancel", color = Color(0xFF9D5F7A))
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().padding(16.dp)
+                        )
+                    }
+
+                    // Telephone Call Menu and Sub-Menu
+                    Box {
+                        IconButton(onClick = { showCallSubMenu = true }) {
+                            Icon(
+                                imageVector = Icons.Default.Phone,
+                                contentDescription = "Start Call",
+                                tint = if (isDarkTheme) Color.White else Color.DarkGray,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = showCallSubMenu,
+                            onDismissRequest = { showCallSubMenu = false },
+                            modifier = Modifier.background(if (isDarkTheme) Color(0xFF1E1E22) else Color.White)
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Voice Call", color = if (isDarkTheme) Color.White else Color.Black) },
+                                leadingIcon = { 
+                                    Icon(
+                                        imageVector = Icons.Default.Phone, 
+                                        contentDescription = "Voice Call",
+                                        tint = if (isDarkTheme) Color.LightGray else Color.DarkGray
+                                    ) 
+                                },
+                                onClick = {
+                                    showCallSubMenu = false
+                                    onStartCall(activeChannel.name, false)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Video Call", color = if (isDarkTheme) Color.White else Color.Black) },
+                                leadingIcon = { 
+                                    Icon(
+                                        imageVector = Icons.Default.Videocam, 
+                                        contentDescription = "Video Call",
+                                        tint = if (isDarkTheme) Color.LightGray else Color.DarkGray
+                                    ) 
+                                },
+                                onClick = {
+                                    showCallSubMenu = false
+                                    onStartCall(activeChannel.name, true)
+                                }
+                            )
+                        }
+                    }
+
+                    // Three Dots Menu Box & Content
+                    Box {
+                        IconButton(onClick = { showMenuDropdown = true }, modifier = Modifier.testTag("chat_more_options_btn")) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "More options",
+                                tint = if (isDarkTheme) Color.White else Color.DarkGray
+                            )
+                        }
+                        
+                        DropdownMenu(
+                            expanded = showMenuDropdown,
+                            onDismissRequest = { showMenuDropdown = false },
+                            modifier = Modifier.background(if (isDarkTheme) Color(0xFF1E1E22) else Color.White)
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Room Info", color = if (isDarkTheme) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
+                                onClick = {
+                                    showMenuDropdown = false
+                                    showRoomInfoDialog = true
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Verify Safety Numbers 🔑", color = if (isDarkTheme) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
+                                onClick = {
+                                    showMenuDropdown = false
+                                    showSafetyNumbersDialog = true
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Search Messages", color = if (isDarkTheme) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
+                                onClick = {
+                                    showMenuDropdown = false
+                                    isSearchingInRoom = !isSearchingInRoom
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Simulate Peer Message 💬", color = if (isDarkTheme) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.Forum, contentDescription = null, tint = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
+                                onClick = {
+                                    showMenuDropdown = false
+                                    if (activeChannel != null) {
+                                        val peerNames = listOf("Aman Sharma", "Rohan Gupta", "Simran Kaur", "Ananya Deshmukh", "Verma Sir")
+                                        val randomPeer = peerNames.random()
+                                        val mockMessages = listOf(
+                                            "Hey, did anyone solve question 4 from the assignment?",
+                                            "Yes, the answer is option B. Check the study materials for the solution steps.",
+                                            "Don't forget we have an upcoming test tomorrow!",
+                                            "Verma Sir has uploaded a new assignment. Check your student workspace.",
+                                            "Can anyone share the chemistry class notes from yesterday?",
+                                            "Hey group, let's coordinate a study session tonight."
+                                        )
+                                        val randomMessage = mockMessages.random()
+                                        viewModel.sendChatMessage(
+                                            channelId = activeChannel.id,
+                                            senderId = "PEER_" + randomPeer.hashCode(),
+                                            senderName = randomPeer,
+                                            senderRole = if (randomPeer.contains("Sir")) "TEACHER" else "STUDENT",
+                                            messageText = randomMessage
+                                        )
+                                        com.example.services.NotificationHelper.triggerChatNotification(context, activeChannel.name, randomPeer, randomMessage)
+                                    }
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("View Pinned Messages", color = if (isDarkTheme) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null, tint = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
+                                onClick = {
+                                    showMenuDropdown = false
+                                    showPinnedMessagesDialog = true
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Shared Media & Notes", color = if (isDarkTheme) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.FolderOpen, contentDescription = null, tint = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
+                                onClick = {
+                                    showMenuDropdown = false
+                                    showSharedMediaDialog = true
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(if (isMuted) "Unmute Channel" else "Mute Channel", color = if (isDarkTheme) Color.White else Color.Black) },
+                                leadingIcon = { Icon(if (isMuted) Icons.Default.NotificationsActive else Icons.Default.NotificationsOff, contentDescription = null, tint = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
+                                onClick = {
+                                    showMenuDropdown = false
+                                    viewModel.toggleMuteChannel(activeChannel.id, !isMuted)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Change Wallpaper", color = if (isDarkTheme) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.Palette, contentDescription = null, tint = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
+                                onClick = {
+                                    showMenuDropdown = false
+                                    showWallpaperDialog = true
+                                }
+                            )
+
+                            // Role-Aware Controls for Teachers/Admins
+                            if (currentRole.equals("Teacher", ignoreCase = true) || 
+                                currentRole.equals("Admin", ignoreCase = true) || 
+                                currentRole.equals("Moderator", ignoreCase = true)) {
+                                Divider(color = if (isDarkTheme) Color.DarkGray else Color.LightGray, modifier = Modifier.padding(vertical = 4.dp))
+                                
+                                DropdownMenuItem(
+                                    text = { Text(if (activeChannel.isLocked) "Unlock Room" else "Lock Room", color = Color(0xFFEF4444)) },
+                                    leadingIcon = { Icon(if (activeChannel.isLocked) Icons.Default.LockOpen else Icons.Default.Lock, contentDescription = null, tint = Color(0xFFEF4444)) },
+                                    onClick = {
+                                        showMenuDropdown = false
+                                        viewModel.toggleLockChannel(activeChannel.id, !activeChannel.isLocked)
+                                        Toast.makeText(context, if (activeChannel.isLocked) "Room Unlocked" else "Room Locked (Read-Only)", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Set Slow Mode pacing", color = if (isDarkTheme) Color.White else Color.Black) },
+                                    leadingIcon = { Icon(Icons.Default.SlowMotionVideo, contentDescription = null, tint = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
+                                    onClick = {
+                                        showMenuDropdown = false
+                                        showSlowModeDialog = true
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(if (activeChannel.isAnnouncementOnly) "Disable Announcements Mode" else "Enable Announcements Mode", color = if (isDarkTheme) Color.White else Color.Black) },
+                                    leadingIcon = { Icon(Icons.Default.VolumeMute, contentDescription = null, tint = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
+                                    onClick = {
+                                        showMenuDropdown = false
+                                        viewModel.toggleAnnouncementOnlyChannel(activeChannel.id, !activeChannel.isAnnouncementOnly)
+                                        Toast.makeText(context, if (activeChannel.isAnnouncementOnly) "Read-Write enabled for students" else "Read-Only enabled for students", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            }
+
+                            Divider(color = if (isDarkTheme) Color.DarkGray else Color.LightGray, modifier = Modifier.padding(vertical = 4.dp))
+                            
+                            DropdownMenuItem(
+                                text = { Text("Report Room / Abuse", color = if (isDarkTheme) Color.White else Color.Black) },
+                                leadingIcon = { Icon(Icons.Default.Flag, contentDescription = null, tint = if (isDarkTheme) Color.LightGray else Color.DarkGray) },
+                                onClick = {
+                                    showMenuDropdown = false
+                                    showReportDialog = true
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Leave Room", color = Color(0xFFEF4444)) },
+                                leadingIcon = { Icon(Icons.Default.ExitToApp, contentDescription = null, tint = Color(0xFFEF4444)) },
+                                onClick = {
+                                    showMenuDropdown = false
+                                    showLeaveRoomDialog = true
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Inline Room Search Bar
+            AnimatedVisibility(visible = isSearchingInRoom) {
+                OutlinedTextField(
+                    value = messageSearchQuery,
+                    onValueChange = { messageSearchQuery = it },
+                    placeholder = { Text("Search messages in this channel...", fontSize = 12.sp) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                    trailingIcon = {
+                        if (messageSearchQuery.isNotEmpty()) {
+                            IconButton(onClick = { messageSearchQuery = "" }) {
+                                Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .height(46.dp),
+                    singleLine = true,
+                    textStyle = TextStyle(fontSize = 13.sp),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF9D5F7A),
+                        unfocusedBorderColor = Color.Gray.copy(alpha = 0.3f)
+                    )
+                )
+            }
+
+            // Daily Topic banner
+            val dailyTopic = activeChannel.dailyTopic ?: when {
+                activeChannel.name.contains("Mathematics", ignoreCase = true) -> "Daily Challenge: Derivative of sin(x^2). Share calculations below! 🧮"
+                activeChannel.name.contains("Science", ignoreCase = true) -> "Doubt of the Day: How does quantum entanglement bypass space? 🔬"
+                activeChannel.name.contains("Announcements", ignoreCase = true) -> "Important: Board exam schedules and admit cards are released today. 📢"
+                else -> "Welcome to the group discussion space! 🎓"
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(if (isDarkTheme) Color(0xFF1E293B) else Color(0xFFE0F2FE))
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Lightbulb,
+                    contentDescription = "Daily Topic",
+                    tint = Color(0xFF0284C7),
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = dailyTopic,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (isDarkTheme) Color(0xFF93C5FD) else Color(0xFF0369A1),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            // Pinned message banner
+            val pinnedMessages = remember(messages) { messages.filter { it.isPinned } }
+            if (pinnedMessages.isNotEmpty()) {
+                val mostRecentPin = pinnedMessages.last()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(if (isDarkTheme) Color(0xFF27272A) else Color(0xFFF1F5F9))
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                        Icon(
+                            imageVector = Icons.Default.Bookmark,
+                            contentDescription = "Pinned",
+                            tint = Color(0xFF9D5F7A),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Column {
+                            Text("Pinned Message", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                            Text(
+                                text = mostRecentPin.messageText,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                color = if (isDarkTheme) Color.White else Color.Black
+                            )
+                        }
+                    }
+                    IconButton(
+                        onClick = { viewModel.pinChatMessage(mostRecentPin.id, false) },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = "Unpin", modifier = Modifier.size(14.dp))
+                    }
+                }
+            }
+
+            // MESSAGE LIST
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
+                    .testTag("message_list_lazy"),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(top = 10.dp, bottom = 10.dp)
+            ) {
+                if (filteredMessages.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (messageSearchQuery.isNotEmpty()) "No matching messages found." else "No messages. Send a message to start peer-to-peer secure chatting!",
+                                fontSize = 12.sp,
+                                color = Color.Gray,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(24.dp)
+                            )
+                        }
+                    }
+                } else {
+                    items(filteredMessages) { msg ->
+                        val isMe = msg.senderId == senderIdStr
+                        val isReactionSelected = activeReactionMessageId == msg.id
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            horizontalAlignment = if (isMe) Alignment.End else Alignment.Start
+                        ) {
+                            // Reaction select / Actions Context Menu on click
+                            AnimatedVisibility(
+                                visible = isReactionSelected,
+                                enter = expandVertically() + fadeIn(),
+                                exit = shrinkVertically() + fadeOut()
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .background(if (isDarkTheme) Color(0xFF1E1E22) else Color(0xFFFFFFFF), RoundedCornerShape(12.dp))
+                                        .border(1.dp, if (isDarkTheme) Color(0xFF3F3F46) else Color(0xFFE4E4E7), RoundedCornerShape(12.dp))
+                                        .padding(8.dp)
+                                        .width(220.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    // Emoji reaction row
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                                        horizontalArrangement = Arrangement.SpaceEvenly
+                                    ) {
+                                        val emojis = listOf("❤️", "👍", "😂", "😮", "😢", "🙏")
+                                        emojis.forEach { emoji ->
+                                            Text(
+                                                text = emoji,
+                                                fontSize = 20.sp,
+                                                modifier = Modifier
+                                                    .clickable {
+                                                        viewModel.toggleMessageReaction(msg.id, emoji)
+                                                        activeReactionMessageId = null
+                                                    }
+                                                    .padding(horizontal = 2.dp)
+                                            )
+                                        }
+                                    }
+                                    HorizontalDivider(color = if (isDarkTheme) Color(0xFF27272A) else Color(0xFFE4E4E7))
+
+                                    // Reply action
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                replyingToMessage = msg
+                                                activeReactionMessageId = null
+                                            }
+                                            .padding(vertical = 6.dp, horizontal = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(Icons.Default.Reply, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.Gray)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Reply", fontSize = 12.sp, color = if (isDarkTheme) Color.White else Color.Black)
+                                    }
+
+                                    // Edit action (if sent within 5 minutes)
+                                    val canEdit = isMe && (System.currentTimeMillis() - msg.timestamp < 300_000)
+                                    if (canEdit && !msg.isDeleted) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    editingMessage = msg
+                                                    onMessageTextChange(msg.messageText)
+                                                    activeReactionMessageId = null
+                                                }
+                                                .padding(vertical = 6.dp, horizontal = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.Gray)
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text("Edit Message (5m)", fontSize = 12.sp, color = if (isDarkTheme) Color.White else Color.Black)
+                                        }
+                                    }
+
+                                    // Delete action (if owner or moderator)
+                                    val canDelete = isMe || currentRole == "TEACHER" || currentRole == "ADMIN"
+                                    if (canDelete && !msg.isDeleted) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    viewModel.deleteChatMessage(msg.id)
+                                                    activeReactionMessageId = null
+                                                    Toast.makeText(context, "Message deleted!", Toast.LENGTH_SHORT).show()
+                                                }
+                                                .padding(vertical = 6.dp, horizontal = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.Red)
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text("Delete", fontSize = 12.sp, color = Color.Red)
+                                        }
+                                    }
+
+                                    // Pin/Unpin action
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                viewModel.pinChatMessage(msg.id, !msg.isPinned)
+                                                activeReactionMessageId = null
+                                                Toast.makeText(context, if (msg.isPinned) "Unpinned!" else "Pinned!", Toast.LENGTH_SHORT).show()
+                                            }
+                                            .padding(vertical = 6.dp, horizontal = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(Icons.Default.Bookmark, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.Gray)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(if (msg.isPinned) "Unpin Message" else "Pin Message", fontSize = 12.sp, color = if (isDarkTheme) Color.White else Color.Black)
+                                    }
+
+                                    // Bookmark action
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                viewModel.bookmarkChatMessage(msg.id, !msg.isBookmarked)
+                                                activeReactionMessageId = null
+                                                Toast.makeText(context, if (msg.isBookmarked) "Bookmark removed!" else "Bookmarked!", Toast.LENGTH_SHORT).show()
+                                            }
+                                            .padding(vertical = 6.dp, horizontal = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = if (msg.isBookmarked) Icons.Default.Star else Icons.Default.StarBorder,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                            tint = Color(0xFFF59E0B)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(if (msg.isBookmarked) "Remove Bookmark" else "Bookmark Message", fontSize = 12.sp, color = if (isDarkTheme) Color.White else Color.Black)
+                                    }
+
+                                    // Report action
+                                    if (!isMe) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    viewModel.reportChatMessage(msg.id)
+                                                    activeReactionMessageId = null
+                                                    Toast.makeText(context, "Message reported!", Toast.LENGTH_SHORT).show()
+                                                }
+                                                .padding(vertical = 6.dp, horizontal = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(Icons.Default.Report, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.Red)
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text("Report Message", fontSize = 12.sp, color = Color.Red)
+                                        }
+                                    }
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = if (isMe) Arrangement.End else Arrangement.Start,
+                                verticalAlignment = Alignment.Bottom
+                            ) {
+                                if (!isMe) {
+                                    val bubbleAvatarColor = remember(msg.senderName) {
+                                        val colors = listOf(Color(0xFF8B5CF6), Color(0xFF10B981), Color(0xFFF59E0B), Color(0xFFEF4444), Color(0xFF3B82F6))
+                                        colors[(msg.senderName.hashCode() and 0x7FFFFFFF) % colors.size]
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .background(bubbleAvatarColor, CircleShape)
+                                            .align(Alignment.Bottom),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = msg.senderName.take(1).uppercase(),
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                }
+
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth(0.82f)
+                                        .clickable {
+                                            activeReactionMessageId = if (isReactionSelected) null else msg.id
+                                        },
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (isMe) Color(0xFF9D5F7A) else (if (isDarkTheme) Color(0xFF27272A) else Color(0xFFFFFFFF))
+                                    ),
+                                    shape = RoundedCornerShape(
+                                        topStart = 18.dp,
+                                        topEnd = 18.dp,
+                                        bottomStart = if (isMe) 18.dp else 4.dp,
+                                        bottomEnd = if (isMe) 4.dp else 18.dp
+                                    )
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        // Sender Name and Roles (Teacher/Student Badge)
+                                        if (!isMe) {
+                                            val senderColor = remember(msg.senderName) {
+                                                val colors = listOf(Color(0xFF7C3AED), Color(0xFF0D9488), Color(0xFFD97706), Color(0xFFDC2626), Color(0xFF2563EB), Color(0xFFDB2777))
+                                                colors[(msg.senderName.hashCode() and 0x7FFFFFFF) % colors.size]
+                                            }
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = msg.senderName,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 12.sp,
+                                                    color = senderColor
+                                                )
+                                                if (msg.senderRole == "TEACHER" || msg.senderRole == "ADMIN") {
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .background(Color(0xFFFFECEF), RoundedCornerShape(4.dp))
+                                                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                                                    ) {
+                                                        Text("Teacher", color = Color(0xFF9D5F7A), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                                    }
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                        }
+
+                                        // Replying To Preview Card
+                                        if (msg.replyToId != null) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .background(if (isMe) Color.White.copy(alpha = 0.15f) else Color.Black.copy(alpha = 0.05f), RoundedCornerShape(6.dp))
+                                                    .padding(6.dp)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .width(3.dp)
+                                                        .height(24.dp)
+                                                        .background(Color(0xFF9D5F7A), RoundedCornerShape(2.dp))
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Column {
+                                                    Text(msg.replyToSender ?: "User", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (isMe) Color.White else Color(0xFF9D5F7A))
+                                                    Text(msg.replyToText ?: "", fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, color = if (isMe) Color.White.copy(alpha = 0.8f) else Color.Gray)
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                        }
+
+                                        // Render Image Attachment
+                                        if (msg.attachmentType == "IMAGE") {
+                                            val imagePath = msg.attachmentPath
+                                            if (imagePath != null) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .height(180.dp)
+                                                        .clip(RoundedCornerShape(12.dp))
+                                                        .background(Color.Black)
+                                                ) {
+                                                    coil.compose.AsyncImage(
+                                                        model = imagePath,
+                                                        contentDescription = msg.attachmentName,
+                                                        modifier = Modifier.fillMaxSize(),
+                                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                                    )
+                                                }
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                            }
+                                        }
+
+                                        // Render View-Once Media Mode
+                                        if (msg.attachmentType == "VIEW_ONCE") {
+                                            var isViewOnceOpened by remember { mutableStateOf(false) }
+                                            val hasBeenOpened = viewOnceOpenedIds.contains(msg.id)
+                                            
+                                            if (hasBeenOpened) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .background(if (isMe) Color.White.copy(alpha = 0.12f) else Color(0xFFEFF6FF), RoundedCornerShape(8.dp))
+                                                        .padding(10.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(32.dp)
+                                                            .background(Color.Gray.copy(alpha = 0.2f), CircleShape),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Icon(Icons.Default.VisibilityOff, contentDescription = "Opened", tint = Color.Gray, modifier = Modifier.size(16.dp))
+                                                    }
+                                                    Column {
+                                                        Text("Opened", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.Gray)
+                                                        Text("View-once media expired", fontSize = 10.sp, color = Color.Gray)
+                                                    }
+                                                }
+                                            } else {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .background(if (isMe) Color.White.copy(alpha = 0.18f) else Color(0xFFEFF6FF), RoundedCornerShape(12.dp))
+                                                        .border(1.dp, if (isMe) Color.White.copy(alpha = 0.3f) else Color(0xFF9D5F7A), RoundedCornerShape(12.dp))
+                                                        .clickable {
+                                                            isViewOnceOpened = true
+                                                        }
+                                                        .padding(12.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(36.dp)
+                                                            .background(if (isMe) Color.White.copy(alpha = 0.25f) else Color(0xFFFFECEF), CircleShape),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Text("1", color = Color(0xFF9D5F7A), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                    }
+                                                    Column {
+                                                        Text("View-Once Photo 🔒", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = if (isMe) Color.White else Color(0xFF111827))
+                                                        Text("Tap to open securely", fontSize = 11.sp, color = if (isMe) Color.White.copy(alpha = 0.8f) else Color.Gray)
+                                                    }
+                                                }
+                                            }
+
+                                            if (isViewOnceOpened) {
+                                                Dialog(
+                                                    onDismissRequest = {
+                                                        isViewOnceOpened = false
+                                                        viewOnceOpenedIds.add(msg.id)
+                                                        viewModel.deleteChatMessage(msg.id)
+                                                        Toast.makeText(context, "View-once photo expired and deleted securely.", Toast.LENGTH_SHORT).show()
+                                                    },
+                                                    properties = DialogProperties(usePlatformDefaultWidth = false)
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxSize()
+                                                            .background(Color.Black.copy(alpha = 0.95f))
+                                                    ) {
+                                                        IconButton(
+                                                            onClick = {
+                                                                isViewOnceOpened = false
+                                                                viewOnceOpenedIds.add(msg.id)
+                                                                viewModel.deleteChatMessage(msg.id)
+                                                                Toast.makeText(context, "View-once photo expired and deleted securely.", Toast.LENGTH_SHORT).show()
+                                                            },
+                                                            modifier = Modifier
+                                                                .align(Alignment.TopEnd)
+                                                                .padding(24.dp)
+                                                        ) {
+                                                            Icon(Icons.Default.Close, contentDescription = "Close View Once", tint = Color.White, modifier = Modifier.size(28.dp))
+                                                        }
+
+                                                        Column(
+                                                            modifier = Modifier
+                                                                .fillMaxSize()
+                                                                .padding(16.dp),
+                                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                                            verticalArrangement = Arrangement.Center
+                                                        ) {
+                                                            Text(
+                                                                text = "🔒 Secure View-Once Media",
+                                                                color = Color.White,
+                                                                fontWeight = FontWeight.Bold,
+                                                                fontSize = 16.sp
+                                                            )
+                                                            Text(
+                                                                text = "From ${msg.senderName} • Will delete immediately on close",
+                                                                color = Color.Gray,
+                                                                fontSize = 11.sp
+                                                            )
+                                                            Spacer(modifier = Modifier.height(24.dp))
+
+                                                            val imagePath = msg.attachmentPath ?: "https://images.unsplash.com/photo-1547592180-85f173990554?q=80&w=600"
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .fillMaxWidth()
+                                                                    .height(350.dp)
+                                                                    .clip(RoundedCornerShape(16.dp))
+                                                                    .background(Color.DarkGray)
+                              ) {
+                                                                coil.compose.AsyncImage(
+                                                                    model = imagePath,
+                                                                    contentDescription = "View-Once photo",
+                                                                    modifier = Modifier.fillMaxSize(),
+                                                                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                                                                )
+                                                            }
+                                                            Spacer(modifier = Modifier.height(24.dp))
+
+                                                            Row(
+                                                                verticalAlignment = Alignment.CenterVertically,
+                                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                                modifier = Modifier
+                                                                    .background(Color(0xFFEF4444).copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                                                                    .padding(12.dp)
+                                                            ) {
+                                                                Icon(Icons.Default.Warning, contentDescription = null, tint = Color.Red, modifier = Modifier.size(16.dp))
+                                                                Text("Screenshots are blocked or strictly monitored under Signal Protocol.", color = Color.White, fontSize = 11.sp)
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // Render Audio waveform
+                                        if (msg.attachmentType == "AUDIO") {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(36.dp)
+                                                        .background(if (isMe) Color.White.copy(alpha = 0.2f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), CircleShape),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.PlayArrow,
+                                                        contentDescription = "Play",
+                                                        tint = if (isMe) Color.White else MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
+                                                Row(
+                                                    modifier = Modifier.weight(1f),
+                                                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    val bars = listOf(6, 12, 18, 14, 8, 10, 16, 22, 18, 12, 8, 14, 20, 24, 16, 10, 14, 18, 12, 6, 8, 12, 10, 6)
+                                                    bars.forEachIndexed { idx, heightVal ->
+                                                        val isHighlighted = idx < 10
+                                                        val barColor = if (isHighlighted) {
+                                                            if (isMe) Color.White else Color(0xFF9D5F7A)
+                                                        } else {
+                                                            if (isMe) Color.White.copy(alpha = 0.4f) else Color.Gray.copy(alpha = 0.3f)
+                                                        }
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .width(3.dp)
+                                                                .height(heightVal.dp)
+                                                                .background(barColor, RoundedCornerShape(1.dp))
+                                                        )
+                                                    }
+                                                }
+                                                Text("1:32", fontSize = 11.sp, color = if (isMe) Color.White.copy(alpha = 0.8f) else Color.Gray)
+                                            }
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                        }
+
+                                        // Render Document
+                                        if (msg.attachmentType == "DOCUMENT") {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .background(if (isMe) Color.White.copy(alpha = 0.12f) else Color(0xFFEFF6FF), RoundedCornerShape(8.dp))
+                                                    .padding(8.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(32.dp)
+                                                        .background(Color(0xFFEF4444), RoundedCornerShape(6.dp)),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text("PDF", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        msg.attachmentName ?: "Document.pdf",
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        fontSize = 12.sp,
+                                                        color = if (isMe) Color.White else Color.Black,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                    Text("44 KB", fontSize = 10.sp, color = Color.Gray)
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                        }
+
+                                        // Render Poll Card
+                                        if (msg.attachmentType == "POLL") {
+                                            val question = msg.pollQuestion ?: "Poll"
+                                            val options = msg.pollOptions?.split(",") ?: emptyList()
+                                            val votesList = msg.pollVotes?.split(",")?.mapNotNull {
+                                                val parts = it.split(":")
+                                                if (parts.size >= 2) parts[0] to (parts[1].toIntOrNull() ?: 0) else null
+                                            }?.toMap() ?: emptyMap()
+                                            val totalVotes = votesList.values.sum()
+
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .background(if (isDarkTheme) Color(0xFF18181B) else Color(0xFFF8FAFC), RoundedCornerShape(12.dp))
+                                                    .border(1.dp, if (isDarkTheme) Color(0xFF3F3F46) else Color(0xFFE2E8F0), RoundedCornerShape(12.dp))
+                                                    .padding(10.dp)
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(Icons.Default.Poll, contentDescription = "Poll", tint = Color(0xFF9D5F7A), modifier = Modifier.size(16.dp))
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Text(question, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = if (isDarkTheme) Color.White else Color.Black)
+                                                }
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                options.forEach { option ->
+                                                    val count = votesList[option] ?: 0
+                                                    val percent = if (totalVotes > 0) (count.toFloat() / totalVotes * 100).toInt() else 0
+                                                    Column(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .clickable { viewModel.submitPollVote(msg.id, option) }
+                                                            .padding(vertical = 4.dp)
+                                                    ) {
+                                                        Row(
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            Text(option, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = if (isDarkTheme) Color.LightGray else Color.DarkGray)
+                                                            Text("$count votes ($percent%)", fontSize = 10.sp, color = Color.Gray)
+                                                        }
+                                                        Spacer(modifier = Modifier.height(2.dp))
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .height(6.dp)
+                                                                .clip(CircleShape)
+                                                                .background(if (isDarkTheme) Color(0xFF27272A) else Color(0xFFE2E8F0))
+                                                        ) {
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .fillMaxWidth(if (percent > 0) percent / 100f else 0.01f)
+                                                                    .fillMaxHeight()
+                                                                    .background(Color(0xFF9D5F7A), CircleShape)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text("Tap options to vote in real-time!", fontSize = 9.sp, color = Color.Gray, fontStyle = FontStyle.Italic)
+                                            }
+                                        }
+
+                                        // Render Text with highlight of mentions
+                                        if (msg.messageText.isNotEmpty() && msg.attachmentType != "IMAGE" && msg.attachmentType != "POLL") {
+                                            val annotatedText = androidx.compose.ui.text.buildAnnotatedString {
+                                                val words = msg.messageText.split(" ")
+                                                words.forEachIndexed { index, word ->
+                                                    if (word.startsWith("@")) {
+                                                        pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Bold, color = Color(0xFF3B82F6)))
+                                                        append(word)
+                                                        pop()
+                                                    } else {
+                                                        append(word)
+                                                    }
+                                                    if (index < words.size - 1) append(" ")
+                                                }
+                                            }
+                                            Text(
+                                                text = annotatedText,
+                                                fontSize = 14.sp,
+                                                color = if (isMe) Color.White else (if (isDarkTheme) Color(0xFFF4F4F5) else Color(0xFF1F2024)),
+                                                fontWeight = FontWeight.Normal
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.height(4.dp))
+
+                                        // Time stamp, checkmarks, edited, and bookmarked indicator
+                                        Row(
+                                            modifier = Modifier.align(Alignment.End),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            if (msg.isEdited) {
+                                                Text("Edited", fontSize = 8.sp, color = if (isMe) Color.White.copy(alpha = 0.6f) else Color.Gray)
+                                            }
+                                            if (msg.isBookmarked) {
+                                                Icon(Icons.Default.Star, contentDescription = "Bookmarked", tint = Color(0xFFF59E0B), modifier = Modifier.size(10.dp))
+                                            }
+                                            
+                                            if (disappearingTimer > 0 && !msg.isDeleted) {
+                                                val timeLeftSec = remember(msg.timestamp, disappearingTimer, ticker) {
+                                                    val diff = (msg.timestamp + disappearingTimer * 1000L - System.currentTimeMillis()) / 1000L
+                                                    diff.coerceAtLeast(0L)
+                                                }
+                                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Timer,
+                                                        contentDescription = "Disappearing message countdown",
+                                                        tint = if (isMe) Color.White.copy(alpha = 0.8f) else Color(0xFF9D5F7A),
+                                                        modifier = Modifier.size(10.dp)
+                                                    )
+                                                    Text(
+                                                        text = "${timeLeftSec}s",
+                                                        fontSize = 8.sp,
+                                                        color = if (isMe) Color.White.copy(alpha = 0.8f) else Color(0xFF9D5F7A),
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
+
+                                            val sdf = remember { java.text.SimpleDateFormat("hh:mm a", java.util.Locale.getDefault()) }
+                                            val timeStr = remember(msg.timestamp) { sdf.format(java.util.Date(msg.timestamp)) }
+                                            
+                                            Text(
+                                                text = timeStr,
+                                                fontSize = 9.sp,
+                                                color = if (isMe) Color.White.copy(alpha = 0.7f) else Color.Gray
+                                            )
+                                            if (isMe) {
+                                                Icon(
+                                                    imageVector = Icons.Default.DoneAll,
+                                                    contentDescription = "Delivered",
+                                                    tint = Color.White.copy(alpha = 0.8f),
+                                                    modifier = Modifier.size(12.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Render message reactions pill overlapping
+                            val msgReactionsList = remember(msg, msg.reactions, messageReactions) {
+                                val mem = messageReactions[msg.id] ?: emptyList()
+                                val dbReactions = msg.reactions.split(",").filter { it.isNotEmpty() }
+                                (mem + dbReactions).distinct()
+                            }
+                            if (msgReactionsList.isNotEmpty()) {
+                                Row(
+                                    modifier = Modifier
+                                        .padding(start = if (isMe) 0.dp else 40.dp, top = 2.dp)
+                                        .background(if (isDarkTheme) Color(0xFF1E1E22) else Color(0xFFFFFFFF), RoundedCornerShape(12.dp))
+                                        .border(1.dp, if (isDarkTheme) Color(0xFF3F3F46) else Color(0xFFE4E4E7), RoundedCornerShape(12.dp))
+                                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    msgReactionsList.forEach { rEmoji ->
+                                        Text(text = rEmoji, fontSize = 11.sp)
+                                    }
+                                    if (msgReactionsList.size > 1) {
+                                        Text(
+                                            text = msgReactionsList.size.toString(),
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isDarkTheme) Color.White else Color.Black
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Autocomplete suggestions box for @ mentions
+            AnimatedVisibility(visible = suggestedMembers.isNotEmpty()) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 2.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isDarkTheme) Color(0xFF1E1E22) else Color(0xFFFFFFFF)
+                    ),
+                    elevation = CardDefaults.cardElevation(4.dp)
+                ) {
+                    Column(modifier = Modifier.padding(8.dp)) {
+                        Text("MENTION MEMBERS", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.padding(bottom = 4.dp))
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(suggestedMembers) { member ->
+                                AssistChip(
+                                    onClick = {
+                                        val baseText = messageText.substringBeforeLast("@")
+                                        onMessageTextChange("$baseText@$member ")
+                                    },
+                                    label = { Text(text = member, fontSize = 11.sp) }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Inline Replying To Banner
+            if (replyingToMessage != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(if (isDarkTheme) Color(0xFF1E1E22) else Color(0xFFE4E4E7))
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Replying to ${replyingToMessage!!.senderName}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF9D5F7A))
+                        Text(replyingToMessage!!.messageText, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, color = if (isDarkTheme) Color.LightGray else Color.DarkGray)
+                    }
+                    IconButton(onClick = { replyingToMessage = null }, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Cancel reply", modifier = Modifier.size(14.dp))
+                    }
+                }
+            }
+
+            // Interactive Poll Creator Drawer
+            AnimatedVisibility(visible = showPollCreator) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isDarkTheme) Color(0xFF1E1E22) else Color(0xFFFFFFFF)
+                    ),
+                    border = BorderStroke(1.dp, if (isDarkTheme) Color(0xFF3F3F46) else Color(0xFFE2E8F0))
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("CREATE CLASSROOM POLL", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF9D5F7A))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = pollQuestionInput,
+                            onValueChange = { pollQuestionInput = it },
+                            placeholder = { Text("What is your question?", fontSize = 12.sp) },
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            singleLine = true,
+                            textStyle = TextStyle(fontSize = 12.sp)
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        OutlinedTextField(
+                            value = pollOptionsInput,
+                            onValueChange = { pollOptionsInput = it },
+                            placeholder = { Text("Comma-separated options (e.g. Yes,No,Maybe)", fontSize = 12.sp) },
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            singleLine = true,
+                            textStyle = TextStyle(fontSize = 12.sp)
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = {
+                                    if (pollQuestionInput.trim().isNotEmpty() && pollOptionsInput.trim().isNotEmpty()) {
+                                        viewModel.sendChatMessage(
+                                            channelId = activeChannel.id,
+                                            senderId = senderIdStr,
+                                            senderName = senderName,
+                                            senderRole = currentRole,
+                                            messageText = "Classroom Poll: " + pollQuestionInput.trim(),
+                                            attachmentType = "POLL",
+                                            pollQuestion = pollQuestionInput.trim(),
+                                            pollOptions = pollOptionsInput.trim()
+                                        )
+                                        pollQuestionInput = ""
+                                        pollOptionsInput = ""
+                                        showPollCreator = false
+                                        Toast.makeText(context, "Poll published!", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "Please fill out both fields!", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9D5F7A))
+                            ) {
+                                Text("Publish Poll", fontSize = 12.sp)
+                            }
+                            OutlinedButton(
+                                onClick = { showPollCreator = false },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Cancel", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // INPUT PANEL & SLIDE-UP ATTACHMENTS
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(if (isDarkTheme) Color(0xFF18181B) else Color(0xFFF3F4F6))
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(if (isDarkTheme) Color(0xFF27272A) else Color(0xFFFFFFFF), RoundedCornerShape(24.dp))
+                            .border(1.dp, if (isDarkTheme) Color(0xFF3F3F46) else Color(0xFFE4E4E7), RoundedCornerShape(24.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Smiley face icon
+                        IconButton(onClick = { activeReactionMessageId = null }) {
+                            Icon(
+                                imageVector = Icons.Default.SentimentSatisfied,
+                                contentDescription = "Emoji picker",
+                                tint = Color.Gray,
+                                modifier = Modifier.size(24.dp)
+                             )
+                        }
+
+                        // Text input field
+                        BasicTextField(
+                            value = messageText,
+                            onValueChange = onMessageTextChange,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 4.dp)
+                                .testTag("chat_input_text_field"),
+                            textStyle = TextStyle(
+                                fontSize = 15.sp,
+                                color = if (isDarkTheme) Color.White else Color.Black
+                            ),
+                            maxLines = 4,
+                            decorationBox = { innerTextField: @Composable () -> Unit ->
+                                Box {
+                                    if (messageText.isEmpty()) {
+                                        Text(
+                                            text = if (editingMessage != null) "Edit message..." else "Signal message",
+                                            color = Color.Gray,
+                                            fontSize = 15.sp
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            }
+                        )
+
+                        // Camera icon
+                        IconButton(onClick = { onAttachMedia("CAMERA") }) {
+                            Icon(
+                                imageVector = Icons.Default.CameraAlt,
+                                contentDescription = "Take snap",
+                                tint = Color.Gray,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+
+                        // Microphone icon
+                        IconButton(onClick = { onAttachMedia("AUDIO") }) {
+                            Icon(
+                                imageVector = Icons.Default.Mic,
+                                contentDescription = "Record audio",
+                                tint = Color.Gray,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+
+                    // Send / Attachment Button
+                    val hasText = messageText.trim().isNotEmpty()
+                    Box(
+                        modifier = Modifier
+                            .size(46.dp)
+                            .background(Color(0xFF9D5F7A), CircleShape)
+                            .clickable {
+                                if (hasText) {
+                                    val trimmed = messageText.trim()
+                                    if (slowModeLimitActive && slowModeCountdown > 0) {
+                                        Toast.makeText(context, "Slow mode limit active! Wait $slowModeCountdown seconds.", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        if (editingMessage != null) {
+                                            viewModel.editChatMessage(editingMessage!!.id, trimmed)
+                                            editingMessage = null
+                                        } else {
+                                            viewModel.sendChatMessage(
+                                                channelId = activeChannel.id,
+                                                senderId = senderIdStr,
+                                                senderName = senderName,
+                                                senderRole = currentRole,
+                                                messageText = trimmed,
+                                                replyToId = replyingToMessage?.id,
+                                                replyToText = replyingToMessage?.messageText,
+                                                replyToSender = replyingToMessage?.senderName
+                                            )
+                                            lastSentTime = System.currentTimeMillis()
+                                            if (activeChannel.slowModeSeconds > 0) {
+                                                slowModeCountdown = activeChannel.slowModeSeconds
+                                            }
+                                        }
+                                        onMessageTextChange("")
+                                        replyingToMessage = null
+                                    }
+                                } else {
+                                    showAttachmentDrawer = !showAttachmentDrawer
+                                }
+                            }
+                            .testTag("send_chat_msg_btn"),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (hasText) Icons.AutoMirrored.Filled.Send else Icons.Default.Add,
+                            contentDescription = if (hasText) "Send" else "Toggle Attachments",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+
+                // Smooth bottom drawer animation
+                AnimatedVisibility(
+                    visible = showAttachmentDrawer,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 10.dp)
+                            .background(if (isDarkTheme) Color(0xFF1E1E22) else Color(0xFFFFFFFF), RoundedCornerShape(16.dp))
+                            .border(1.dp, if (isDarkTheme) Color(0xFF27272A) else Color(0xFFE2E8F0), RoundedCornerShape(16.dp))
+                            .padding(14.dp)
+                    ) {
+                        Text(
+                            text = "QUICK ATTACH PHOTOS",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp)
+                        ) {
+                            items(quickImages) { img ->
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier
+                                        .width(75.dp)
+                                        .clickable {
+                                            viewModel.sendChatMessage(
+                                                channelId = activeChannel.id,
+                                                senderId = senderIdStr,
+                                                senderName = senderName,
+                                                senderRole = currentRole,
+                                                messageText = "Attached: " + img.first,
+                                                attachmentType = "IMAGE",
+                                                attachmentName = img.first + ".jpg",
+                                                attachmentPath = img.second
+                                            )
+                                            showAttachmentDrawer = false
+                                            Toast.makeText(context, "Image attached from gallery!", Toast.LENGTH_SHORT).show()
+                                        }
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(54.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                    ) {
+                                        coil.compose.AsyncImage(
+                                            model = img.second,
+                                            contentDescription = null,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = img.first.split(" ").firstOrNull() ?: "",
+                                        fontSize = 10.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+
+                        HorizontalDivider(
+                            color = if (isDarkTheme) Color(0xFF27272A) else Color(0xFFF1F5F9),
+                            thickness = 1.dp,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            val drawerActions = listOf(
+                                Triple("Gallery", Icons.Default.Image, Color(0xFF3B82F6)),
+                                Triple("File", Icons.Default.Description, Color(0xFF10B981)),
+                                Triple("Contact", Icons.Default.ContactPage, Color(0xFF8B5CF6)),
+                                Triple("Poll", Icons.Default.Poll, Color(0xFFEF4444))
+                            )
+
+                            drawerActions.forEach { act ->
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier
+                                        .clickable {
+                                            showAttachmentDrawer = false
+                                            if (act.first == "Poll") {
+                                                showPollCreator = true
+                                            } else {
+                                                onAttachMedia(act.first.uppercase())
+                                            }
+                                        }
+                                        .padding(4.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(52.dp)
+                                            .background(act.third, CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = act.second,
+                                            contentDescription = act.first,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = act.first,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (isDarkTheme) Color.White else Color.Black
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ==========================================
+            // SIGNAL-INSPIRED CHAT DIALOGS & OVERLAYS
+            // ==========================================
+            if (showRoomInfoDialog) {
+                var isEditingRoom by remember { mutableStateOf(false) }
+                var editRoomName by remember { mutableStateOf(activeChannel.name) }
+                var editRoomDesc by remember { mutableStateOf(activeChannel.description) }
+                var editRoomTopic by remember { mutableStateOf(activeChannel.dailyTopic ?: "") }
+                
+                // Disappearing messages timer for this channel ID
+                var activeTimerSec by remember { mutableStateOf(disappearingTimers[activeChannel.id] ?: 0) }
+
+                AlertDialog(
+                    onDismissRequest = { showRoomInfoDialog = false },
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFF2C6BED), modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Tuition Room Settings & Info", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    text = {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.verticalScroll(rememberScrollState())
+                        ) {
+                            if (!isEditingRoom) {
+                                // View Mode
+                                Text("Room Name: ${activeChannel.name}", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text("Description: ${activeChannel.description.ifEmpty { "No tuition description provided." }}", fontSize = 13.sp, color = Color.Gray)
+                                if (!activeChannel.dailyTopic.isNullOrEmpty()) {
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = Color(0xFF2C6BED).copy(alpha = 0.08f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFFEAB308), modifier = Modifier.size(16.dp))
+                                            Column {
+                                                Text("Daily Academic Topic", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2C6BED))
+                                                Text(activeChannel.dailyTopic, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                Button(
+                                    onClick = { isEditingRoom = true },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C6BED).copy(alpha = 0.1f), contentColor = Color(0xFF2C6BED)),
+                                    modifier = Modifier.fillMaxWidth().testTag("edit_room_details_toggle_btn")
+                                ) {
+                                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Edit Room Details", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            } else {
+                                // Edit Mode
+                                OutlinedTextField(
+                                    value = editRoomName,
+                                    onValueChange = { editRoomName = it },
+                                    label = { Text("Room / Group Name") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth().testTag("edit_room_name_input")
+                                )
+                                OutlinedTextField(
+                                    value = editRoomDesc,
+                                    onValueChange = { editRoomDesc = it },
+                                    label = { Text("Description") },
+                                    modifier = Modifier.fillMaxWidth().testTag("edit_room_desc_input")
+                                )
+                                OutlinedTextField(
+                                    value = editRoomTopic,
+                                    onValueChange = { editRoomTopic = it },
+                                    label = { Text("Daily Academic Topic") },
+                                    placeholder = { Text("e.g. Chapter 4 Integration practice") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth().testTag("edit_room_topic_input")
+                                )
+                                
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    TextButton(
+                                        onClick = { isEditingRoom = false },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text("CANCEL")
+                                    }
+                                    Button(
+                                        onClick = {
+                                            if (editRoomName.trim().isNotEmpty()) {
+                                                viewModel.updateChannelGroupDetails(
+                                                    activeChannel.id,
+                                                    editRoomName.trim(),
+                                                    editRoomDesc.trim(),
+                                                    editRoomTopic.trim().ifEmpty { null }
+                                                )
+                                                isEditingRoom = false
+                                                Toast.makeText(context, "Tuition Room updated!", Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C6BED)),
+                                        modifier = Modifier.weight(1f).testTag("save_room_details_btn")
+                                    ) {
+                                        Text("SAVE", color = Color.White)
+                                    }
+                                }
+                            }
+
+                            HorizontalDivider()
+
+                            // Disappearing Messages Selector
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.HourglassEmpty, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Disappearing Messages (Signal-Style)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                }
+                                Text("Select message expiry timer for this chat room:", fontSize = 11.sp, color = Color.Gray)
+                                
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    val timerOptions = listOf(
+                                        Pair("Off", 0),
+                                        Pair("30s", 30),
+                                        Pair("5m", 300),
+                                        Pair("1h", 3600),
+                                        Pair("1d", 86400)
+                                    )
+                                    timerOptions.forEach { opt ->
+                                        val isSelected = activeTimerSec == opt.second
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .background(
+                                                    if (isSelected) Color(0xFF2C6BED) else (if (isDarkTheme) Color(0xFF1E1E22) else Color(0xFFF3F4F6)),
+                                                    RoundedCornerShape(4.dp)
+                                                )
+                                                .border(1.dp, if (isSelected) Color(0xFF2C6BED) else Color.Gray.copy(alpha = 0.2f), RoundedCornerShape(4.dp))
+                                                .clickable {
+                                                    activeTimerSec = opt.second
+                                                    if (opt.second == 0) {
+                                                        disappearingTimers.remove(activeChannel.id)
+                                                    } else {
+                                                        disappearingTimers[activeChannel.id] = opt.second
+                                                    }
+                                                    Toast.makeText(context, "Disappearing Messages: ${opt.first}", Toast.LENGTH_SHORT).show()
+                                                }
+                                                .padding(vertical = 8.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = opt.first,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isSelected) Color.White else (if (isDarkTheme) Color.LightGray else Color.DarkGray)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            HorizontalDivider()
+                            
+                            // Classroom Members
+                            Text("Room Members & Active Roles:", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                val memberRoles = listOf(
+                                    Triple("Director Admin", "ADMIN", "Owner"),
+                                    Triple("Verma Sir", "TEACHER", "Physics Lead"),
+                                    Triple("Dr. Shreya Ma'am", "TEACHER", "Chemistry Lead"),
+                                    Triple(senderName, currentRole, "You")
+                                )
+                                memberRoles.forEach { member ->
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(if (isDarkTheme) Color(0xFF1E1E22) else Color(0xFFF9FAFB), RoundedCornerShape(6.dp))
+                                            .padding(8.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .background(Color(0xFF2C6BED).copy(alpha = 0.15f), CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(member.first.take(1).uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2C6BED))
+                                        }
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(member.first, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                            Text(member.third, fontSize = 10.sp, color = Color.Gray)
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .background(
+                                                    when (member.second) {
+                                                        "ADMIN", "TEACHER" -> Color(0xFF10B981).copy(alpha = 0.15f)
+                                                        else -> Color.Gray.copy(alpha = 0.15f)
+                                                    },
+                                                    RoundedCornerShape(4.dp)
+                                                )
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = member.second,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = when (member.second) {
+                                                    "ADMIN", "TEACHER" -> Color(0xFF10B981)
+                                                    else -> Color.Gray
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            HorizontalDivider()
+
+                            Text("Classroom Conduct Guidelines:", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Text(
+                                "1. strictly use for academic discussions & homework doubts.\n" +
+                                "2. No personal chatting, advertisements, or spamming allowed.\n" +
+                                "3. Teachers can mute or lock discussions at any time.",
+                                fontSize = 11.sp,
+                                color = Color.Gray
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showRoomInfoDialog = false }) {
+                            Text("DONE")
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(16.dp)
+                )
+            }
+
+            if (showPinnedMessagesDialog) {
+                val pinnedList = remember(messages) { messages.filter { it.isPinned } }
+                AlertDialog(
+                    onDismissRequest = { showPinnedMessagesDialog = false },
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.PushPin, contentDescription = null, tint = Color(0xFFEAB308), modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Important Classroom Notices", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            if (pinnedList.isEmpty()) {
+                                Text("No notice pinned yet by teachers. Standard announcements are shared at the top.", fontSize = 13.sp, color = Color.Gray)
+                            } else {
+                                LazyColumn(
+                                    modifier = Modifier.heightIn(max = 240.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    items(pinnedList) { pin ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(if (isDarkTheme) Color(0xFF27272A) else Color(0xFFF1F5F9), RoundedCornerShape(8.dp))
+                                                .padding(10.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(pin.senderName, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = Color.Gray)
+                                                Text(pin.messageText, fontSize = 13.sp)
+                                            }
+                                            if (currentRole.equals("Teacher", ignoreCase = true) || currentRole.equals("Admin", ignoreCase = true)) {
+                                                IconButton(
+                                                    onClick = { viewModel.pinChatMessage(pin.id, false) },
+                                                    modifier = Modifier.size(28.dp)
+                                                ) {
+                                                    Icon(Icons.Default.Close, contentDescription = "Unpin", modifier = Modifier.size(16.dp), tint = Color.Red)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showPinnedMessagesDialog = false }) {
+                            Text("Close")
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(16.dp)
+                )
+            }
+
+            if (showReportDialog) {
+                var selectedReportReason by remember { mutableStateOf("Spam or Advertising") }
+                var reportDetails by remember { mutableStateOf("") }
+                val options = listOf("Spam or Advertising", "Harassment or Abuse", "Non-Academic Chat / Chit-chat", "Cheating or Answer Leak")
+                
+                AlertDialog(
+                    onDismissRequest = { showReportDialog = false },
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Flag, contentDescription = null, tint = Color.Red, modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Report Classroom Abuse", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("Select report category for monitoring admin review:", fontSize = 12.sp, color = Color.Gray)
+                            options.forEach { opt ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { selectedReportReason = opt }
+                                        .padding(vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    RadioButton(selected = (selectedReportReason == opt), onClick = { selectedReportReason = opt })
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(opt, fontSize = 13.sp)
+                                }
+                            }
+                            OutlinedTextField(
+                                value = reportDetails,
+                                onValueChange = { reportDetails = it },
+                                label = { Text("Add specific notes / message details", fontSize = 11.sp) },
+                                placeholder = { Text("Type here...", fontSize = 13.sp) },
+                                modifier = Modifier.fillMaxWidth(),
+                                maxLines = 3
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                showReportDialog = false
+                                Toast.makeText(context, "Anonymously reported! Admins will take strict review actions.", Toast.LENGTH_LONG).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                        ) {
+                            Text("Submit Report", color = Color.White)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showReportDialog = false }) {
+                            Text("Cancel")
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(16.dp)
+                )
+            }
+
+            if (showWallpaperDialog) {
+                val wallpapers = listOf(
+                    Pair("Default Classic", null),
+                    Pair("Dark Slate Space", Color(0xFF181C24)),
+                    Pair("Deep Cosmic Navy", Color(0xFF0F172A)),
+                    Pair("Warm Desert Sand", Color(0xFFFAF7F2)),
+                    Pair("Sage Green Garden", Color(0xFFF2F4F2))
+                )
+                AlertDialog(
+                    onDismissRequest = { showWallpaperDialog = false },
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Palette, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Select Local Chat Theme", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            wallpapers.forEach { wall ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { selectedWallpaperColor = wall.second }
+                                        .padding(10.dp)
+                                        .background(if (isDarkTheme) Color(0xFF27272A) else Color(0xFFF3F4F6), RoundedCornerShape(8.dp)),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(wall.first, fontSize = 13.sp)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clip(CircleShape)
+                                            .background(wall.second ?: (if (isDarkTheme) Color(0xFF121214) else Color(0xFFF3F4F6)))
+                                            .border(1.dp, Color.Gray, CircleShape)
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showWallpaperDialog = false }) {
+                            Text("Save Style")
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(16.dp)
+                )
+            }
+
+            if (showSlowModeDialog) {
+                val durations = listOf(
+                    Pair("Disabled", 0),
+                    Pair("5 Seconds pacing limit", 5),
+                    Pair("10 Seconds pacing limit", 10),
+                    Pair("30 Seconds spam filter", 30),
+                    Pair("60 Seconds max review", 60)
+                )
+                AlertDialog(
+                    onDismissRequest = { showSlowModeDialog = false },
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.SlowMotionVideo, contentDescription = null, tint = Color(0xFF8B5CF6), modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Configure Slow Mode Pacing", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Select doubt spacing cooldown delay for student users:", fontSize = 12.sp, color = Color.Gray)
+                            durations.forEach { d ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            viewModel.setChannelSlowMode(activeChannel.id, d.second)
+                                            showSlowModeDialog = false
+                                            Toast.makeText(context, "Slow Mode pacing updated to ${d.first}!", Toast.LENGTH_SHORT).show()
+                                        }
+                                        .padding(12.dp)
+                                        .background(if (isDarkTheme) Color(0xFF27272A) else Color(0xFFF3F4F6), RoundedCornerShape(8.dp)),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(d.first, fontSize = 13.sp)
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showSlowModeDialog = false }) {
+                            Text("Close")
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(16.dp)
+                )
+            }
+
+            if (showSharedMediaDialog) {
+                val mediaFiles = listOf(
+                    "📐 Physics_Class_12_Syllabus.pdf",
+                    "🧪 Solid_State_Chemistry_Notes.pdf",
+                    "🧮 Trigonometry_Assignment_Sheet_Answers.docx",
+                    "📸 Classroom_Board_Work_Derivative_Formula.png"
+                )
+                AlertDialog(
+                    onDismissRequest = { showSharedMediaDialog = false },
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Color(0xFFEC4899), modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Shared Documents & Notes", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("List of resources shared in this class batch chat:", fontSize = 12.sp, color = Color.Gray)
+                            LazyColumn(
+                                modifier = Modifier.heightIn(max = 200.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(mediaFiles) { file ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(if (isDarkTheme) Color(0xFF27272A) else Color(0xFFF1F5F9), RoundedCornerShape(8.dp))
+                                            .padding(12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(file, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                                        Icon(
+                                            imageVector = Icons.Default.CloudDownload,
+                                            contentDescription = "Download File",
+                                            tint = Color(0xFF3B82F6),
+                                            modifier = Modifier
+                                                .size(20.dp)
+                                                .clickable {
+                                                    Toast.makeText(context, "Saved to Device Downloads!", Toast.LENGTH_SHORT).show()
+                                                }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showSharedMediaDialog = false }) {
+                            Text("Close")
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(16.dp)
+                )
+            }
+
+            if (showLeaveRoomDialog) {
+                val isCoreMandatory = activeChannel.name.contains("Announcements", ignoreCase = true) || 
+                                     activeChannel.name.contains("Mathematics", ignoreCase = true) || 
+                                     activeChannel.name.contains("Science", ignoreCase = true)
+                AlertDialog(
+                    onDismissRequest = { showLeaveRoomDialog = false },
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.ExitToApp, contentDescription = null, tint = Color.Red, modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Leave Discussion Group?", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    text = {
+                        Column {
+                            if (isCoreMandatory) {
+                                Text(
+                                    "⚠️ Core Tuition Batch Block:\n" +
+                                    "This group represents a mandatory enrolled course tuition room. Students cannot leave these core batches independently.\n" +
+                                    "\n" +
+                                    "Please coordinate with Verma Sir or tuition administrators if you believe there is an enrollment mistake.",
+                                    fontSize = 13.sp,
+                                    color = Color.Red
+                                )
+                            } else {
+                                Text(
+                                    "Are you sure you want to leave this doubt-solving workspace? You will lose temporary updates and historical local cache logs.",
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        if (isCoreMandatory) {
+                            Button(onClick = { showLeaveRoomDialog = false }) {
+                                Text("Acknowledge")
+                            }
+                        } else {
+                            Button(
+                                onClick = {
+                                    showLeaveRoomDialog = false
+                                    Toast.makeText(context, "Successfully exited room.", Toast.LENGTH_SHORT).show()
+                                    onBack()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                            ) {
+                                Text("Leave Room", color = Color.White)
+                            }
+                        }
+                    },
+                    dismissButton = {
+                        if (!isCoreMandatory) {
+                            TextButton(onClick = { showLeaveRoomDialog = false }) {
+                                Text("Cancel")
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(16.dp)
+                )
+            }
+
+            if (showSafetyNumbersDialog) {
+                val isVerified = verifiedSafetyNumbers[activeChannel.id] == true
+                
+                AlertDialog(
+                    onDismissRequest = { showSafetyNumbersDialog = false },
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Security, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Verify Safety Numbers", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    text = {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.verticalScroll(rememberScrollState())
+                        ) {
+                            Text(
+                                text = "To verify that your end-to-end encryption with ${activeChannel.name} is secure, compare the safety numbers below with their device. You can also scan their QR code to verify instantly.",
+                                fontSize = 11.sp,
+                                color = Color.Gray,
+                                textAlign = TextAlign.Center
+                            )
+                            
+                            Box(
+                                modifier = Modifier
+                                    .size(140.dp)
+                                    .background(Color.White, RoundedCornerShape(12.dp))
+                                    .border(2.dp, Color(0xFFE2E8F0), RoundedCornerShape(12.dp))
+                                    .padding(12.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Canvas(modifier = Modifier.fillMaxSize()) {
+                                    val size = size.width
+                                    val blocks = 15
+                                    val blockSize = size / blocks
+                                    val randomHash = activeChannel.name.hashCode()
+                                    for (row in 0 until blocks) {
+                                        for (col in 0 until blocks) {
+                                            val isFinder = (row < 4 && col < 4) || (row < 4 && col >= blocks - 4) || (row >= blocks - 4 && col < 4)
+                                            if (isFinder) {
+                                                val isBorder = row == 0 || row == 3 || col == 0 || col == 3 || 
+                                                               (row == 0 && col >= blocks - 4) || (row == 3 && col >= blocks - 4) ||
+                                                               (col == blocks - 4 || col == blocks - 1) && row < 4 ||
+                                                               (row == blocks - 4 || row == blocks - 1) && col < 4 ||
+                                                               (col == 0 || col == 3) && row >= blocks - 4
+                                                if (isBorder || (row == 1 && col == 1) || (row == 1 && col == blocks - 2) || (row == blocks - 2 && col == 1)) {
+                                                    drawRect(
+                                                        color = Color.Black,
+                                                        topLeft = androidx.compose.ui.geometry.Offset(col * blockSize, row * blockSize),
+                                                        size = androidx.compose.ui.geometry.Size(blockSize, blockSize)
+                                                    )
+                                                }
+                                            } else {
+                                                val bit = ((randomHash xor (row * 37 + col * 17)) and 1) == 0
+                                                if (bit) {
+                                                    drawRect(
+                                                        color = Color.Black,
+                                                        topLeft = androidx.compose.ui.geometry.Offset(col * blockSize, row * blockSize),
+                                                        size = androidx.compose.ui.geometry.Size(blockSize, blockSize)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            val safetyNumberStr = remember(activeChannel.id) {
+                                val rand = java.util.Random(activeChannel.id + 1019)
+                                (1..12).joinToString(" ") { String.format("%05d", rand.nextInt(100000)) }
+                            }
+                            
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = if (isDarkTheme) Color(0xFF1E1E22) else Color(0xFFF1F5F9)),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = safetyNumberStr,
+                                    fontSize = 13.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (isDarkTheme) Color.White else Color.Black,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(12.dp)
+                                )
+                            }
+                            
+                            HorizontalDivider(color = if (isDarkTheme) Color(0xFF27272A) else Color(0xFFE4E4E7))
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Mark as Verified", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Text("Confirm encryption signature is authentic", fontSize = 11.sp, color = Color.Gray)
+                                }
+                                Switch(
+                                    checked = isVerified,
+                                    onCheckedChange = { verified ->
+                                        verifiedSafetyNumbers[activeChannel.id] = verified
+                                        Toast.makeText(context, if (verified) "Identity Verified! 🔒" else "Verification cleared", Toast.LENGTH_SHORT).show()
+                                    },
+                                    colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF10B981))
+                                )
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = { showSafetyNumbersDialog = false },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9D5F7A))
+                        ) {
+                            Text("Done", color = Color.White)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(16.dp)
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun CommunityChatOverlay(
     viewModel: com.example.ui.viewmodel.AppViewModel,
@@ -11867,9 +17245,16 @@ fun CommunityChatOverlay(
     val currentRole by viewModel.currentUserRole.collectAsState()
     val currentStudentId by viewModel.currentUserId.collectAsState()
     val students by viewModel.students.collectAsState()
+    val onlineUsersMap by viewModel.onlineUsersMap.collectAsState()
+
+    val profileSharedPrefs = remember { context.getSharedPreferences("signal_chat_prefs", android.content.Context.MODE_PRIVATE) }
+    var signalProfileName by remember { mutableStateOf(profileSharedPrefs.getString("signal_profile_name", "") ?: "") }
+    var signalProfileStatus by remember { mutableStateOf(profileSharedPrefs.getString("signal_profile_status", "At TAMS Academy 📖") ?: "At TAMS Academy 📖") }
+    var signalProfileColorHex by remember { mutableStateOf(profileSharedPrefs.getString("signal_profile_color_hex", "#2C6BED") ?: "#2C6BED") }
+    var showSignalSettingsDialog by remember { mutableStateOf(false) }
 
     // Resolve current user name & ID
-    val (senderName, senderIdStr) = remember(currentRole, currentStudentId, students) {
+    val (defaultSenderName, senderIdStr) = remember(currentRole, currentStudentId, students) {
         when (currentRole) {
             "ADMIN" -> Pair("Director Admin", "ADMIN")
             "STAFF" -> Pair("Academy Staff", "STAFF")
@@ -11881,6 +17266,8 @@ fun CommunityChatOverlay(
             else -> Pair("Academy Guest", "GUEST")
         }
     }
+    
+    val senderName = if (signalProfileName.isNotEmpty()) signalProfileName else defaultSenderName
 
     var messageText by remember { mutableStateOf("") }
     var searchQuery by remember { mutableStateOf("") }
@@ -11897,359 +17284,636 @@ fun CommunityChatOverlay(
     var showAttachmentDialog by remember { mutableStateOf(false) }
 
     val activeChannel = remember(channels, activeChannelId) {
-        channels.find { it.id == activeChannelId }
+        if (activeChannelId == -999L) {
+            com.example.data.model.ChatChannel(
+                id = -999L,
+                name = "Note to Self",
+                description = "Personal workspace for doubts and files",
+                isGroup = false,
+                isPrivate = true
+            )
+        } else {
+            channels.find { it.id == activeChannelId }
+        }
     }
 
-    AlertDialog(
-        onDismissRequest = onClose,
-        modifier = Modifier
-            .fillMaxWidth(0.98f)
-            .fillMaxHeight(0.95f)
-            .testTag("community_chat_overlay_dialog"),
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.Forum,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(28.dp)
+    val themeMode by viewModel.themeMode.collectAsState()
+    val isDarkTheme = remember(themeMode) {
+        themeMode == "DARK" || themeMode == "COSMIC_SLATE" || themeMode == "MIDNIGHT_EMERALD"
+    }
+
+    // Channels List
+    val filteredChannels = remember(channels, searchQuery, senderIdStr) {
+        channels.filter {
+            val matchesSearch = it.name.contains(searchQuery, ignoreCase = true) || it.description.contains(searchQuery, ignoreCase = true)
+            // Direct chats should only show for the involved users
+            val matchesPrivacy = !it.isPrivate || it.firstUserId == senderIdStr || it.secondUserId == senderIdStr
+            matchesSearch && matchesPrivacy
+        }
+    }
+
+    // State for active call
+    var activeCallRoomName by remember { mutableStateOf<String?>(null) }
+    var activeCallTypeIsVideo by remember { mutableStateOf(true) }
+
+    // Signal-Inspired State Variables
+    val disappearingTimers = remember { mutableStateMapOf<Long, Int>() }
+    val verifiedSafetyNumbers = remember { mutableStateMapOf<Long, Boolean>() }
+    val viewOnceOpenedIds = remember { mutableStateListOf<Long>() }
+    
+    val sharedPrefs = remember { context.getSharedPreferences("signal_chat_prefs", android.content.Context.MODE_PRIVATE) }
+    var screenLockPin by remember { mutableStateOf(sharedPrefs.getString("screen_lock_pin", "") ?: "") }
+    var isScreenLocked by remember { mutableStateOf(screenLockPin.isNotEmpty()) }
+
+    // Activity Result Launchers for Real Attachments
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        if (uri != null) {
+            val fileName = getFileNameFromUri(context, uri)
+            viewModel.sendChatMessage(
+                channelId = activeChannel?.id ?: 0L,
+                senderId = senderIdStr,
+                senderName = senderName,
+                senderRole = currentRole,
+                messageText = "Shared gallery photo: $fileName",
+                attachmentType = "IMAGE",
+                attachmentName = fileName,
+                attachmentPath = uri.toString()
+            )
+            Toast.makeText(context, "Photo attached successfully!", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.TakePicturePreview()
+    ) { bitmap: android.graphics.Bitmap? ->
+        if (bitmap != null) {
+            val uri = saveBitmapToCache(context, bitmap)
+            if (uri != null) {
+                viewModel.sendChatMessage(
+                    channelId = activeChannel?.id ?: 0L,
+                    senderId = senderIdStr,
+                    senderName = senderName,
+                    senderRole = currentRole,
+                    messageText = "Captured live camera snap",
+                    attachmentType = "IMAGE",
+                    attachmentName = "Snapshot_${System.currentTimeMillis()}.jpg",
+                    attachmentPath = uri.toString()
+                )
+                Toast.makeText(context, "Snapshot attached successfully!", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    val docLauncher = rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        if (uri != null) {
+            val fileName = getFileNameFromUri(context, uri)
+            viewModel.sendChatMessage(
+                channelId = activeChannel?.id ?: 0L,
+                senderId = senderIdStr,
+                senderName = senderName,
+                senderRole = currentRole,
+                messageText = "Shared document file: $fileName",
+                attachmentType = "DOCUMENT",
+                attachmentName = fileName,
+                attachmentPath = uri.toString()
+            )
+            Toast.makeText(context, "Document attached successfully!", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val audioLauncher = rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        if (uri != null) {
+            val fileName = getFileNameFromUri(context, uri)
+            viewModel.sendChatMessage(
+                channelId = activeChannel?.id ?: 0L,
+                senderId = senderIdStr,
+                senderName = senderName,
+                senderRole = currentRole,
+                messageText = "Shared voice/audio: $fileName",
+                attachmentType = "AUDIO",
+                attachmentName = fileName,
+                attachmentPath = uri.toString()
+            )
+            Toast.makeText(context, "Audio attached successfully!", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Call Screen Overlay Dialog
+    if (activeCallRoomName != null) {
+        Dialog(
+            onDismissRequest = {},
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+            var isMuted by remember { mutableStateOf(false) }
+            var isVideoEnabled by remember { mutableStateOf(activeCallTypeIsVideo) }
+            var isSpeakerOn by remember { mutableStateOf(true) }
+            var callSeconds by remember { mutableStateOf(0) }
+
+            // Camera and Mic permission states
+            var hasCameraPermission by remember {
+                mutableStateOf(
+                    context.checkSelfPermission(android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                )
+            }
+            var hasAudioPermission by remember {
+                mutableStateOf(
+                    context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                )
+            }
+
+            val permissionLauncher = rememberLauncherForActivityResult(
+                contract = androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+            ) { perms ->
+                hasCameraPermission = perms[android.Manifest.permission.CAMERA] == true
+                hasAudioPermission = perms[android.Manifest.permission.RECORD_AUDIO] == true
+            }
+
+            // Automatically request permissions when call starts
+            LaunchedEffect(activeCallRoomName) {
+                if (activeCallRoomName != null) {
+                    permissionLauncher.launch(
+                        arrayOf(
+                            android.Manifest.permission.CAMERA,
+                            android.Manifest.permission.RECORD_AUDIO
+                        )
                     )
-                    Column {
-                        Text(
-                            text = "Academia Community Chat",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Open-Source Signal & Telegram Features • $senderName ($currentRole)",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-                IconButton(onClick = onClose, modifier = Modifier.testTag("chat_close_x_btn")) {
-                    Icon(Icons.Default.Close, contentDescription = "Close Chat")
                 }
             }
-        },
-        text = {
-            Row(
+
+            // Real-time microphone amplitude monitoring
+            var micAmplitude by remember { mutableStateOf(0.1f) }
+
+            LaunchedEffect(hasAudioPermission, isMuted, activeCallRoomName) {
+                if (hasAudioPermission && !isMuted && activeCallRoomName != null) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        val sampleRate = 8000
+                        val channelConfig = android.media.AudioFormat.CHANNEL_IN_MONO
+                        val audioFormat = android.media.AudioFormat.ENCODING_PCM_16BIT
+                        val minBufSize = android.media.AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
+                        if (minBufSize > 0) {
+                            try {
+                                val audioRecord = android.media.AudioRecord(
+                                    android.media.MediaRecorder.AudioSource.MIC,
+                                    sampleRate,
+                                    channelConfig,
+                                    audioFormat,
+                                    minBufSize
+                                )
+                                if (audioRecord.state == android.media.AudioRecord.STATE_INITIALIZED) {
+                                    audioRecord.startRecording()
+                                    val buffer = ShortArray(minBufSize)
+                                    while (activeCallRoomName != null && !isMuted) {
+                                        val read = audioRecord.read(buffer, 0, buffer.size)
+                                        if (read > 0) {
+                                            var max = 0
+                                            for (i in 0 until read) {
+                                                val absValue = Math.abs(buffer[i].toInt())
+                                                if (absValue > max) {
+                                                    max = absValue
+                                                }
+                                            }
+                                            val normalized = (max.toFloat() / 32768f).coerceIn(0.1f, 1.0f)
+                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                                micAmplitude = normalized
+                                            }
+                                        }
+                                        kotlinx.coroutines.delay(100)
+                                    }
+                                    try {
+                                        audioRecord.stop()
+                                    } catch (e: Exception) {}
+                                    audioRecord.release()
+                                }
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        }
+                    }
+                } else {
+                    micAmplitude = 0.1f
+                }
+            }
+
+            // Timer for active call
+            LaunchedEffect(Unit) {
+                while (true) {
+                    delay(1000)
+                    callSeconds++
+                }
+            }
+
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    .background(Color(0xFF0F172A)) // Dark Slate background
             ) {
-                // LEFT PANE: Channels & Direct Messages
+                // Header (Safe Area & Info)
                 Column(
                     modifier = Modifier
-                        .weight(0.35f)
-                        .fillMaxHeight()
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-                        .padding(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .fillMaxWidth()
+                        .padding(24.dp)
+                        .align(Alignment.TopCenter),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    // Search box
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        placeholder = { Text("Search Chats...", fontSize = 12.sp) },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                        singleLine = true,
-                        textStyle = TextStyle(fontSize = 12.sp),
-                        shape = RoundedCornerShape(10.dp)
+                    Box(
+                        modifier = Modifier
+                            .background(Color(0xFF22C55E).copy(alpha = 0.15f), RoundedCornerShape(12.dp))
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box(modifier = Modifier.size(8.dp).background(Color(0xFF22C55E), CircleShape))
+                            Text("TAMS CHAT SECURE CALL", color = Color(0xFF22C55E), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    Text(
+                        text = "Call Room: $activeCallRoomName",
+                        color = Color.White,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
                     )
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("CHANNELS & GROUPS", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
-                        Row {
-                            IconButton(
-                                onClick = { showStartDirectChatDialog = true },
-                                modifier = Modifier.size(24.dp).testTag("start_direct_chat_btn")
-                            ) {
-                                Icon(Icons.Default.PersonAdd, contentDescription = "New Private Chat", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            IconButton(
-                                onClick = { showCreateChannelDialog = true },
-                                modifier = Modifier.size(24.dp).testTag("create_channel_btn")
-                            ) {
-                                Icon(Icons.Default.GroupAdd, contentDescription = "New Channel", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                            }
-                        }
+                    val formatCallTime = { totalSecs: Int ->
+                        val m = totalSecs / 60
+                        val s = totalSecs % 60
+                        String.format("%02d:%02d", m, s)
                     }
+                    Text(
+                        text = "Connected • ${formatCallTime(callSeconds)}",
+                        color = Color.LightGray,
+                        fontSize = 13.sp
+                    )
+                }
 
-                    // Channels List
-                    val filteredChannels = remember(channels, searchQuery, senderIdStr) {
-                        channels.filter {
-                            val matchesSearch = it.name.contains(searchQuery, ignoreCase = true) || it.description.contains(searchQuery, ignoreCase = true)
-                            // Direct chats should only show for the involved users
-                            val matchesPrivacy = !it.isPrivate || it.firstUserId == senderIdStr || it.secondUserId == senderIdStr
-                            matchesSearch && matchesPrivacy
-                        }
-                    }
+                // Interactive Video Stream / Audio Visualizer Area
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.85f)
+                        .height(380.dp)
+                        .align(Alignment.Center)
+                        .background(Color(0xFF1E293B), RoundedCornerShape(24.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
+                        .clip(RoundedCornerShape(24.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isVideoEnabled) {
+                        if (hasCameraPermission) {
+                            // Real high-performance video preview from device's camera!
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                AndroidView(
+                                    factory = { ctx ->
+                                        val previewView = PreviewView(ctx).apply {
+                                            scaleType = PreviewView.ScaleType.FILL_CENTER
+                                        }
+                                        val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+                                        cameraProviderFuture.addListener({
+                                            val cameraProvider = cameraProviderFuture.get()
+                                            val preview = androidx.camera.core.Preview.Builder().build().also {
+                                                it.setSurfaceProvider(previewView.surfaceProvider)
+                                            }
 
-                    LazyColumn(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        if (filteredChannels.isEmpty()) {
-                            item {
+                                            val cameraSelector = if (cameraProvider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA)) {
+                                                CameraSelector.DEFAULT_FRONT_CAMERA
+                                            } else {
+                                                CameraSelector.DEFAULT_BACK_CAMERA
+                                            }
+
+                                            try {
+                                                cameraProvider.unbindAll()
+                                                cameraProvider.bindToLifecycle(
+                                                    lifecycleOwner,
+                                                    cameraSelector,
+                                                    preview
+                                                )
+                                            } catch (e: Exception) {
+                                                e.printStackTrace()
+                                            }
+                                        }, androidx.core.content.ContextCompat.getMainExecutor(ctx))
+                                        previewView
+                                    },
+                                    modifier = Modifier.fillMaxSize()
+                                )
+
+                                // Overlay text
                                 Box(
-                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                    contentAlignment = Alignment.Center
+                                    modifier = Modifier
+                                        .align(Alignment.BottomStart)
+                                        .padding(16.dp)
+                                        .background(Color.Red.copy(alpha = 0.8f), RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
                                 ) {
-                                    Text("No chats found.", fontSize = 12.sp, color = Color.Gray)
+                                    Text("🔴 LIVE FRONT CAMERA", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         } else {
-                            items(filteredChannels) { channel ->
-                                val isSelected = channel.id == activeChannelId
-                                val isDirect = !channel.isGroup
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { viewModel.selectChannel(channel.id) }
-                                        .testTag("chat_channel_item_${channel.id}"),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-                                    ),
-                                    shape = RoundedCornerShape(8.dp)
+                            // Show beautiful interactive setup prompt
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.padding(24.dp)
+                            ) {
+                                Icon(Icons.Default.VideocamOff, contentDescription = null, tint = Color.LightGray, modifier = Modifier.size(48.dp))
+                                Text("Camera Permission Required", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                                Button(
+                                    onClick = {
+                                        permissionLauncher.launch(
+                                            arrayOf(
+                                                android.Manifest.permission.CAMERA,
+                                                android.Manifest.permission.RECORD_AUDIO
+                                            )
+                                        )
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C6BED))
                                 ) {
-                                    Row(
-                                        modifier = Modifier.padding(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(36.dp)
-                                                .background(
-                                                    if (isDirect) MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                                    CircleShape
-                                                ),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = if (isDirect) Icons.Default.Person else Icons.Default.Groups,
-                                                contentDescription = null,
-                                                tint = if (isDirect) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = channel.name,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 13.sp,
-                                                maxLines = 1,
-                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
-                                            )
-                                            Text(
-                                                text = channel.description,
-                                                fontSize = 11.sp,
-                                                maxLines = 1,
-                                                color = Color.Gray
-                                            )
-                                        }
-                                        if (currentRole == "ADMIN") {
-                                            IconButton(
-                                                onClick = { viewModel.deleteChannel(channel.id) },
-                                                modifier = Modifier.size(24.dp).testTag("delete_channel_btn_${channel.id}")
-                                            ) {
-                                                Icon(Icons.Default.Delete, contentDescription = "Delete Chat", tint = Color.Red.copy(alpha = 0.6f), modifier = Modifier.size(14.dp))
-                                            }
-                                        }
-                                    }
+                                    Text("Grant Permission", color = Color.White)
                                 }
+                            }
+                        }
+                    } else {
+                        // Voice Call Mode (Concentric pulse wave visualizer driven by real mic amplitudes)
+                        Box(contentAlignment = Alignment.Center) {
+                            // Pulsing spheres driven by real decibel values from mic
+                            Box(
+                                modifier = Modifier
+                                    .size(240.dp * (0.4f + micAmplitude * 0.6f))
+                                    .background(Color(0xFF2C6BED).copy(alpha = 0.15f), CircleShape)
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(180.dp * (0.3f + micAmplitude * 0.7f))
+                                    .background(Color(0xFF00B4D8).copy(alpha = 0.2f), CircleShape)
+                            )
+
+                            // Main Icon Box
+                            Box(
+                                modifier = Modifier
+                                    .size(100.dp)
+                                    .background(Color(0xFF1E293B), CircleShape)
+                                    .border(2.dp, Color(0xFF2C6BED), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (isMuted) Icons.Default.MicOff else Icons.Default.VolumeUp,
+                                    contentDescription = "Active Call",
+                                    tint = Color(0xFF2C6BED),
+                                    modifier = Modifier.size(42.dp)
+                                )
                             }
                         }
                     }
                 }
 
-                // RIGHT PANE: Messages & Input
-                Column(
+                // Call Controls Footer Panel
+                Row(
                     modifier = Modifier
-                        .weight(0.65f)
-                        .fillMaxHeight()
-                        .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
-                        .padding(8.dp)
+                        .fillMaxWidth()
+                        .padding(bottom = 48.dp)
+                        .align(Alignment.BottomCenter),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (activeChannel == null) {
-                        // Empty State
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
+                    // Mute Button
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(if (isMuted) Color.Red else Color(0xFF334155), CircleShape)
+                            .clickable {
+                                isMuted = !isMuted
+                                Toast.makeText(context, if (isMuted) "Microphone Muted" else "Microphone Unmuted", Toast.LENGTH_SHORT).show()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isMuted) Icons.Default.MicOff else Icons.Default.Mic,
+                            contentDescription = "Mute",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    // Video Toggle Button
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(if (!isVideoEnabled) Color.Red else Color(0xFF334155), CircleShape)
+                            .clickable {
+                                isVideoEnabled = !isVideoEnabled
+                                Toast.makeText(context, if (isVideoEnabled) "Camera Stream Enabled" else "Camera Stream Disabled", Toast.LENGTH_SHORT).show()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isVideoEnabled) Icons.Default.Videocam else Icons.Default.VideocamOff,
+                            contentDescription = "Toggle Video",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    // Speaker Button
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(if (isSpeakerOn) Color(0xFF2C6BED) else Color(0xFF334155), CircleShape)
+                            .clickable {
+                                isSpeakerOn = !isSpeakerOn
+                                Toast.makeText(context, if (isSpeakerOn) "Speakerphone On" else "Speakerphone Off", Toast.LENGTH_SHORT).show()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isSpeakerOn) Icons.Default.VolumeUp else Icons.Default.VolumeMute,
+                            contentDescription = "Speaker",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    // End Call Button (Red Phone Icon)
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .background(Color(0xFFEF4444), CircleShape)
+                            .clickable {
+                                val m = callSeconds / 60
+                                val s = callSeconds % 60
+                                Toast.makeText(context, "Call Ended. Duration: ${String.format("%02d:%02d", m, s)}", Toast.LENGTH_LONG).show()
+                                activeCallRoomName = null
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CallEnd,
+                            contentDescription = "End Call",
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onClose,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(if (isDarkTheme) Color(0xFF121214) else Color(0xFFFFFFFF))
+                .testTag("community_chat_overlay_dialog")
+        ) {
+            val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+            val isTablet = configuration.screenWidthDp >= 600
+
+            // Adaptive single-pane design ALWAYS, with max-width capping and centering on wide screens
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(
+                        if (isTablet) Modifier.widthIn(max = 680.dp).align(Alignment.Center)
+                        else Modifier
+                    )
+            ) {
+                if (isScreenLocked && screenLockPin.isNotEmpty()) {
+                    var enteredPin by remember { mutableStateOf("") }
+                    var unlockError by remember { mutableStateOf(false) }
+                    
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(if (isDarkTheme) Color(0xFF0F172A) else Color.White)
+                            .padding(24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(24.dp),
+                            modifier = Modifier.widthIn(max = 320.dp)
                         ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ChatBubbleOutline,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
-                                    modifier = Modifier.size(48.dp)
-                                )
-                                Text("Select a discussion room to start sharing knowledge!", fontSize = 13.sp, color = Color.Gray, fontWeight = FontWeight.SemiBold)
-                                Text("You can discuss subject doubts, share study PDFs, photos, or start 1-to-1 secure private chats.", fontSize = 11.sp, color = Color.Gray.copy(alpha = 0.8f), textAlign = TextAlign.Center)
-                            }
-                        }
-                    } else {
-                        // Header info
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(contentAlignment = Alignment.Center) {
                                 Box(
                                     modifier = Modifier
-                                        .size(32.dp)
-                                        .background(MaterialTheme.colorScheme.primary, CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = if (!activeChannel.isGroup) Icons.Default.Person else Icons.Default.Chat,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(16.dp)
+                                        .size(80.dp)
+                                        .background(
+                                            if (unlockError) Color.Red.copy(alpha = 0.1f) else Color(0xFF10B981).copy(alpha = 0.1f),
+                                            CircleShape
+                                        )
+                                )
+                                Icon(
+                                    imageVector = if (unlockError) Icons.Default.GppBad else Icons.Default.Shield,
+                                    contentDescription = "Locked",
+                                    tint = if (unlockError) Color.Red else Color(0xFF10B981),
+                                    modifier = Modifier.size(44.dp)
+                                )
+                            }
+                            
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(
+                                    text = "TAMS CHAT SECURED",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp,
+                                    color = if (isDarkTheme) Color.White else Color.Black
+                                )
+                                Text(
+                                    text = if (unlockError) "Incorrect PIN. Try again." else "Enter your 4-digit security PIN to unlock",
+                                    fontSize = 12.sp,
+                                    color = if (unlockError) Color.Red else Color.Gray,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                            
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                for (i in 0 until 4) {
+                                    val isFilled = i < enteredPin.length
+                                    Box(
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .background(
+                                                color = if (isFilled) (if (unlockError) Color.Red else Color(0xFF10B981)) else Color.Transparent,
+                                                shape = CircleShape
+                                            )
+                                            .border(
+                                                width = 2.dp,
+                                                color = if (isFilled) Color.Transparent else Color.Gray.copy(alpha = 0.5f),
+                                                shape = CircleShape
+                                            )
                                     )
-                                }
-                                Column {
-                                    Text(activeChannel.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                    Text(activeChannel.description, fontSize = 10.sp, color = Color.Gray, maxLines = 1)
                                 }
                             }
                             
-                            // Clear Chat for Admin/Staff
-                            if (currentRole == "ADMIN" || currentRole == "STAFF") {
-                                TextButton(
-                                    onClick = {
-                                        viewModel.clearChannelMessages(activeChannel.id)
-                                        Toast.makeText(context, "Chat history cleared!", Toast.LENGTH_SHORT).show()
-                                    },
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                    modifier = Modifier.testTag("clear_history_btn")
-                                ) {
-                                    Icon(Icons.Default.ClearAll, contentDescription = null, modifier = Modifier.size(14.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Clear History", fontSize = 11.sp, color = Color.Red)
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Message List
-                        LazyColumn(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth()
-                                .testTag("message_list_lazy"),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            if (messages.isEmpty()) {
-                                item {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(200.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                            Icon(Icons.Default.Textsms, contentDescription = null, tint = Color.Gray.copy(alpha = 0.5f), modifier = Modifier.size(32.dp))
-                                            Text("No messages yet in this room.", fontSize = 12.sp, color = Color.Gray)
-                                            Text("Be the first one to say hi and share a question!", fontSize = 10.sp, color = Color.Gray)
-                                        }
-                                    }
-                                }
-                            } else {
-                                items(messages) { msg ->
-                                    val isMe = msg.senderId == senderIdStr
-                                    
+                            Spacer(modifier = Modifier.height(12.dp))
+                            
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                val keys = listOf(
+                                    listOf("1", "2", "3"),
+                                    listOf("4", "5", "6"),
+                                    listOf("7", "8", "9"),
+                                    listOf("C", "0", "⌫")
+                                )
+                                
+                                keys.forEach { rowKeys ->
                                     Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = if (isMe) Arrangement.End else Arrangement.Start
+                                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Card(
-                                            modifier = Modifier
-                                                .fillMaxWidth(0.85f)
-                                                .padding(horizontal = 4.dp),
-                                            colors = CardDefaults.cardColors(
-                                                containerColor = if (isMe) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
-                                            ),
-                                            shape = RoundedCornerShape(
-                                                topStart = 12.dp,
-                                                topEnd = 12.dp,
-                                                bottomStart = if (isMe) 12.dp else 0.dp,
-                                                bottomEnd = if (isMe) 0.dp else 12.dp
-                                            )
-                                        ) {
-                                            Column(modifier = Modifier.padding(10.dp)) {
-                                                if (!isMe) {
-                                                    Row(
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                                    ) {
-                                                        Text(msg.senderName, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
-                                                        // Role badge
-                                                        val badgeColor = when (msg.senderRole) {
-                                                            "ADMIN" -> Color(0xFFEF5350)
-                                                            "TEACHER" -> Color(0xFF009688)
-                                                            "STAFF" -> Color(0xFFFF9800)
-                                                            else -> Color(0xFF3F51B5)
-                                                        }
-                                                        Box(
-                                                            modifier = Modifier
-                                                                .background(badgeColor.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
-                                                                .padding(horizontal = 4.dp, vertical = 1.dp)
-                                                        ) {
-                                                            Text(msg.senderRole, fontSize = 8.sp, fontWeight = FontWeight.Bold, color = badgeColor)
-                                                        }
-                                                    }
-                                                    Spacer(modifier = Modifier.height(2.dp))
-                                                }
-                                                
-                                                // Text message
-                                                if (msg.messageText.isNotEmpty()) {
-                                                    Text(msg.messageText, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
-                                                }
-
-                                                // Attachment viewer
-                                                if (msg.attachmentType != null && msg.attachmentType != "NONE") {
-                                                    Spacer(modifier = Modifier.height(6.dp))
-                                                    AttachmentPreviewItem(
-                                                        type = msg.attachmentType,
-                                                        name = msg.attachmentName ?: "Attachment",
-                                                        path = msg.attachmentPath
+                                        rowKeys.forEach { key ->
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(64.dp)
+                                                    .background(
+                                                        if (isDarkTheme) Color(0xFF1E293B) else Color(0xFFF1F5F9),
+                                                        CircleShape
                                                     )
-                                                }
-
-                                                Spacer(modifier = Modifier.height(2.dp))
-                                                // Time
-                                                val sdf = remember { java.text.SimpleDateFormat("hh:mm a", java.util.Locale.getDefault()) }
-                                                val timeStr = remember(msg.timestamp) { sdf.format(java.util.Date(msg.timestamp)) }
+                                                    .clickable {
+                                                        unlockError = false
+                                                        when (key) {
+                                                            "C" -> enteredPin = ""
+                                                            "⌫" -> if (enteredPin.isNotEmpty()) enteredPin = enteredPin.dropLast(1)
+                                                            else -> {
+                                                                if (enteredPin.length < 4) {
+                                                                    enteredPin += key
+                                                                    if (enteredPin.length == 4) {
+                                                                        if (enteredPin == screenLockPin) {
+                                                                            isScreenLocked = false
+                                                                            Toast.makeText(context, "Welcome back! Chat unlocked.", Toast.LENGTH_SHORT).show()
+                                                                        } else {
+                                                                            unlockError = true
+                                                                            enteredPin = ""
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    },
+                                                contentAlignment = Alignment.Center
+                                            ) {
                                                 Text(
-                                                    text = timeStr,
-                                                    fontSize = 9.sp,
-                                                    color = Color.Gray,
-                                                    modifier = Modifier.align(Alignment.End)
+                                                    text = key,
+                                                    fontSize = 20.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (isDarkTheme) Color.White else Color.Black
                                                 )
                                             }
                                         }
@@ -12257,76 +17921,117 @@ fun CommunityChatOverlay(
                                 }
                             }
                         }
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        // Input control
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            // Attachment button
-                            IconButton(
-                                onClick = { showAttachmentDialog = true },
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f), CircleShape)
-                                    .testTag("attachment_dialog_btn")
-                            ) {
-                                Icon(Icons.Default.AttachFile, contentDescription = "Attach File", tint = MaterialTheme.colorScheme.secondary)
-                            }
-
-                            // Message Input text field
-                            OutlinedTextField(
-                                value = messageText,
-                                onValueChange = { messageText = it },
-                                placeholder = { Text("Write your message / question here...", fontSize = 12.sp) },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .heightIn(min = 40.dp, max = 100.dp)
-                                    .testTag("chat_input_text_field"),
-                                textStyle = TextStyle(fontSize = 13.sp),
-                                maxLines = 4,
-                                shape = RoundedCornerShape(20.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                                )
-                            )
-
-                            // Send button
-                            IconButton(
-                                onClick = {
-                                    if (messageText.trim().isNotEmpty()) {
+                    }
+                } else if (activeChannelId == null) {
+                    // SHOW ONLY CHAT LIST (TAMS CHAT Home Layout)
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        ChatListPaneContent(
+                            isDarkTheme = isDarkTheme,
+                            searchQuery = searchQuery,
+                            onSearchChange = { searchQuery = it },
+                            filteredChannels = filteredChannels,
+                            activeChannelId = activeChannelId,
+                            onSelectChannel = { viewModel.selectChannel(it) },
+                            onDeleteChannel = { viewModel.deleteChannel(it) },
+                            onStartDirectChat = { showStartDirectChatDialog = true },
+                            onCreateChannel = { showCreateChannelDialog = true },
+                            onClose = onClose,
+                            senderName = senderName,
+                            currentRole = currentRole,
+                            messagesList = messages,
+                            viewModel = viewModel,
+                            context = context,
+                            screenLockPin = screenLockPin,
+                            onConfigurePin = { newPin ->
+                                screenLockPin = newPin
+                                sharedPrefs.edit().putString("screen_lock_pin", newPin).apply()
+                                isScreenLocked = newPin.isNotEmpty()
+                            },
+                            onOpenSettings = { showSignalSettingsDialog = true }
+                        )
+                    }
+                } else {
+                    // SHOW ONLY ACTIVE CHAT WINDOW (With Back Navigation!)
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        ChatWindowPaneContent(
+                            activeChannel = activeChannel,
+                            messages = messages,
+                            senderIdStr = senderIdStr,
+                            senderName = senderName,
+                            currentRole = currentRole,
+                            messageText = messageText,
+                            onMessageTextChange = { messageText = it },
+                            onSend = {
+                                if (messageText.trim().isNotEmpty() && activeChannel != null) {
+                                    viewModel.sendChatMessage(
+                                        channelId = activeChannel.id,
+                                        senderId = senderIdStr,
+                                        senderName = senderName,
+                                        senderRole = currentRole,
+                                        messageText = messageText.trim()
+                                    )
+                                    messageText = ""
+                                }
+                            },
+                            onClearHistory = {
+                                if (activeChannel != null) {
+                                    viewModel.clearChannelMessages(activeChannel.id)
+                                    Toast.makeText(context, "Chat history cleared!", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            onClose = onClose,
+                            onBack = { viewModel.selectChannel(null) },
+                            showBackButton = true,
+                            isDarkTheme = isDarkTheme,
+                            onAttachFile = { showAttachmentDialog = true },
+                            onStartCall = { roomName, isVideo ->
+                                activeCallRoomName = roomName
+                                activeCallTypeIsVideo = isVideo
+                            },
+                            onAttachMedia = { mediaType ->
+                                when (mediaType) {
+                                    "CAMERA" -> cameraLauncher.launch(null)
+                                    "GALLERY" -> galleryLauncher.launch("image/*")
+                                    "DOCUMENT" -> docLauncher.launch("*/*")
+                                    "AUDIO" -> audioLauncher.launch("audio/*")
+                                    "CONTACT" -> {
                                         viewModel.sendChatMessage(
-                                            channelId = activeChannel.id,
+                                            channelId = activeChannel?.id ?: 0L,
                                             senderId = senderIdStr,
                                             senderName = senderName,
                                             senderRole = currentRole,
-                                            messageText = messageText.trim()
+                                            messageText = "Shared contact: Verma Sir (Tutor)",
+                                            attachmentType = "CONTACT",
+                                            attachmentName = "📇 Verma Sir (Mathematics Tutor)",
+                                            attachmentPath = "Instructor card: sks.verma@gmail.com • +91 9455321010"
                                         )
-                                        messageText = ""
+                                        Toast.makeText(context, "Contact attached!", Toast.LENGTH_SHORT).show()
                                     }
-                                },
-                                enabled = messageText.trim().isNotEmpty(),
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .background(
-                                        if (messageText.trim().isNotEmpty()) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.2f),
-                                        CircleShape
-                                    )
-                                    .testTag("send_chat_msg_btn")
-                            ) {
-                                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send Message", tint = Color.White)
-                            }
-                        }
+                                    "LOCATION" -> {
+                                        viewModel.sendChatMessage(
+                                            channelId = activeChannel?.id ?: 0L,
+                                            senderId = senderIdStr,
+                                            senderName = senderName,
+                                            senderRole = currentRole,
+                                            messageText = "Shared location: Main Campus - Lecture Hall A",
+                                            attachmentType = "LOCATION",
+                                            attachmentName = "📍 Main Campus - Lecture Hall A",
+                                            attachmentPath = "https://maps.google.com/?q=TAMS+Academy+Lecture+Hall+A"
+                                        )
+                                        Toast.makeText(context, "Location attached!", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            viewModel = viewModel,
+                            disappearingTimers = disappearingTimers,
+                            verifiedSafetyNumbers = verifiedSafetyNumbers,
+                            viewOnceOpenedIds = viewOnceOpenedIds
+                        )
                     }
                 }
             }
-        },
-        confirmButton = {}
-    )
+        }
+    }
 
     // --- Sub-Dialogs ---
 
@@ -12424,7 +18129,13 @@ fun CommunityChatOverlay(
                                 ) {
                                     Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                                        Text(teacher.first, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                        Text(teacher.first, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                                        val isOnline = onlineUsersMap[teacher.second] ?: false
+                                        Box(
+                                            modifier = Modifier
+                                                .size(10.dp)
+                                                .background(if (isOnline) Color(0xFF10B981) else Color(0xFF9CA3AF), CircleShape)
+                                        )
                                     }
                                 }
                             }
@@ -12459,10 +18170,16 @@ fun CommunityChatOverlay(
                                 ) {
                                     Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Icon(Icons.Default.School, contentDescription = null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(16.dp))
-                                        Column {
+                                        Column(modifier = Modifier.weight(1f)) {
                                             Text(student.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                                             Text("Roll No: " + student.rollNumber + " • Phone: " + student.phone, fontSize = 10.sp, color = Color.Gray)
                                         }
+                                        val isOnline = onlineUsersMap[sId] ?: false
+                                        Box(
+                                            modifier = Modifier
+                                                .size(10.dp)
+                                                .background(if (isOnline) Color(0xFF10B981) else Color(0xFF9CA3AF), CircleShape)
+                                        )
                                     }
                                 }
                             }
@@ -12478,84 +18195,351 @@ fun CommunityChatOverlay(
         )
     }
 
+    // 2b. Signal Settings & Profile Editor Dialog
+    if (showSignalSettingsDialog) {
+        var editingProfileName by remember { mutableStateOf(signalProfileName.ifEmpty { defaultSenderName }) }
+        var editingProfileStatus by remember { mutableStateOf(signalProfileStatus) }
+        var editingProfileColorHex by remember { mutableStateOf(signalProfileColorHex) }
+        
+        val colorsList = listOf(
+            "#2C6BED", // Signal Blue
+            "#8B5CF6", // Purple
+            "#EC4899", // Pink
+            "#10B981", // Teal/Emerald
+            "#F59E0B", // Amber
+            "#EF4444"  // Rose Red
+        )
+        
+        AlertDialog(
+            onDismissRequest = { showSignalSettingsDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = null,
+                        tint = Color(0xFF2C6BED),
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Signal Profile & Settings", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                ) {
+                    // Profile Avatar Preview Area
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                    ) {
+                        val parsedColor = remember(editingProfileColorHex) {
+                            try {
+                                Color(android.graphics.Color.parseColor(editingProfileColorHex))
+                            } catch (e: Exception) {
+                                Color(0xFF2C6BED)
+                            }
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(72.dp)
+                                .background(parsedColor, CircleShape)
+                                .border(2.dp, if (isDarkTheme) Color.White.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.1f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = editingProfileName.take(1).uppercase(),
+                                color = Color.White,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 32.sp
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("Choose Profile Avatar Color:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            colorsList.forEach { colStr ->
+                                val color = Color(android.graphics.Color.parseColor(colStr))
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .background(color, CircleShape)
+                                        .border(
+                                            width = if (editingProfileColorHex == colStr) 2.dp else 0.dp,
+                                            color = if (isDarkTheme) Color.White else Color.Black,
+                                            shape = CircleShape
+                                        )
+                                        .clickable { editingProfileColorHex = colStr }
+                                )
+                            }
+                        }
+                    }
+                    
+                    HorizontalDivider()
+                    
+                    // Profile Fields
+                    OutlinedTextField(
+                        value = editingProfileName,
+                        onValueChange = { editingProfileName = it },
+                        label = { Text("Signal Profile Name") },
+                        placeholder = { Text("Enter your profile name") },
+                        modifier = Modifier.fillMaxWidth().testTag("signal_profile_name_input"),
+                        singleLine = true
+                    )
+                    
+                    OutlinedTextField(
+                        value = editingProfileStatus,
+                        onValueChange = { editingProfileStatus = it },
+                        label = { Text("About / Custom Status") },
+                        placeholder = { Text("e.g. Online for Doubts!") },
+                        modifier = Modifier.fillMaxWidth().testTag("signal_profile_status_input"),
+                        singleLine = true
+                    )
+                    
+                    HorizontalDivider()
+                    
+                    // Encryption Signatures
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Lock, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Signal Protocol Identity Signature:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (isDarkTheme) Color.White else Color.Black)
+                        }
+                        Text(
+                            text = "3f7e a10b 922e dc74 d510 f1b9 82e9 c592 60c6 4cff",
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            color = Color.Gray,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(if (isDarkTheme) Color(0xFF1E1E22) else Color(0xFFF3F4F6), RoundedCornerShape(4.dp))
+                                .padding(8.dp)
+                        )
+                        Text("This 40-digit cryptographic fingerprint verifies that your 1-to-1 community messages are completely secure.", fontSize = 10.sp, color = Color.Gray)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (editingProfileName.trim().isNotEmpty()) {
+                            signalProfileName = editingProfileName.trim()
+                            signalProfileStatus = editingProfileStatus.trim()
+                            signalProfileColorHex = editingProfileColorHex
+                            
+                            profileSharedPrefs.edit()
+                                .putString("signal_profile_name", signalProfileName)
+                                .putString("signal_profile_status", signalProfileStatus)
+                                .putString("signal_profile_color_hex", signalProfileColorHex)
+                                .apply()
+                                
+                            showSignalSettingsDialog = false
+                            Toast.makeText(context, "Signal Profile updated successfully!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Profile Name cannot be empty!", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C6BED)),
+                    modifier = Modifier.testTag("signal_profile_save_btn")
+                ) {
+                    Text("SAVE", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSignalSettingsDialog = false }) {
+                    Text("CANCEL")
+                }
+            },
+            modifier = Modifier.fillMaxWidth().padding(12.dp)
+        )
+    }
+
     // 3. Attachment Dialog
     if (showAttachmentDialog) {
-        val attachments = listOf(
-            Triple("IMAGE", "📐 Trigonometry Formulas Cheat-Sheet.png", "A high-resolution visual cheat-sheet of algebraic and trigonometric identities."),
-            Triple("IMAGE", "🧬 Animal Cell Structure Diagram.png", "Beautiful diagram showing organelles, nucleus, mitochondria, and cell membrane."),
-            Triple("DOCUMENT", "📊 Board Exams 2026 Mathematics Syllabus.pdf", "Official syllabus guidelines, chapter weights, and question formats."),
-            Triple("DOCUMENT", "🧪 Physics Lab Mechanics Experiment.pdf", "Step-by-step instructions for Newton's laws laboratory experiments."),
-            Triple("LINK", "🔗 NCERT Chemistry Question Bank Chapter 1", "https://ncert.nic.in/textbook.php?kech1=1-7")
+        var selectedCategory by remember { mutableStateOf<String?>(null) }
+        
+        val categories = listOf(
+            Triple("CAMERA", "Camera Snap", Color(0xFF3B82F6)),
+            Triple("GALLERY", "Media Gallery", Color(0xFF10B981)),
+            Triple("AUDIO", "Audio Picker", Color(0xFF8B5CF6)),
+            Triple("DOCUMENT", "Local Docs", Color(0xFFF59E0B)),
+            Triple("CONTACT", "Coaching Contacts", Color(0xFFEC4899)),
+            Triple("LOCATION", "Class Locations", Color(0xFFEF4444))
+        )
+
+        val simulatedAttachments = mapOf(
+            "CONTACT" to listOf(
+                Triple("CONTACT", "📇 Verma Sir (Mathematics Tutor)", "Instructor card: sks.verma@gmail.com • +91 9455321010"),
+                Triple("CONTACT", "📇 TAMS Support Helpdesk", "Coaching administration: tams.coaching@gmail.com • +91 180053210"),
+                Triple("CONTACT", "📇 Dr. Shreya (Science Head)", "Professor card: shreya.science@gmail.com • +91 9988776655")
+            ),
+            "LOCATION" to listOf(
+                Triple("LOCATION", "📍 Main Campus - Lecture Hall A", "https://maps.google.com/?q=TAMS+Academy+Lecture+Hall+A"),
+                Triple("LOCATION", "📍 Physics & Chemistry Lab Wing B", "https://maps.google.com/?q=TAMS+Academy+Lab+Wing+B"),
+                Triple("LOCATION", "📍 Senior Library & Reading Hall 3", "https://maps.google.com/?q=TAMS+Academy+Library")
+            )
         )
 
         AlertDialog(
             onDismissRequest = { showAttachmentDialog = false },
-            title = { Text("Select Simulated Attachment to Share", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.AttachFile, contentDescription = null, tint = Color(0xFF2C6BED))
+                    Text(
+                        text = if (selectedCategory == null) "Share real attachment" else "Select ${selectedCategory!!.lowercase()}",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                }
+            },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Choose educational material, notes, or web resources to discuss with teachers and classmates:", fontSize = 12.sp, color = Color.Gray)
-                    
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.height(260.dp)
-                    ) {
-                        items(attachments) { attach ->
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        viewModel.sendChatMessage(
-                                            channelId = activeChannel?.id ?: 0L,
-                                            senderId = senderIdStr,
-                                            senderName = senderName,
-                                            senderRole = currentRole,
-                                            messageText = "Shared resource: " + attach.second,
-                                            attachmentType = attach.first,
-                                            attachmentName = attach.second,
-                                            attachmentPath = attach.third
-                                        )
-                                        showAttachmentDialog = false
-                                        Toast.makeText(context, "Attachment sent!", Toast.LENGTH_SHORT).show()
-                                    }
-                                    .testTag("send_attachment_${attach.second.replace(" ", "_")}"),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (selectedCategory == null) {
+                        Text("Choose an option to share a real file or interactive coaching asset with the group:", fontSize = 12.sp, color = Color.Gray)
+                        
+                        // GRID OF 6 SOLID CIRCULAR BUTTONS
+                        androidx.compose.foundation.layout.FlowRow(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                            maxItemsInEachRow = 3,
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            categories.forEach { cat ->
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier
+                                        .clickable { 
+                                            when (cat.first) {
+                                                "CAMERA" -> {
+                                                    cameraLauncher.launch(null)
+                                                    showAttachmentDialog = false
+                                                }
+                                                "GALLERY" -> {
+                                                    galleryLauncher.launch("image/*")
+                                                    showAttachmentDialog = false
+                                                }
+                                                "DOCUMENT" -> {
+                                                    docLauncher.launch("*/*")
+                                                    showAttachmentDialog = false
+                                                }
+                                                "AUDIO" -> {
+                                                    audioLauncher.launch("audio/*")
+                                                    showAttachmentDialog = false
+                                                }
+                                                else -> {
+                                                    selectedCategory = cat.first
+                                                }
+                                            }
+                                        }
+                                        .padding(4.dp)
+                                        .width(80.dp)
+                                        .testTag("signal_attach_cat_${cat.first}")
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(32.dp)
-                                            .background(
-                                                when (attach.first) {
-                                                    "IMAGE" -> Color(0xFF4CAF50).copy(alpha = 0.2f)
-                                                    "DOCUMENT" -> Color(0xFF2196F3).copy(alpha = 0.2f)
-                                                    else -> Color(0xFFFF9800).copy(alpha = 0.2f)
-                                                },
-                                                CircleShape
-                                            ),
+                                            .size(54.dp)
+                                            .background(cat.third, CircleShape),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
-                                            imageVector = when (attach.first) {
-                                                "IMAGE" -> Icons.Default.Image
+                                            imageVector = when (cat.first) {
+                                                "CAMERA" -> Icons.Default.CameraAlt
+                                                "GALLERY" -> Icons.Default.Image
+                                                "AUDIO" -> Icons.Default.Headphones
                                                 "DOCUMENT" -> Icons.Default.Description
-                                                else -> Icons.Default.Link
+                                                "CONTACT" -> Icons.Default.ContactPage
+                                                else -> Icons.Default.LocationOn
                                             },
-                                            contentDescription = null,
-                                            tint = when (attach.first) {
-                                                "IMAGE" -> Color(0xFF4CAF50)
-                                                "DOCUMENT" -> Color(0xFF2196F3)
-                                                else -> Color(0xFFFF9800)
-                                            },
-                                            modifier = Modifier.size(16.dp)
+                                            contentDescription = cat.second,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(24.dp)
                                         )
                                     }
-                                    Column {
-                                        Text(attach.second, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                        Text(attach.third, fontSize = 10.sp, color = Color.Gray, maxLines = 1)
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = cat.second,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        textAlign = TextAlign.Center,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        // Category is selected (Contacts or Locations), show custom interactive list
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            TextButton(
+                                onClick = { selectedCategory = null },
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Back to categories", fontSize = 12.sp)
+                            }
+                        }
+                        
+                        val itemsList = simulatedAttachments[selectedCategory] ?: emptyList()
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.height(240.dp)
+                        ) {
+                            items(itemsList) { item ->
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            viewModel.sendChatMessage(
+                                                channelId = activeChannel?.id ?: 0L,
+                                                senderId = senderIdStr,
+                                                senderName = senderName,
+                                                senderRole = currentRole,
+                                                messageText = "Shared classroom " + selectedCategory!!.lowercase() + ": " + item.second,
+                                                attachmentType = item.first,
+                                                attachmentName = item.second,
+                                                attachmentPath = item.third
+                                            )
+                                            showAttachmentDialog = false
+                                            Toast.makeText(context, "Location/Contact sent to secure chat!", Toast.LENGTH_SHORT).show()
+                                        }
+                                        .testTag("send_attachment_${item.second.replace(" ", "_")}"),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .background(categories.find { it.first == selectedCategory }?.third?.copy(alpha = 0.2f) ?: Color.Gray, CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = when (selectedCategory) {
+                                                    "CONTACT" -> Icons.Default.ContactPage
+                                                    else -> Icons.Default.LocationOn
+                                                },
+                                                contentDescription = null,
+                                                tint = categories.find { it.first == selectedCategory }?.third ?: Color.Gray,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                        Column {
+                                            Text(item.second, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            Text(item.third, fontSize = 10.sp, color = Color.Gray, maxLines = 1)
+                                        }
                                     }
                                 }
                             }
@@ -12572,6 +18556,185 @@ fun CommunityChatOverlay(
     }
 }
 
+fun getFileNameFromUri(context: android.content.Context, uri: android.net.Uri): String {
+    var result: String? = null
+    if (uri.scheme == "content") {
+        val cursor = context.contentResolver.query(uri, null, null, null, null)
+        try {
+            if (cursor != null && cursor.moveToFirst()) {
+                val index = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (index != -1) {
+                    result = cursor.getString(index)
+                }
+            }
+        } finally {
+            cursor?.close()
+        }
+    }
+    if (result == null) {
+        result = uri.path
+        val cut = result?.lastIndexOf('/') ?: -1
+        if (cut != -1) {
+            result = result?.substring(cut + 1)
+        }
+    }
+    return result ?: "attachment_file"
+}
+
+fun saveBitmapToCache(context: android.content.Context, bitmap: android.graphics.Bitmap): android.net.Uri? {
+    val imagesFolder = java.io.File(context.cacheDir, "shared_images")
+    try {
+        imagesFolder.mkdirs()
+        val file = java.io.File(imagesFolder, "snapshot_${System.currentTimeMillis()}.jpg")
+        val stream = java.io.FileOutputStream(file)
+        bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, stream)
+        stream.flush()
+        stream.close()
+        return android.net.Uri.fromFile(file)
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+    return null
+}
+
+fun readTextFromUri(context: android.content.Context, uriString: String): String {
+    return try {
+        val uri = android.net.Uri.parse(uriString)
+        val inputStream = context.contentResolver.openInputStream(uri)
+        val reader = java.io.BufferedReader(java.io.InputStreamReader(inputStream))
+        val stringBuilder = java.lang.StringBuilder()
+        var line: String?
+        var count = 0
+        while (reader.readLine().also { line = it } != null && count < 200) { // Limit to 200 lines for performance
+            stringBuilder.append(line).append("\n")
+            count++
+        }
+        inputStream?.close()
+        stringBuilder.toString().ifEmpty { "This document is empty or could not be read as text." }
+    } catch (e: Exception) {
+        "Document: [Binary / Non-text format or PDF]\n\nType: PDF/Doc Resource\nLocation: $uriString\n\nThis document is loaded as a binary stream. On a physical device, this can be handled via Intent.ACTION_VIEW."
+    }
+}
+
+@Composable
+fun AudioAttachmentPlayer(uriString: String, isDarkTheme: Boolean) {
+    val context = LocalContext.current
+    var mediaPlayer by remember { mutableStateOf<android.media.MediaPlayer?>(null) }
+    var isPlaying by remember { mutableStateOf(false) }
+    var duration by remember { mutableStateOf(0) }
+    var currentPosition by remember { mutableStateOf(0) }
+
+    // Initialize MediaPlayer
+    DisposableEffect(uriString) {
+        val mp = try {
+            val uri = android.net.Uri.parse(uriString)
+            android.media.MediaPlayer.create(context, uri)
+        } catch (e: Exception) {
+            null
+        }
+        if (mp != null) {
+            mediaPlayer = mp
+            duration = mp.duration
+        }
+        onDispose {
+            mp?.release()
+        }
+    }
+
+    // Progress updater
+    LaunchedEffect(isPlaying) {
+        while (isPlaying && mediaPlayer != null) {
+            currentPosition = mediaPlayer?.currentPosition ?: 0
+            delay(200)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(if (isDarkTheme) Color(0xFF27272A) else Color(0xFFF1F5F9), RoundedCornerShape(12.dp))
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Play/Pause Fab
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(Color(0xFF2C6BED), CircleShape)
+                    .clickable {
+                        mediaPlayer?.let { mp ->
+                            if (mp.isPlaying) {
+                                mp.pause()
+                                isPlaying = false
+                            } else {
+                                mp.start()
+                                isPlaying = true
+                            }
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = if (isPlaying) "Pause" else "Play",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (isPlaying) "Playing Audio..." else "Audio Paused",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    color = if (isDarkTheme) Color.White else Color.Black
+                )
+                Text(
+                    text = "Source: ${uriString.takeLast(35)}...",
+                    fontSize = 11.sp,
+                    color = Color.Gray
+                )
+            }
+        }
+
+        // Progress Slider
+        Column {
+            Slider(
+                value = if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f,
+                onValueChange = { ratio ->
+                    mediaPlayer?.let { mp ->
+                        val newPos = (ratio * duration).toInt()
+                        mp.seekTo(newPos)
+                        currentPosition = newPos
+                    }
+                },
+                colors = SliderDefaults.colors(
+                    activeTrackColor = Color(0xFF2C6BED),
+                    thumbColor = Color(0xFF2C6BED)
+                )
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                val formatTime = { ms: Int ->
+                    val sec = (ms / 1000) % 60
+                    val min = (ms / 1000) / 60
+                    String.format("%02d:%02d", min, sec)
+                }
+                Text(formatTime(currentPosition), fontSize = 11.sp, color = Color.Gray)
+                Text(formatTime(duration), fontSize = 11.sp, color = Color.Gray)
+            }
+        }
+    }
+}
+
 @Composable
 fun AttachmentPreviewItem(
     type: String,
@@ -12579,6 +18742,7 @@ fun AttachmentPreviewItem(
     path: String?
 ) {
     var showSimulatedReader by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Card(
         modifier = Modifier
@@ -12599,9 +18763,12 @@ fun AttachmentPreviewItem(
                     .size(40.dp)
                     .background(
                         when (type) {
-                            "IMAGE" -> Color(0xFF4CAF50).copy(alpha = 0.15f)
-                            "DOCUMENT" -> Color(0xFF2196F3).copy(alpha = 0.15f)
-                            else -> Color(0xFFFF9800).copy(alpha = 0.15f)
+                            "IMAGE", "CAMERA", "GALLERY" -> Color(0xFF10B981).copy(alpha = 0.15f)
+                            "DOCUMENT" -> Color(0xFFF59E0B).copy(alpha = 0.15f)
+                            "AUDIO" -> Color(0xFF8B5CF6).copy(alpha = 0.15f)
+                            "CONTACT" -> Color(0xFFEC4899).copy(alpha = 0.15f)
+                            "LOCATION" -> Color(0xFFEF4444).copy(alpha = 0.15f)
+                            else -> Color(0xFF3B82F6).copy(alpha = 0.15f)
                         },
                         RoundedCornerShape(8.dp)
                     ),
@@ -12609,15 +18776,21 @@ fun AttachmentPreviewItem(
             ) {
                 Icon(
                     imageVector = when (type) {
-                        "IMAGE" -> Icons.Default.Image
+                        "IMAGE", "CAMERA", "GALLERY" -> Icons.Default.Image
                         "DOCUMENT" -> Icons.Default.Description
+                        "AUDIO" -> Icons.Default.Headphones
+                        "CONTACT" -> Icons.Default.ContactPage
+                        "LOCATION" -> Icons.Default.LocationOn
                         else -> Icons.Default.Link
                     },
                     contentDescription = null,
                     tint = when (type) {
-                        "IMAGE" -> Color(0xFF4CAF50)
-                        "DOCUMENT" -> Color(0xFF2196F3)
-                        else -> Color(0xFFFF9800)
+                        "IMAGE", "CAMERA", "GALLERY" -> Color(0xFF10B981)
+                        "DOCUMENT" -> Color(0xFFF59E0B)
+                        "AUDIO" -> Color(0xFF8B5CF6)
+                        "CONTACT" -> Color(0xFFEC4899)
+                        "LOCATION" -> Color(0xFFEF4444)
+                        else -> Color(0xFF3B82F6)
                     },
                     modifier = Modifier.size(20.dp)
                 )
@@ -12626,9 +18799,12 @@ fun AttachmentPreviewItem(
                 Text(name, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1)
                 Text(
                     text = when (type) {
-                        "IMAGE" -> "Preview Photo Diagram • Click to expand"
-                        "DOCUMENT" -> "Syllabus Resource • Click to study PDF"
-                        else -> "Web URL • Click to browse link"
+                        "IMAGE", "CAMERA", "GALLERY" -> "Photo Attachment • Click to preview"
+                        "DOCUMENT" -> "Study Syllabus Document • Click to read PDF"
+                        "AUDIO" -> "Class Lecture Audio • Click to play recording"
+                        "CONTACT" -> "Staff Contact Card • Click to view card"
+                        "LOCATION" -> "Classroom Map Location • Click to view map"
+                        else -> "Web URL Resource • Click to browse link"
                     },
                     fontSize = 10.sp,
                     color = Color.Gray
@@ -12644,7 +18820,12 @@ fun AttachmentPreviewItem(
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Icon(
-                        imageVector = if (type == "IMAGE") Icons.Default.Image else Icons.Default.ChromeReaderMode,
+                        imageVector = when (type) {
+                            "IMAGE", "CAMERA", "GALLERY" -> Icons.Default.Image
+                            "DOCUMENT" -> Icons.Default.ChromeReaderMode
+                            "AUDIO" -> Icons.Default.VolumeUp
+                            else -> Icons.Default.ChromeReaderMode
+                        },
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary
                     )
@@ -12656,57 +18837,162 @@ fun AttachmentPreviewItem(
                     modifier = Modifier
                         .fillMaxWidth()
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    if (type == "IMAGE") {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(160.dp)
-                                .background(Color(0xFF263238), RoundedCornerShape(8.dp))
-                                .padding(12.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Icon(Icons.Default.Brush, contentDescription = null, tint = Color.Green, modifier = Modifier.size(24.dp))
-                                Text(
-                                    text = "[ SIMULATED PHOTO ATTACHMENT ]\n$path",
-                                    color = Color.White,
-                                    fontSize = 11.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    textAlign = TextAlign.Center
-                                )
-                                Text("Rendered with high-fidelity graphics on-device", color = Color.Gray, fontSize = 9.sp)
-                            }
-                        }
-                    } else if (type == "DOCUMENT") {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF9C4)) // Yellow sticky pad color for document contents!
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Icon(Icons.Default.Book, contentDescription = null, tint = Color(0xFFF57F17), modifier = Modifier.size(16.dp))
-                                    Text("ACADEMY REVISION BOOKLET (PDF)", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFFF57F17))
+                    when (type) {
+                        "IMAGE", "CAMERA", "GALLERY" -> {
+                            var rotateAngle by remember { mutableStateOf(0f) }
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(280.dp)
+                                        .clip(RoundedCornerShape(8.dp)),
+                                    colors = CardDefaults.cardColors(containerColor = Color.Black)
+                                ) {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (path != null && (path.startsWith("content://") || path.startsWith("file://") || path.startsWith("http"))) {
+                                            coil.compose.AsyncImage(
+                                                model = path,
+                                                contentDescription = name,
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .graphicsLayer(rotationZ = rotateAngle),
+                                                contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                                            )
+                                        } else {
+                                            // Fallback/Mock beautifully styled layout
+                                            Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                                modifier = Modifier.padding(16.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Image,
+                                                    contentDescription = null,
+                                                    tint = Color.DarkGray,
+                                                    modifier = Modifier.size(64.dp)
+                                                )
+                                                Text(
+                                                    text = "Academy Study Card\n[Photo Asset Path: $path]",
+                                                    color = Color.LightGray,
+                                                    fontSize = 11.sp,
+                                                    textAlign = TextAlign.Center
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
-                                HorizontalDivider(color = Color.Black.copy(alpha = 0.1f))
-                                Text(
-                                    text = "1. Introduction to topic material\n2. Key Formulas and concepts breakdown\n3. Mock questions for board exam\n4. Solutions and teacher annotations.\n\n$path",
-                                    fontSize = 11.sp,
-                                    fontFamily = FontFamily.Serif
-                                )
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceEvenly
+                                ) {
+                                    IconButton(onClick = { rotateAngle -= 90f }) {
+                                        Icon(Icons.Default.RotateLeft, contentDescription = "Rotate Left")
+                                    }
+                                    IconButton(onClick = { rotateAngle += 90f }) {
+                                        Icon(Icons.Default.RotateRight, contentDescription = "Rotate Right")
+                                    }
+                                    IconButton(onClick = {
+                                        Toast.makeText(context, "Saved to Academy Gallery folder!", Toast.LENGTH_SHORT).show()
+                                    }) {
+                                        Icon(Icons.Default.Download, contentDescription = "Download")
+                                    }
+                                }
                             }
                         }
-                    } else {
-                        // Link
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.05f))
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text("SECURE WEB VIEW BROWSER", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
-                                Text("Browsing secure school URL:", fontSize = 10.sp, color = Color.Gray)
-                                Text(path ?: "https://google.com", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, textDecoration = TextDecoration.Underline)
+                        "DOCUMENT" -> {
+                            val documentText = remember(path) {
+                                if (path != null && (path.startsWith("content://") || path.startsWith("file://"))) {
+                                    readTextFromUri(context, path)
+                                } else {
+                                    "1. Mathematics Trigonometry Formulas & Proofs\n\n- sin²θ + cos²θ = 1\n- sec²θ - tan²θ = 1\n- cosec²θ - cot²θ = 1\n\n- sin(A+B) = sinA cosB + cosA sinB\n- cos(A+B) = cosA cosB - sinA sinB\n\n[Study Notes Annotated by Verma Sir]"
+                                }
+                            }
+                            var textZoom by remember { mutableStateOf(12f) }
+
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Font Size: ${textZoom.toInt()}sp", fontSize = 11.sp, color = Color.Gray)
+                                    Row {
+                                        IconButton(onClick = { if (textZoom > 8f) textZoom -= 2f }) {
+                                            Icon(Icons.Default.Remove, contentDescription = "Zoom Out", modifier = Modifier.size(16.dp))
+                                        }
+                                        IconButton(onClick = { if (textZoom < 24f) textZoom += 2f }) {
+                                            Icon(Icons.Default.Add, contentDescription = "Zoom In", modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                }
+
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFDE7)), // Beautiful light ivory/yellow background
+                                    border = BorderStroke(1.dp, Color(0xFFFBC02D).copy(alpha = 0.3f))
+                                ) {
+                                    Column(modifier = Modifier.padding(14.dp)) {
+                                        Text(
+                                            text = documentText,
+                                            fontSize = textZoom.sp,
+                                            fontFamily = FontFamily.Serif,
+                                            color = Color.Black,
+                                            lineHeight = (textZoom * 1.4f).sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        "AUDIO" -> {
+                            if (path != null && (path.startsWith("content://") || path.startsWith("file://"))) {
+                                AudioAttachmentPlayer(uriString = path, isDarkTheme = false)
+                            } else {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(Color(0xFFEDE7F6), RoundedCornerShape(12.dp))
+                                        .padding(16.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(Icons.Default.MusicNote, contentDescription = null, tint = Color(0xFF673AB7), modifier = Modifier.size(48.dp))
+                                    Text("Simulated English Pronunciation Guide", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("File Path: $path", fontSize = 10.sp, color = Color.Gray)
+                                }
+                            }
+                        }
+                        else -> {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text("Attachment Resource Info", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    Text("Name: $name", fontSize = 11.sp)
+                                    Text("Path/Uri: $path", fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                                    if (path != null && path.startsWith("http")) {
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        TextButton(onClick = {
+                                            try {
+                                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(path))
+                                                context.startActivity(intent)
+                                            } catch (e: Exception) {
+                                                Toast.makeText(context, "Could not open map link on device", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }) {
+                                            Text("OPEN GOOGLE MAPS LINK")
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

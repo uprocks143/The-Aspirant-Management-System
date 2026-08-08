@@ -244,6 +244,7 @@ object FirebaseService {
                 "directorName" to inst.directorName,
                 "email" to inst.email,
                 "address" to inst.address,
+                "phone" to inst.phone,
                 "isApproved" to inst.isApproved,
                 "subscriptionActive" to inst.subscriptionActive,
                 "expiryDate" to inst.expiryDate,
@@ -279,6 +280,7 @@ object FirebaseService {
                     directorName = doc.getString("directorName") ?: "Admin Director",
                     email = doc.getString("email") ?: email,
                     address = doc.getString("address") ?: "Main Campus",
+                    phone = doc.getString("phone") ?: "",
                     isApproved = doc.getBoolean("isApproved") ?: true,
                     subscriptionActive = doc.getBoolean("subscriptionActive") ?: true,
                     expiryDate = doc.getString("expiryDate") ?: "2027-06-30",
@@ -383,6 +385,193 @@ object FirebaseService {
             null
         }
     }
+
+    /**
+     * Upload financial transactions to Firestore col "transactions"
+     */
+    suspend fun syncTransactionToCloud(transaction: FinancialTransaction) {
+        if (!isInitialized) return
+        try {
+            val transMap = hashMapOf(
+                "id" to transaction.id,
+                "type" to transaction.type,
+                "amount" to transaction.amount,
+                "category" to transaction.category,
+                "description" to transaction.description,
+                "date" to transaction.date,
+                "lastSynced" to System.currentTimeMillis()
+            )
+            db?.collection("transactions")?.document(transaction.id.toString())?.set(transMap)?.await()
+            Log.d(TAG, "FinancialTransaction #${transaction.id} synced to Firestore.")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error syncing financial transaction: ${e.localizedMessage}")
+        }
+    }
+
+    /**
+     * Performs direct individual Firestore record sync of all local tables
+     */
+    suspend fun syncAllRecordsToFirestore(
+        batches: List<Batch>,
+        students: List<Student>,
+        payments: List<FeePayment>,
+        transactions: List<FinancialTransaction>,
+        attendanceList: List<Attendance>
+    ): Int {
+        if (!isInitialized) return 0
+        var count = 0
+        try {
+            for (batch in batches) {
+                syncBatchToCloud(batch)
+                count++
+            }
+            for (student in students) {
+                syncStudentToCloud(student)
+                count++
+            }
+            for (payment in payments) {
+                syncFeePaymentToCloud(payment)
+                count++
+            }
+            for (transaction in transactions) {
+                syncTransactionToCloud(transaction)
+                count++
+            }
+            for (attendance in attendanceList) {
+                syncAttendanceToCloud(attendance)
+                count++
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during direct Firestore collection sync: ${e.localizedMessage}")
+        }
+        return count
+    }
+
+    /**
+     * Downloads and parses all documents from Firestore collections to merge with local Room cache.
+     */
+    suspend fun pullAllFromFirestore(): FirestoreSyncPayload? {
+        if (!isInitialized) return null
+        return try {
+            val batchesList = mutableListOf<Batch>()
+            val studentsList = mutableListOf<Student>()
+            val paymentsList = mutableListOf<FeePayment>()
+            val transList = mutableListOf<FinancialTransaction>()
+            val attList = mutableListOf<Attendance>()
+
+            // 1. Pull Batches
+            val batchesSnap = db?.collection("batches")?.get()?.await()
+            batchesSnap?.documents?.forEach { doc ->
+                try {
+                    batchesList.add(
+                        Batch(
+                            id = doc.getLong("id") ?: doc.id.toLongOrNull() ?: 0L,
+                            name = doc.getString("name") ?: "",
+                            subject = doc.getString("subject") ?: "Mathematics",
+                            classTimings = doc.getString("classTimings") ?: "04:00 PM - 05:00 PM",
+                            feesAmount = doc.getDouble("feesAmount") ?: 1000.0,
+                            daysOfWeek = doc.getString("daysOfWeek") ?: "Mon, Wed, Fri"
+                        )
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error parsing batch: ${e.localizedMessage}")
+                }
+            }
+
+            // 2. Pull Students
+            val studentsSnap = db?.collection("students")?.get()?.await()
+            studentsSnap?.documents?.forEach { doc ->
+                try {
+                    studentsList.add(
+                        Student(
+                            id = doc.getLong("id") ?: doc.id.toLongOrNull() ?: 0L,
+                            batchId = doc.getLong("batchId") ?: 0L,
+                            name = doc.getString("name") ?: "",
+                            address = doc.getString("address") ?: "",
+                            phone = doc.getString("phone") ?: "",
+                            parentPhone = doc.getString("parentPhone") ?: "",
+                            startDate = doc.getString("startDate") ?: "",
+                            rollNumber = doc.getString("rollNumber") ?: "R-${doc.id}",
+                            parentName = doc.getString("parentName") ?: "Guardian",
+                            dateOfBirth = doc.getString("dateOfBirth") ?: "2000-01-01",
+                            isAlumni = doc.getBoolean("isAlumni") ?: false
+                        )
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error parsing student: ${e.localizedMessage}")
+                }
+            }
+
+            // 3. Pull Payments
+            val paymentsSnap = db?.collection("fees")?.get()?.await()
+            paymentsSnap?.documents?.forEach { doc ->
+                try {
+                    paymentsList.add(
+                        FeePayment(
+                            id = doc.getLong("id") ?: doc.id.toLongOrNull() ?: 0L,
+                            studentId = doc.getLong("studentId") ?: 0L,
+                            feeType = doc.getString("feeType") ?: "Monthly-based",
+                            amountPaid = doc.getDouble("amountPaid") ?: 0.0,
+                            discount = doc.getDouble("discount") ?: 0.0,
+                            datePaid = doc.getLong("datePaid") ?: System.currentTimeMillis(),
+                            receiptNo = doc.getString("receiptNo") ?: "",
+                            monthPaidFor = doc.getString("monthPaidFor") ?: "",
+                            paymentMode = doc.getString("paymentMode") ?: "CASH",
+                            remarks = doc.getString("remarks") ?: "",
+                            transactionStatus = doc.getString("transactionStatus") ?: "SUCCESS"
+                        )
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error parsing payment: ${e.localizedMessage}")
+                }
+            }
+
+            // 4. Pull Transactions
+            val transSnap = db?.collection("transactions")?.get()?.await()
+            transSnap?.documents?.forEach { doc ->
+                try {
+                    transList.add(
+                        FinancialTransaction(
+                            id = doc.getLong("id") ?: doc.id.toLongOrNull() ?: 0L,
+                            type = doc.getString("type") ?: "EXPENSE",
+                            amount = doc.getDouble("amount") ?: 0.0,
+                            category = doc.getString("category") ?: "",
+                            description = doc.getString("description") ?: "",
+                            date = doc.getLong("date") ?: System.currentTimeMillis()
+                        )
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error parsing transaction: ${e.localizedMessage}")
+                }
+            }
+
+            // 5. Pull Attendance
+            val attSnap = db?.collection("attendance")?.get()?.await()
+            attSnap?.documents?.forEach { doc ->
+                try {
+                    attList.add(
+                        Attendance(
+                            id = doc.getLong("id") ?: 0L,
+                            studentId = doc.getLong("studentId") ?: 0L,
+                            batchId = doc.getLong("batchId") ?: 0L,
+                            dateString = doc.getString("dateString") ?: "",
+                            status = doc.getString("status") ?: "Present",
+                            trackingMethod = doc.getString("trackingMethod") ?: "Manual",
+                            checkInTime = doc.getString("checkInTime") ?: ""
+                        )
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error parsing attendance: ${e.localizedMessage}")
+                }
+            }
+
+            FirestoreSyncPayload(batchesList, studentsList, paymentsList, transList, attList)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed downloading snapshot database: ${e.localizedMessage}")
+            null
+        }
+    }
+
 
 
     // ==========================================
@@ -659,3 +848,11 @@ object FirebaseService {
         }
     }
 }
+
+data class FirestoreSyncPayload(
+    val batches: List<Batch>,
+    val students: List<Student>,
+    val payments: List<FeePayment>,
+    val transactions: List<FinancialTransaction>,
+    val attendanceList: List<Attendance>
+)

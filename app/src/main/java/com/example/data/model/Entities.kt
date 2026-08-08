@@ -54,7 +54,8 @@ data class Student(
     val profilePhotoPath: String? = null,
     val documentAttachments: String? = null, // Path or comma-separated list of local URIs
     val familyId: String = "", // Linking mechanism to group siblings together
-    val isAlumni: Boolean = false
+    val isAlumni: Boolean = false,
+    val enrollmentStatus: String = "Active"
 )
 
 @Entity(
@@ -158,7 +159,9 @@ data class Exam(
     val title: String,
     val subject: String = "",
     val durationMinutes: Int = 30,
-    val isLocked: Boolean = false
+    val isLocked: Boolean = false,
+    val examDate: String = "", // YYYY-MM-DD
+    val examTime: String = ""  // HH:MM AM/PM
 )
 
 @Entity(
@@ -177,11 +180,12 @@ data class ExamQuestion(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val examId: Long,
     val questionText: String,
-    val optionA: String,
-    val optionB: String,
-    val optionC: String,
-    val optionD: String,
-    val correctAnswer: String // "A", "B", "C", "D"
+    val optionA: String = "",
+    val optionB: String = "",
+    val optionC: String = "",
+    val optionD: String = "",
+    val correctAnswer: String, // "A", "B", "C", "D" or exact blank text
+    val questionType: String = "MCQ" // "MCQ" or "FITB"
 )
 
 @Entity(
@@ -287,7 +291,12 @@ data class ChatChannel(
     val isPrivate: Boolean = false, // direct messages or private groups
     val firstUserId: String = "", // for direct chat (sender rollNo or role, etc.)
     val secondUserId: String = "", // for direct chat (receiver rollNo or role, etc.)
-    val createdDate: Long = System.currentTimeMillis()
+    val createdDate: Long = System.currentTimeMillis(),
+    val isMuted: Boolean = false,
+    val slowModeSeconds: Int = 0,
+    val dailyTopic: String? = null,
+    val isLocked: Boolean = false,
+    val isAnnouncementOnly: Boolean = false
 )
 
 @Entity(tableName = "chat_messages")
@@ -300,8 +309,32 @@ data class ChatMessage(
     val messageText: String,
     val timestamp: Long = System.currentTimeMillis(),
     val attachmentPath: String? = null, // Path/Uri for attachment or mock content
-    val attachmentType: String? = null, // "IMAGE", "DOCUMENT", "LINK", "NONE"
-    val attachmentName: String? = null
+    val attachmentType: String? = null, // "IMAGE", "DOCUMENT", "LINK", "NONE", "POLL" etc
+    val attachmentName: String? = null,
+    val replyToId: Long? = null,
+    val replyToText: String? = null,
+    val replyToSender: String? = null,
+    val reactions: String = "", // e.g. "❤️:Sumit,👍:Verma"
+    val isPinned: Boolean = false,
+    val isEdited: Boolean = false,
+    val isDeleted: Boolean = false,
+    val isReported: Boolean = false,
+    val isBookmarked: Boolean = false,
+    val pollQuestion: String? = null,
+    val pollOptions: String? = null, // e.g. "Yes,No,Maybe"
+    val pollVotes: String? = null // e.g. "Yes:2,No:1"
+)
+
+@Entity(tableName = "assignments")
+data class Assignment(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val batchId: Long = 0, // 0 means All Batches, or refer to Batch ID
+    val batchName: String, // "All Batches" or the specific batch name
+    val title: String,
+    val description: String,
+    val dueDate: String = "", // e.g., "Tomorrow" or a date string
+    val dueDateMillis: Long = System.currentTimeMillis() + 24 * 60 * 60 * 1000L, // 1 day default
+    val createdAt: Long = System.currentTimeMillis()
 )
 
 

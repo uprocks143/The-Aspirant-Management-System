@@ -23,9 +23,10 @@ import com.example.data.model.*
         MaterialQuizQuestion::class,
         MaterialQuizAttempt::class,
         ChatChannel::class,
-        ChatMessage::class
+        ChatMessage::class,
+        Assignment::class
     ],
-    version = 9,
+    version = 14,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

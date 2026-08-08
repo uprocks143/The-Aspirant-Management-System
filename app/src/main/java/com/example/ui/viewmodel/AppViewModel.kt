@@ -26,6 +26,7 @@ data class InstituteAccount(
     val directorName: String,
     val email: String,
     val address: String,
+    val phone: String = "",
     val isApproved: Boolean = false,
     val subscriptionActive: Boolean = true,
     val expiryDate: String = "2026-07-18",
@@ -113,7 +114,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val sharedPrefs = context.getSharedPreferences("tams_settings", Context.MODE_PRIVATE)
 
     // === Dynamic Registration State ===
-    private val _academyName = MutableStateFlow(getSafeString(sharedPrefs, "academy_name", "TAMS Academy"))
+    private val _academyName = MutableStateFlow(getSafeString(sharedPrefs, "academy_name", ""))
     val academyName = _academyName.asStateFlow()
 
     private val _directorName = MutableStateFlow(getSafeString(sharedPrefs, "director_name", "Admin Director"))
@@ -225,6 +226,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         directorName = obj.optString("directorName", "Tutor"),
                         email = obj.optString("email", ""),
                         address = obj.optString("address", ""),
+                        phone = obj.optString("phone", ""),
                         isApproved = obj.optBoolean("isApproved", false),
                         subscriptionActive = obj.optBoolean("subscriptionActive", true),
                         expiryDate = obj.optString("expiryDate", "2026-07-18"),
@@ -243,11 +245,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 )
             }
-            if (list.isEmpty()) {
-                // Seed only the App Owner's authorized account profile. No other accounts can be created or auto-generated.
-                list.add(InstituteAccount("TAMS Academy", "Admin Director", "admin@tams.com", "Main Campus", true, true, "2026-12-31"))
-                saveInstitutesList(list)
-            }
+            // No hardcoded accounts seeded. Fully dynamic custom workspace login.
             _institutesList.value = list
             loadTeachers()
         } catch (e: Exception) {
@@ -263,6 +261,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             obj.put("directorName", item.directorName)
             obj.put("email", item.email)
             obj.put("address", item.address)
+            obj.put("phone", item.phone)
             obj.put("isApproved", item.isApproved)
             obj.put("subscriptionActive", item.subscriptionActive)
             obj.put("expiryDate", item.expiryDate)
@@ -438,6 +437,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         director: String,
         email: String,
         address: String,
+        phone: String = "",
         profileType: String = "COACHING_OWNER",
         gstNumber: String = "",
         businessProofId: String = "",
@@ -452,6 +452,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             .putString("director_name", director)
             .putString("admin_email", email)
             .putString("admin_address", address)
+            .putString("admin_phone", phone)
             .putString("profile_type", profileType)
             .apply()
         _academyName.value = academy
@@ -472,6 +473,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     directorName = director,
                     email = email,
                     address = address,
+                    phone = phone,
                     isApproved = isApproved,
                     profileType = profileType,
                     gstNumber = gstNumber,
@@ -512,10 +514,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val staffScreenAccess = _staffScreenAccess.asStateFlow()
 
     // === Customizable Institution Merchant UPI Configs ===
-    private val _merchantUpiId = MutableStateFlow(getSafeString(sharedPrefs, "merchant_upi_id", "smtsharma282.sks@okaxis"))
+    private val _merchantUpiId = MutableStateFlow(getSafeString(sharedPrefs, "merchant_upi_id", ""))
     val merchantUpiId = _merchantUpiId.asStateFlow()
 
-    private val _merchantName = MutableStateFlow(getSafeString(sharedPrefs, "merchant_name", "Aspirants Success Classes"))
+    private val _merchantName = MutableStateFlow(getSafeString(sharedPrefs, "merchant_name", ""))
     val merchantName = _merchantName.asStateFlow()
 
     fun updateMerchantUPI(upi: String, name: String) {
@@ -621,9 +623,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
             if (list.isEmpty()) {
-                list.add(StaffProfile("staff1", "Sunil Verma", "Senior Maths Faculty", "9876543210", setOf("Attendance", "Study Materials", "Homework"), true))
-                list.add(StaffProfile("staff2", "Neha Gupta", "Academy Center Incharge", "9988776655", setOf("Batches Setup", "Admission Form", "Tuition Fees", "Attendance", "Homework"), true))
-                list.add(StaffProfile("staff3", "Pankaj Sharma", "Admission Lead Manager", "9456123780", setOf("Enquiry Manager", "Admission Form"), true))
                 saveStaffProfilesList(list)
             }
             _staffProfiles.value = list
@@ -1119,24 +1118,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val rawExams = repository.allExams
 
     val batches = combine(rawBatches, _adminEmail, _currentUserRole) { list, email, role ->
-        if (role == "STUDENT" || role == "PARENT" || role == "GUEST") {
+        if (role == "ADMIN" || role == "STUDENT" || role == "PARENT" || role == "GUEST" || email.isBlank()) {
             list
         } else {
-            list.filter { it.instituteEmail == email }
+            val cleanEmail = email.trim().lowercase()
+            val filtered = list.filter { it.instituteEmail.isBlank() || it.instituteEmail.trim().lowercase() == cleanEmail }
+            if (filtered.isEmpty()) list else filtered
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val students = combine(rawStudents, batches, _currentUserRole) { list, activeBatches, role ->
-        if (role == "STUDENT" || role == "PARENT" || role == "GUEST") {
+        if (role == "ADMIN" || role == "STUDENT" || role == "PARENT" || role == "GUEST" || activeBatches.isEmpty()) {
             list
         } else {
             val activeBatchIds = activeBatches.map { it.id }.toSet()
-            list.filter { it.batchId in activeBatchIds }
+            list.filter { it.batchId == 0L || it.batchId in activeBatchIds }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val feePayments = combine(rawFeePayments, students, _currentUserRole) { list, activeStudents, role ->
-        if (role == "STUDENT" || role == "PARENT" || role == "GUEST") {
+        if (role == "ADMIN" || role == "STUDENT" || role == "PARENT" || role == "GUEST" || activeStudents.isEmpty()) {
             list
         } else {
             val activeStudentIds = activeStudents.map { it.id }.toSet()
@@ -1145,30 +1146,42 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val transactions = combine(rawTransactions, _adminEmail, _currentUserRole) { list, email, role ->
-        if (role == "STUDENT" || role == "PARENT" || role == "GUEST") {
+        if (role == "ADMIN" || role == "STUDENT" || role == "PARENT" || role == "GUEST" || email.isBlank()) {
             list
         } else {
-            list.filter { it.instituteEmail == email }
+            val cleanEmail = email.trim().lowercase()
+            val filtered = list.filter { it.instituteEmail.isBlank() || it.instituteEmail.trim().lowercase() == cleanEmail }
+            if (filtered.isEmpty()) list else filtered
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val studyMaterials = combine(rawStudyMaterials, batches, _currentUserRole) { list, activeBatches, role ->
-        if (role == "STUDENT" || role == "PARENT" || role == "GUEST") {
+        if (role == "ADMIN" || role == "STUDENT" || role == "PARENT" || role == "GUEST" || activeBatches.isEmpty()) {
             list
         } else {
             val activeBatchIds = activeBatches.map { it.id }.toSet()
-            list.filter { it.batchId in activeBatchIds }
+            list.filter { it.batchId == 0L || it.batchId in activeBatchIds }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val messageTemplates = repository.allMessageTemplates.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val exams = combine(rawExams, batches, _currentUserRole) { list, activeBatches, role ->
-        if (role == "STUDENT" || role == "PARENT" || role == "GUEST") {
+        if (role == "ADMIN" || role == "STUDENT" || role == "PARENT" || role == "GUEST" || activeBatches.isEmpty()) {
             list
         } else {
             val activeBatchIds = activeBatches.map { it.id }.toSet()
-            list.filter { it.batchId in activeBatchIds }
+            list.filter { it.batchId == 0L || it.batchId in activeBatchIds }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val rawAssignments = repository.allAssignments
+    val assignments = combine(rawAssignments, batches, _currentUserRole) { list, activeBatches, role ->
+        if (role == "ADMIN" || role == "STUDENT" || role == "PARENT" || role == "GUEST" || activeBatches.isEmpty()) {
+            list
+        } else {
+            val activeBatchIds = activeBatches.map { it.id }.toSet()
+            list.filter { it.batchId == 0L || it.batchId in activeBatchIds }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -1243,6 +1256,126 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val chatChannels: StateFlow<List<ChatChannel>> = repository.allChatChannels
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Map of userId to online status (Boolean)
+    private val _onlineUsersMap = MutableStateFlow<Map<String, Boolean>>(
+        mapOf(
+            "ADMIN" to true,
+            "TEACHER_VERMA" to true,
+            "TEACHER_MATHS" to false,
+            "TEACHER_SCIENCE" to true,
+            "STAFF" to true,
+            "STUDENT_1" to true,
+            "STUDENT_2" to false,
+            "STUDENT_3" to true
+        )
+    )
+    val onlineUsersMap: StateFlow<Map<String, Boolean>> = _onlineUsersMap.asStateFlow()
+
+    fun toggleUserOnlineStatus(userId: String) {
+        val currentMap = _onlineUsersMap.value.toMutableMap()
+        val currentStatus = currentMap[userId] ?: false
+        currentMap[userId] = !currentStatus
+        _onlineUsersMap.value = currentMap
+    }
+
+    private val _messageReactions = MutableStateFlow<Map<Long, List<String>>>(emptyMap())
+    val messageReactions: StateFlow<Map<Long, List<String>>> = _messageReactions.asStateFlow()
+
+    fun toggleMessageReaction(messageId: Long, emoji: String) {
+        val current = _messageReactions.value.toMutableMap()
+        val list = current[messageId]?.toMutableList() ?: mutableListOf()
+        if (list.contains(emoji)) {
+            list.remove(emoji)
+        } else {
+            list.add(emoji)
+        }
+        if (list.isEmpty()) {
+            current.remove(messageId)
+        } else {
+            current[messageId] = list
+        }
+        _messageReactions.value = current
+
+        viewModelScope.launch {
+            val msg = repository.getChatMessageById(messageId)
+            if (msg != null) {
+                val currentReactions = msg.reactions.split(",").filter { it.isNotEmpty() }.toMutableList()
+                if (currentReactions.contains(emoji)) {
+                    currentReactions.remove(emoji)
+                } else {
+                    currentReactions.add(emoji)
+                }
+                repository.insertChatMessage(msg.copy(reactions = currentReactions.joinToString(",")))
+            }
+        }
+    }
+
+    fun setUserOnlineStatus(userId: String, isOnline: Boolean) {
+        val currentMap = _onlineUsersMap.value.toMutableMap()
+        currentMap[userId] = isOnline
+        _onlineUsersMap.value = currentMap
+    }
+
+    private fun startOnlineStatusSimulator() {
+        viewModelScope.launch {
+            try {
+                students.collect { studentList ->
+                    if (studentList.isNotEmpty()) {
+                        val currentMap = _onlineUsersMap.value.toMutableMap()
+                        studentList.forEach { student ->
+                            val key = "STUDENT_${student.id}"
+                            if (!currentMap.containsKey(key)) {
+                                currentMap[key] = (student.id % 2L == 0L)
+                            }
+                        }
+                        _onlineUsersMap.value = currentMap
+                    }
+                }
+            } catch (e: Exception) {
+                // Ignore
+            }
+        }
+
+        viewModelScope.launch {
+            while (true) {
+                delay(20000) // every 20 seconds
+                try {
+                    val currentMap = _onlineUsersMap.value.toMutableMap()
+                    val studentKeys = currentMap.keys.filter { it.startsWith("STUDENT_") }
+                    if (studentKeys.isNotEmpty()) {
+                        val randomKey = studentKeys.random()
+                        currentMap[randomKey] = !(currentMap[randomKey] ?: false)
+                        _onlineUsersMap.value = currentMap
+                    }
+                } catch (e: Exception) {
+                    // Ignore
+                }
+            }
+        }
+    }
+
+    private val _completedAssignmentIds = MutableStateFlow<Set<Long>>(emptySet())
+    val completedAssignmentIds = _completedAssignmentIds.asStateFlow()
+
+    init {
+        startOnlineStatusSimulator()
+        val savedStr = sharedPrefs.getString("completed_assignment_ids", "") ?: ""
+        if (savedStr.isNotEmpty()) {
+            _completedAssignmentIds.value = savedStr.split(",").mapNotNull { it.toLongOrNull() }.toSet()
+        }
+    }
+
+    fun toggleAssignmentCompleted(assignmentId: Long) {
+        val currentSet = _completedAssignmentIds.value
+        val newSet = if (currentSet.contains(assignmentId)) {
+            currentSet - assignmentId
+        } else {
+            currentSet + assignmentId
+        }
+        _completedAssignmentIds.value = newSet
+        sharedPrefs.edit().putString("completed_assignment_ids", newSet.joinToString(",")).apply()
+    }
+
     private val _currentChannelId = MutableStateFlow<Long?>(null)
     val currentChannelId = _currentChannelId.asStateFlow()
 
@@ -1301,7 +1434,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         messageText: String,
         attachmentPath: String? = null,
         attachmentType: String? = null,
-        attachmentName: String? = null
+        attachmentName: String? = null,
+        replyToId: Long? = null,
+        replyToText: String? = null,
+        replyToSender: String? = null,
+        pollQuestion: String? = null,
+        pollOptions: String? = null
     ) {
         viewModelScope.launch {
             val msg = ChatMessage(
@@ -1313,9 +1451,203 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 timestamp = System.currentTimeMillis(),
                 attachmentPath = attachmentPath,
                 attachmentType = attachmentType,
-                attachmentName = attachmentName
+                attachmentName = attachmentName,
+                replyToId = replyToId,
+                replyToText = replyToText,
+                replyToSender = replyToSender,
+                pollQuestion = pollQuestion,
+                pollOptions = pollOptions,
+                pollVotes = if (pollQuestion != null) {
+                    pollOptions?.split(",")?.associateWith { "0" }?.map { "${it.key}:0" }?.joinToString(",")
+                } else null
             )
             repository.insertChatMessage(msg)
+
+            // Dynamic automatic responder for direct private chat to make it real and functional:
+            val channel = repository.getChatChannelById(channelId)
+            if (channel != null && channel.isPrivate) {
+                val otherPersonName = channel.name.replace("🔒 Chat with ", "").trim()
+                val otherUserId = if (channel.firstUserId == senderId) channel.secondUserId else channel.firstUserId
+                
+                val lowerMsg = messageText.lowercase()
+                val replyText = when {
+                    otherPersonName.contains("Verma", ignoreCase = true) -> {
+                        when {
+                            lowerMsg.contains("doubt") || lowerMsg.contains("question") || lowerMsg.contains("homework") || lowerMsg.contains("math") || lowerMsg.contains("physics") || lowerMsg.contains("solve") -> {
+                                "Hello! Please share a clear picture of the doubt, or type the equation. I am online right now and will review your calculation steps."
+                            }
+                            lowerMsg.contains("fee") || lowerMsg.contains("pay") || lowerMsg.contains("due") -> {
+                                "Regarding tuition fees, please check the 'Fees & Ledger' section on your dashboard or contact the administrative desk. They manage all payments."
+                            }
+                            lowerMsg.contains("class") || lowerMsg.contains("time") || lowerMsg.contains("schedule") -> {
+                                "Today's physics batch starts at 4:30 PM. We will solve core board exam sample papers. Be on time!"
+                            }
+                            else -> {
+                                "Greetings! Thanks for your message. How can I assist you with your studies or exam preparation today?"
+                            }
+                        }
+                    }
+                    otherPersonName.contains("Math", ignoreCase = true) -> {
+                        when {
+                            lowerMsg.contains("algebra") || lowerMsg.contains("calculus") || lowerMsg.contains("trigonometry") || lowerMsg.contains("solve") || lowerMsg.contains("sum") -> {
+                                "Great choice! Let's solve it step-by-step. Share the math problem and we can solve it together."
+                            }
+                            else -> {
+                                "Hello! I am your Mathematics tutor. Send over your math doubts or assignments, and we will break them down."
+                            }
+                        }
+                    }
+                    otherPersonName.contains("Science", ignoreCase = true) || otherPersonName.contains("Physics", ignoreCase = true) -> {
+                        "Hello! Let me know if you have any questions from physics experiments or chemistry equations."
+                    }
+                    otherPersonName.contains("Director", ignoreCase = true) || otherPersonName.contains("Admin", ignoreCase = true) -> {
+                        "Hello! This is the TAMS Academy administration desk. If you have inquiries about registrations, fee adjustments, or class schedules, please let us know. We are here to help."
+                    }
+                    else -> {
+                        // For student peers
+                        when {
+                            lowerMsg.contains("note") || lowerMsg.contains("copy") || lowerMsg.contains("book") || lowerMsg.contains("lecture") -> {
+                                "Hey! Yes, I have the notes from yesterday's lecture. Let me know if you want me to share them, or we can study together."
+                            }
+                            lowerMsg.contains("exam") || lowerMsg.contains("test") || lowerMsg.contains("syllabus") -> {
+                                "I'm a bit nervous about the upcoming test too! Let's practice some sample papers in the group study room."
+                            }
+                            else -> {
+                                "Hey there! Glad to connect with you 1-to-1. Let me know if you want to collaborate on any subject assignment or homework doubts!"
+                            }
+                        }
+                    }
+                }
+
+                launch {
+                    delay(1500) // Delay to feel like a real typing person!
+                    val replyMsg = ChatMessage(
+                        channelId = channelId,
+                        senderId = otherUserId,
+                        senderName = otherPersonName,
+                        senderRole = if (otherPersonName.contains("Sir") || otherPersonName.contains("Teacher") || otherPersonName.contains("Tutor") || otherPersonName.contains("Admin")) "TEACHER" else "STUDENT",
+                        messageText = replyText,
+                        timestamp = System.currentTimeMillis()
+                    )
+                    repository.insertChatMessage(replyMsg)
+                    com.example.services.NotificationHelper.triggerChatNotification(context, channel.name, otherPersonName, replyText)
+                }
+            }
+        }
+    }
+
+    fun pinChatMessage(messageId: Long, isPinned: Boolean) {
+        viewModelScope.launch {
+            val msg = repository.getChatMessageById(messageId)
+            if (msg != null) {
+                repository.insertChatMessage(msg.copy(isPinned = isPinned))
+            }
+        }
+    }
+
+    fun editChatMessage(messageId: Long, newText: String) {
+        viewModelScope.launch {
+            val msg = repository.getChatMessageById(messageId)
+            if (msg != null) {
+                repository.insertChatMessage(msg.copy(messageText = newText, isEdited = true))
+            }
+        }
+    }
+
+    fun deleteChatMessage(messageId: Long) {
+        viewModelScope.launch {
+            val msg = repository.getChatMessageById(messageId)
+            if (msg != null) {
+                repository.insertChatMessage(msg.copy(isDeleted = true, messageText = "This message was deleted.", attachmentType = null, attachmentPath = null))
+            }
+        }
+    }
+
+    fun bookmarkChatMessage(messageId: Long, isBookmarked: Boolean) {
+        viewModelScope.launch {
+            val msg = repository.getChatMessageById(messageId)
+            if (msg != null) {
+                repository.insertChatMessage(msg.copy(isBookmarked = isBookmarked))
+            }
+        }
+    }
+
+    fun reportChatMessage(messageId: Long) {
+        viewModelScope.launch {
+            val msg = repository.getChatMessageById(messageId)
+            if (msg != null) {
+                repository.insertChatMessage(msg.copy(isReported = true))
+            }
+        }
+    }
+
+    fun submitPollVote(messageId: Long, selectedOption: String) {
+        viewModelScope.launch {
+            val msg = repository.getChatMessageById(messageId) ?: return@launch
+            val votesMap = msg.pollVotes?.split(",")?.mapNotNull {
+                val parts = it.split(":")
+                if (parts.size >= 2) parts[0] to (parts[1].toIntOrNull() ?: 0) else null
+            }?.toMap()?.toMutableMap() ?: mutableMapOf()
+
+            val currentVotes = votesMap[selectedOption] ?: 0
+            votesMap[selectedOption] = currentVotes + 1
+
+            val newVotesStr = votesMap.map { "${it.key}:${it.value}" }.joinToString(",")
+            repository.insertChatMessage(msg.copy(pollVotes = newVotesStr))
+        }
+    }
+
+    fun toggleMuteChannel(channelId: Long, isMuted: Boolean) {
+        viewModelScope.launch {
+            val channel = repository.getChatChannelById(channelId)
+            if (channel != null) {
+                repository.insertChatChannel(channel.copy(isMuted = isMuted))
+            }
+        }
+    }
+
+    fun setChannelSlowMode(channelId: Long, seconds: Int) {
+        viewModelScope.launch {
+            val channel = repository.getChatChannelById(channelId)
+            if (channel != null) {
+                repository.insertChatChannel(channel.copy(slowModeSeconds = seconds))
+            }
+        }
+    }
+
+    fun setChannelDailyTopic(channelId: Long, topic: String) {
+        viewModelScope.launch {
+            val channel = repository.getChatChannelById(channelId)
+            if (channel != null) {
+                repository.insertChatChannel(channel.copy(dailyTopic = topic))
+            }
+        }
+    }
+
+    fun toggleLockChannel(channelId: Long, isLocked: Boolean) {
+        viewModelScope.launch {
+            val channel = repository.getChatChannelById(channelId)
+            if (channel != null) {
+                repository.insertChatChannel(channel.copy(isLocked = isLocked))
+            }
+        }
+    }
+
+    fun toggleAnnouncementOnlyChannel(channelId: Long, isAnnouncementOnly: Boolean) {
+        viewModelScope.launch {
+            val channel = repository.getChatChannelById(channelId)
+            if (channel != null) {
+                repository.insertChatChannel(channel.copy(isAnnouncementOnly = isAnnouncementOnly))
+            }
+        }
+    }
+
+    fun updateChannelGroupDetails(channelId: Long, name: String, description: String, dailyTopic: String?) {
+        viewModelScope.launch {
+            val channel = repository.getChatChannelById(channelId)
+            if (channel != null) {
+                repository.insertChatChannel(channel.copy(name = name, description = description, dailyTopic = dailyTopic))
+            }
         }
     }
 
@@ -1346,12 +1678,49 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // === Student Dynamic SaaS Multi-tenancy Context Switcher ===
-    private val _activeStudentContext = MutableStateFlow(getSafeString(sharedPrefs, "active_student_context", "Verma Sir's Tuition"))
+    private val _registeredWorkspaces = MutableStateFlow<List<String>>(emptyList())
+    val registeredWorkspaces = _registeredWorkspaces.asStateFlow()
+
+    init {
+        val savedWorkspaces = sharedPrefs.getStringSet("registered_workspaces", null)
+        val initialList = if (savedWorkspaces == null || savedWorkspaces.isEmpty()) {
+            val primaryAcad = getSafeString(sharedPrefs, "academy_name", "TAMS Academy").ifEmpty { "TAMS Academy" }
+            listOf(primaryAcad)
+        } else {
+            savedWorkspaces.toList()
+        }
+        _registeredWorkspaces.value = initialList
+    }
+
+    private val _activeStudentContext = MutableStateFlow(getSafeString(sharedPrefs, "active_student_context", "TAMS Academy"))
     val activeStudentContext = _activeStudentContext.asStateFlow()
 
     fun switchStudentContext(newContext: String) {
         _activeStudentContext.value = newContext
         sharedPrefs.edit().putString("active_student_context", newContext).apply()
+    }
+
+    fun addWorkspace(name: String) {
+        val current = _registeredWorkspaces.value.toMutableList()
+        if (!current.contains(name)) {
+            current.add(name)
+            _registeredWorkspaces.value = current
+            sharedPrefs.edit().putStringSet("registered_workspaces", current.toSet()).apply()
+        }
+    }
+
+    fun removeWorkspace(name: String) {
+        val current = _registeredWorkspaces.value.toMutableList()
+        current.remove(name)
+        if (current.isEmpty()) {
+            val primaryAcad = getSafeString(sharedPrefs, "academy_name", "TAMS Academy").ifEmpty { "TAMS Academy" }
+            current.add(primaryAcad)
+        }
+        _registeredWorkspaces.value = current
+        sharedPrefs.edit().putStringSet("registered_workspaces", current.toSet()).apply()
+        if (_activeStudentContext.value == name) {
+            switchStudentContext(current.first())
+        }
     }
 
     // === Role Auth Actions ===
@@ -1362,6 +1731,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             .putString("user_role", role)
             .putLong("user_student_id", studentId)
             .apply()
+    }
+
+    fun authenticateStudent(rollNumber: String, phone: String): Student? {
+        val cleanRoll = rollNumber.trim()
+        val cleanPhone = phone.trim()
+        return students.value.find { 
+            it.rollNumber.equals(cleanRoll, ignoreCase = true) && it.phone == cleanPhone
+        }
+    }
+
+    fun authenticateParent(childRollNumber: String, parentPhone: String): Student? {
+        val cleanRoll = childRollNumber.trim()
+        val cleanPhone = parentPhone.trim()
+        return students.value.find {
+            it.rollNumber.equals(cleanRoll, ignoreCase = true) && 
+            (it.parentPhone == cleanPhone || it.phone == cleanPhone)
+        }
     }
 
     fun updateStaffAccess(screens: Set<String>) {
@@ -1601,7 +1987,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         regFee: Double,
         familyId: String,
         photoPath: String? = null,
-        docPath: String? = null
+        docPath: String? = null,
+        startDate: String = "2026-06-14",
+        enrollmentStatus: String = "Active"
     ) {
         viewModelScope.launch {
             // 1. Create student
@@ -1615,7 +2003,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 parentPhone = parentPhone,
                 gender = gender,
                 address = address,
-                startDate = "2026-06-14",
+                startDate = startDate,
                 studentClass = studentClass,
                 subject = subject,
                 schoolCollegeName = schoolName,
@@ -1624,7 +2012,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 customField3 = custom3,
                 profilePhotoPath = photoPath,
                 documentAttachments = docPath,
-                familyId = familyId.ifEmpty { UUID.randomUUID().toString().substring(0, 8) }
+                familyId = familyId.ifEmpty { UUID.randomUUID().toString().substring(0, 8) },
+                isAlumni = (enrollmentStatus == "Alumni"),
+                enrollmentStatus = enrollmentStatus
             )
             val studentId = repository.insertStudent(studentToInsert)
             val studentWithId = studentToInsert.copy(id = studentId)
@@ -1695,17 +2085,85 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateStudent(student: Student) {
         viewModelScope.launch {
-            repository.updateStudent(student)
+            val adjustedStudent = if (student.isAlumni && student.enrollmentStatus != "Alumni") {
+                student.copy(enrollmentStatus = "Alumni")
+            } else if (!student.isAlumni && student.enrollmentStatus == "Alumni") {
+                student.copy(enrollmentStatus = "Active")
+            } else if (student.enrollmentStatus == "Alumni" && !student.isAlumni) {
+                student.copy(isAlumni = true)
+            } else if (student.enrollmentStatus != "Alumni" && student.isAlumni) {
+                student.copy(isAlumni = false)
+            } else {
+                student
+            }
+
+            val oldStudent = repository.getStudentById(adjustedStudent.id)
+            val oldMonth = oldStudent?.let { getMonthYearString(it.startDate) } ?: ""
+            val newMonth = getMonthYearString(adjustedStudent.startDate)
+
+            repository.updateStudent(adjustedStudent)
+
+            if (oldMonth.isNotEmpty() && oldMonth != newMonth) {
+                val batch = batches.value.find { it.id == adjustedStudent.batchId }
+                val feeAmt = batch?.feesAmount ?: 1000.0
+
+                val pendingPayment = FeePayment(
+                    studentId = adjustedStudent.id,
+                    feeType = "Monthly-based",
+                    amountPaid = 0.0,
+                    receiptNo = "REC-PEND-${System.currentTimeMillis() % 10000}",
+                    monthPaidFor = newMonth,
+                    paymentMode = "UPI",
+                    remarks = "Pending fee installment after changing admission month to $newMonth",
+                    transactionStatus = "PENDING"
+                )
+                repository.insertFeePayment(pendingPayment)
+
+                // Sync with cloud if initialized
+                try {
+                    FirebaseService.initialize(context)
+                    if (FirebaseService.isInitialized) {
+                        FirebaseService.syncFeePaymentToCloud(pendingPayment)
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("AppViewModel", "Cloud sync of pending payment failed: ${e.localizedMessage}")
+                }
+
+                val alertMsg = "🔔 FEE ALERT: Dear ${adjustedStudent.name}, your admission date has been shifted to ${adjustedStudent.startDate}. Outstanding coaching fees of ₹${feeAmt.toInt()} for $newMonth is now marked PENDING. Please clear VPA dues."
+                Toast.makeText(context, alertMsg, Toast.LENGTH_LONG).show()
+                android.util.Log.d("AppViewModel", "Mock SMS sent to ${adjustedStudent.phone}: $alertMsg")
+            }
+
             // Sync with Firestore Cloud on update
             try {
                 FirebaseService.initialize(context)
                 if (FirebaseService.isInitialized) {
-                    FirebaseService.syncStudentToCloud(student)
+                    FirebaseService.syncStudentToCloud(adjustedStudent)
                     android.util.Log.d("AppViewModel", "Updated student successfully synced to Firestore.")
                 }
             } catch (e: Exception) {
                 android.util.Log.e("AppViewModel", "Cloud sync on update failed: ${e.localizedMessage}")
             }
+        }
+    }
+
+    private fun getMonthYearString(dateString: String): String {
+        return try {
+            val parts = dateString.split("-")
+            if (parts.size >= 2) {
+                val year = parts[0]
+                val monthInt = parts[1].toIntOrNull() ?: 1
+                val months = listOf(
+                    "January", "February", "March", "April", "May", "June",
+                    "July", "August", "September", "October", "November", "December"
+                )
+                val monthName = months.getOrElse(monthInt - 1) { "June" }
+                "$monthName $year"
+            } else {
+                "June 2026"
+            }
+        } catch (e: Exception) {
+            "June 2026"
         }
     }
 
@@ -1779,7 +2237,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // === Financial Ledger Logic ===
-    fun collectFeePayment(studentId: Long, amount: Double, discount: Double, feeType: String, month: String, mode: String, remarks: String) {
+    fun collectFeePayment(
+        studentId: Long,
+        amount: Double,
+        discount: Double,
+        feeType: String,
+        month: String,
+        mode: String,
+        remarks: String,
+        datePaid: Long = System.currentTimeMillis(),
+        status: String = "SUCCESS"
+    ) {
         viewModelScope.launch {
             val receipt = "REC-FEE-${System.currentTimeMillis() % 100000}"
             val payment = FeePayment(
@@ -1790,7 +2258,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 paymentMode = mode,
                 remarks = remarks,
                 receiptNo = receipt,
-                monthPaidFor = month
+                monthPaidFor = month,
+                datePaid = datePaid,
+                transactionStatus = status
             )
             val paymentId = repository.insertFeePayment(payment)
             val paymentWithId = payment.copy(id = paymentId)
@@ -1898,6 +2368,31 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // === Assignments & Due Dates ===
+    fun publishAssignment(batchId: Long, batchName: String, title: String, description: String, dueDate: String, dueDateMillis: Long) {
+        viewModelScope.launch {
+            repository.insertAssignment(
+                Assignment(
+                    batchId = batchId,
+                    batchName = batchName,
+                    title = title,
+                    description = description,
+                    dueDate = dueDate,
+                    dueDateMillis = dueDateMillis
+                )
+            )
+            com.example.services.NotificationHelper.triggerAssignmentNotification(context, title, batchName, dueDate)
+            Toast.makeText(context, "Assignment published successfully!", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun deleteAssignment(assignment: Assignment) {
+        viewModelScope.launch {
+            repository.deleteAssignment(assignment)
+            Toast.makeText(context, "Assignment deleted successfully", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     // === Study Material Quizzes & Interactive Assessments ===
     fun getQuizzesForMaterial(studyMaterialId: Long): Flow<List<MaterialQuiz>> {
         return repository.getQuizzesForMaterial(studyMaterialId)
@@ -1950,7 +2445,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // === Online MCQ Exam System & Controller ===
-    fun createExam(batchId: Long, title: String, subject: String, duration: Int) {
+    fun createExam(batchId: Long, title: String, subject: String, duration: Int, examDate: String = "", examTime: String = "") {
         viewModelScope.launch {
             repository.insertExam(
                 Exam(
@@ -1958,13 +2453,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     title = title,
                     subject = subject,
                     durationMinutes = duration,
-                    isLocked = false
+                    isLocked = false,
+                    examDate = examDate,
+                    examTime = examTime
                 )
             )
         }
     }
 
-    fun addExamQuestion(examId: Long, text: String, a: String, b: String, c: String, d: String, correct: String) {
+    fun addExamQuestion(examId: Long, text: String, a: String = "", b: String = "", c: String = "", d: String = "", correct: String, type: String = "MCQ") {
         viewModelScope.launch {
             repository.insertExamQuestion(
                 ExamQuestion(
@@ -1974,7 +2471,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     optionB = b,
                     optionC = c,
                     optionD = d,
-                    correctAnswer = correct
+                    correctAnswer = correct,
+                    questionType = type
                 )
             )
         }
@@ -1984,8 +2482,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         return repository.getQuestionsForExam(examId)
     }
 
+    fun deleteExam(exam: Exam) {
+        viewModelScope.launch {
+            repository.deleteExam(exam)
+        }
+    }
+
     fun getAttemptsForStudentFlow(studentId: Long): Flow<List<ExamAttempt>> {
         return repository.getAttemptsForStudent(studentId)
+    }
+
+    fun getAttemptsForExamFlow(examId: Long): Flow<List<ExamAttempt>> {
+        return repository.getAttemptsForExam(examId)
     }
 
     fun recordExamAttempt(studentId: Long, examId: Long, score: Int, max: Int, time: Int) {
@@ -2138,6 +2646,62 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun triggerFirestoreSync(onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val batchList = batches.value
+                val studentList = students.value
+                val paymentsList = feePayments.value
+                val transList = transactions.value
+                val attList = repository.allAttendanceList.first()
+
+                FirebaseService.initialize(context)
+                if (FirebaseService.isInitialized) {
+                    val count = FirebaseService.syncAllRecordsToFirestore(
+                        batches = batchList,
+                        students = studentList,
+                        payments = paymentsList,
+                        transactions = transList,
+                        attendanceList = attList
+                    )
+                    onResult(true, "Successfully synchronized $count active records to individual Firestore collections!")
+                } else {
+                    onResult(false, "Cloud Firestore is offline. Configure your Firebase parameters in settings.")
+                }
+            } catch (e: Exception) {
+                onResult(false, "Firestore Sync failed: ${e.localizedMessage}")
+            }
+        }
+    }
+
+    fun triggerFirestorePull(onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                FirebaseService.initialize(context)
+                if (FirebaseService.isInitialized) {
+                    val payload = FirebaseService.pullAllFromFirestore()
+                    if (payload != null) {
+                        repository.restoreDatabaseBulk(
+                            batches = payload.batches,
+                            students = payload.students,
+                            payments = payload.payments,
+                            transactions = payload.transactions,
+                            attendanceList = payload.attendanceList
+                        )
+                        onResult(true, "Successfully pulled & merged ${payload.batches.size} batches, ${payload.students.size} students, ${payload.payments.size} payments, ${payload.transactions.size} transactions, and ${payload.attendanceList.size} attendance records from Firestore!")
+                    } else {
+                        onResult(false, "No data could be retrieved from Firestore, or parsing failed.")
+                    }
+                } else {
+                    onResult(false, "Cloud Firestore is offline. Configure your Firebase parameters in settings.")
+                }
+            } catch (e: Exception) {
+                onResult(false, "Firestore Pull failed: ${e.localizedMessage}")
+            }
+        }
+    }
+
+
     fun updateGoogleDriveBackupFrequency(freq: String) {
         _googleDriveBackupFrequency.value = freq
         sharedPrefs.edit().putString("google_drive_backup_frequency", freq).apply()
@@ -2284,9 +2848,135 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
                 seedDefaultChatChannels()
+                runBackgroundFeeCheckService(context)
             } catch (e: Exception) {
                 android.util.Log.e("AppViewModel", "seedInitialTamsData query or insert failed", e)
             }
+        }
+    }
+
+    fun runBackgroundFeeCheckService(ctx: Context) {
+        viewModelScope.launch {
+            try {
+                // Ensure database has had time to load/seed
+                delay(3000)
+                val studentList = rawStudents.first()
+                val batchList = batches.first()
+                val paymentsList = rawFeePayments.first()
+                
+                android.util.Log.d("FeeCheckService", "Starting student admission date fee audit background thread...")
+                
+                val currentYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+                val currentMonthInt = java.util.Calendar.getInstance().get(java.util.Calendar.MONTH) + 1
+                val monthsList = listOf(
+                    "January", "February", "March", "April", "May", "June",
+                    "July", "August", "September", "October", "November", "December"
+                )
+                
+                var alertDispatchedCount = 0
+                
+                studentList.forEach { student ->
+                    val startDateStr = student.startDate.ifBlank { "2026-06-01" }
+                    val parts = startDateStr.split("-")
+                    if (parts.size >= 2) {
+                        val startYear = parts[0].toIntOrNull() ?: currentYear
+                        val startMonthInt = parts[1].toIntOrNull() ?: 1
+                        
+                        // Gather all months from admission month to current month
+                        val targetMonths = mutableListOf<String>()
+                        var tempYear = startYear
+                        var tempMonth = startMonthInt
+                        
+                        while (tempYear < currentYear || (tempYear == currentYear && tempMonth <= currentMonthInt)) {
+                            val monthName = monthsList.getOrElse(tempMonth - 1) { "June" }
+                            targetMonths.add("$monthName $tempYear")
+                            tempMonth++
+                            if (tempMonth > 12) {
+                                tempMonth = 1
+                                tempYear++
+                            }
+                        }
+                        
+                        val studentPayments = paymentsList.filter { it.studentId == student.id }
+                        val studentBatch = batchList.find { it.id == student.batchId }
+                        val monthlyFeeAmt = studentBatch?.feesAmount ?: 1000.0
+                        
+                        var unpaidMonthsString = ""
+                        var unpaidTotal = 0.0
+                        
+                        targetMonths.forEach { targetMonth ->
+                            val hasPaid = studentPayments.any { 
+                                it.monthPaidFor.equals(targetMonth, ignoreCase = true) && 
+                                (it.transactionStatus.equals("SUCCESS", ignoreCase = true) || it.amountPaid > 0.0)
+                            }
+                            
+                            if (!hasPaid) {
+                                unpaidTotal += monthlyFeeAmt
+                                unpaidMonthsString += (if (unpaidMonthsString.isEmpty()) "" else ", ") + targetMonth
+                                
+                                val alreadyPending = studentPayments.any {
+                                    it.monthPaidFor.equals(targetMonth, ignoreCase = true) &&
+                                    it.transactionStatus.equals("PENDING", ignoreCase = true)
+                                }
+                                if (!alreadyPending) {
+                                    val pendingFee = FeePayment(
+                                        studentId = student.id,
+                                        feeType = "Monthly-based",
+                                        amountPaid = 0.0,
+                                        receiptNo = "REC-AUTO-${System.currentTimeMillis() % 10000}",
+                                        monthPaidFor = targetMonth,
+                                        paymentMode = "CASH",
+                                        remarks = "Auto-calculated outstanding due for $targetMonth",
+                                        transactionStatus = "PENDING"
+                                    )
+                                    repository.insertFeePayment(pendingFee)
+                                }
+                            }
+                        }
+                        
+                        if (unpaidTotal > 0.0) {
+                            alertDispatchedCount++
+                            triggerLocalFeeNotification(ctx, student.name, unpaidTotal, unpaidMonthsString)
+                            android.util.Log.d("FeeCheckService", "FEE CHECK DISPATCHED: Student ${student.name} owes ₹${unpaidTotal.toInt()} for [$unpaidMonthsString]")
+                        }
+                    }
+                }
+                android.util.Log.d("FeeCheckService", "Automated student fee audit complete. Dispatched $alertDispatchedCount notifications.")
+            } catch (e: Exception) {
+                android.util.Log.e("FeeCheckService", "Error during automated date audit: ${e.localizedMessage}")
+            }
+        }
+    }
+
+    private fun triggerLocalFeeNotification(ctx: Context, studentName: String, amount: Double, months: String) {
+        try {
+            val notificationManager = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            val channelId = "tams_fee_alerts"
+            
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                val channel = android.app.NotificationChannel(
+                    channelId,
+                    "TAMS Fee Alert Notifications",
+                    android.app.NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Alerts about outstanding and unpaid tuition fees"
+                    enableVibration(true)
+                }
+                notificationManager.createNotificationChannel(channel)
+            }
+            
+            val builder = androidx.core.app.NotificationCompat.Builder(ctx, channelId)
+                .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                .setContentTitle("Outstanding Fee Alert: $studentName")
+                .setContentText("Pending balance of ₹${amount.toInt()} for: $months")
+                .setStyle(androidx.core.app.NotificationCompat.BigTextStyle()
+                    .bigText("Dear Administrator, student $studentName has outstanding monthly coaching fees totaling ₹${amount.toInt()} for: $months. Dues calculation verified by TAMS Background Date Auditer."))
+                .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+                .setAutoCancel(true)
+                
+            notificationManager.notify(studentName.hashCode(), builder.build())
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }

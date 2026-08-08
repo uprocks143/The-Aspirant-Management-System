@@ -26,6 +26,9 @@ interface AppDao {
     @Query("SELECT * FROM students WHERE batchId = :batchId ORDER BY name ASC")
     fun getStudentsByBatch(batchId: Long): Flow<List<Student>>
 
+    @Query("SELECT * FROM students WHERE id = :id")
+    suspend fun getStudentById(id: Long): Student?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertStudent(student: Student): Long
 
@@ -201,6 +204,12 @@ interface AppDao {
     @Query("SELECT * FROM chat_messages WHERE channelId = :channelId ORDER BY timestamp ASC")
     fun getMessagesForChannel(channelId: Long): Flow<List<ChatMessage>>
 
+    @Query("SELECT * FROM chat_messages WHERE id = :messageId LIMIT 1")
+    suspend fun getChatMessageById(messageId: Long): ChatMessage?
+
+    @Query("SELECT * FROM chat_channels WHERE id = :channelId LIMIT 1")
+    suspend fun getChatChannelById(channelId: Long): ChatChannel?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertChatMessage(message: ChatMessage): Long
 
@@ -209,4 +218,17 @@ interface AppDao {
 
     @Query("DELETE FROM chat_channels WHERE id = :channelId")
     suspend fun deleteChatChannel(channelId: Long)
+
+    // === Assignments ===
+    @Query("SELECT * FROM assignments ORDER BY createdAt DESC")
+    fun getAllAssignments(): Flow<List<Assignment>>
+
+    @Query("SELECT * FROM assignments WHERE batchId = :batchId OR batchId = 0 ORDER BY createdAt DESC")
+    fun getAssignmentsForBatch(batchId: Long): Flow<List<Assignment>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAssignment(assignment: Assignment): Long
+
+    @Delete
+    suspend fun deleteAssignment(assignment: Assignment)
 }

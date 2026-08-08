@@ -13,9 +13,13 @@ import com.example.MainActivity
 object NotificationHelper {
     const val STUDY_CHANNEL_ID = "study_materials_channel"
     const val FEE_CHANNEL_ID = "fee_reminders_channel"
+    const val ASSIGNMENT_CHANNEL_ID = "assignments_channel"
+    const val CHAT_CHANNEL_ID = "chat_messages_channel"
 
     private const val STUDY_NOTIFICATION_ID = 1001
     private const val FEE_NOTIFICATION_ID = 1002
+    private const val ASSIGNMENT_NOTIFICATION_ID = 1004
+    private const val CHAT_NOTIFICATION_ID = 1005
 
     fun createNotificationChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -39,9 +43,31 @@ object NotificationHelper {
                 enableVibration(true)
             }
 
+            val assignmentChannel = NotificationChannel(
+                ASSIGNMENT_CHANNEL_ID,
+                "Assignments & Due Dates",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Alerts students when new homework assignments are posted or are due soon."
+                enableLights(true)
+                enableVibration(true)
+            }
+
+            val chatChannel = NotificationChannel(
+                CHAT_CHANNEL_ID,
+                "Community Chat",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Alerts students of new community group chat discussion messages and doubts."
+                enableLights(true)
+                enableVibration(true)
+            }
+
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(studyChannel)
             notificationManager.createNotificationChannel(feeChannel)
+            notificationManager.createNotificationChannel(assignmentChannel)
+            notificationManager.createNotificationChannel(chatChannel)
         }
     }
 
@@ -132,6 +158,68 @@ object NotificationHelper {
         with(NotificationManagerCompat.from(context)) {
             try {
                 notify(FEE_NOTIFICATION_ID + studentName.hashCode(), builder.build())
+            } catch (e: SecurityException) {
+                // Ignore missing permissions
+            }
+        }
+    }
+
+    fun triggerAssignmentNotification(context: Context, title: String, batchName: String, dueDate: String) {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            2,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val builder = NotificationCompat.Builder(context, ASSIGNMENT_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("📝 New Assignment Posted")
+            .setContentText("'$title' has been assigned to '$batchName'!")
+            .setStyle(NotificationCompat.BigTextStyle()
+                .bigText("An academic task '$title' has been published for your class batch standard '$batchName'. It is due: $dueDate. Please check details in your student workspace.")
+            )
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+
+        with(NotificationManagerCompat.from(context)) {
+            try {
+                notify(ASSIGNMENT_NOTIFICATION_ID + title.hashCode(), builder.build())
+            } catch (e: SecurityException) {
+                // Ignore missing permissions
+            }
+        }
+    }
+
+    fun triggerChatNotification(context: Context, channelName: String, senderName: String, messageText: String) {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            3,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val builder = NotificationCompat.Builder(context, CHAT_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("💬 New Message in $channelName")
+            .setContentText("$senderName: $messageText")
+            .setStyle(NotificationCompat.BigTextStyle()
+                .bigText("$senderName writes in community group '$channelName':\n$messageText")
+            )
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+
+        with(NotificationManagerCompat.from(context)) {
+            try {
+                notify(CHAT_NOTIFICATION_ID + senderName.hashCode() + messageText.hashCode(), builder.build())
             } catch (e: SecurityException) {
                 // Ignore missing permissions
             }

@@ -16,6 +16,7 @@ class AppRepository(private val appDao: AppDao) {
     val allStudents: Flow<List<Student>> = appDao.getAllStudents()
 
     fun getStudentsByBatch(batchId: Long): Flow<List<Student>> = appDao.getStudentsByBatch(batchId)
+    suspend fun getStudentById(id: Long): Student? = appDao.getStudentById(id)
     suspend fun insertStudent(student: Student): Long = appDao.insertStudent(student)
     suspend fun updateStudent(student: Student) = appDao.updateStudent(student)
     suspend fun deleteStudent(student: Student) = appDao.deleteStudent(student)
@@ -108,6 +109,10 @@ class AppRepository(private val appDao: AppDao) {
     val allChatChannels: Flow<List<ChatChannel>> = appDao.getAllChatChannels()
     
     suspend fun insertChatChannel(channel: ChatChannel): Long = appDao.insertChatChannel(channel)
+
+    suspend fun getChatMessageById(messageId: Long): ChatMessage? = appDao.getChatMessageById(messageId)
+
+    suspend fun getChatChannelById(channelId: Long): ChatChannel? = appDao.getChatChannelById(channelId)
     
     fun getMessagesForChannel(channelId: Long): Flow<List<ChatMessage>> = appDao.getMessagesForChannel(channelId)
     
@@ -116,4 +121,10 @@ class AppRepository(private val appDao: AppDao) {
     suspend fun clearMessagesForChannel(channelId: Long) = appDao.clearMessagesForChannel(channelId)
     
     suspend fun deleteChatChannel(channelId: Long) = appDao.deleteChatChannel(channelId)
+
+    // === Assignments ===
+    val allAssignments: Flow<List<Assignment>> = appDao.getAllAssignments()
+    fun getAssignmentsForBatch(batchId: Long): Flow<List<Assignment>> = appDao.getAssignmentsForBatch(batchId)
+    suspend fun insertAssignment(assignment: Assignment): Long = appDao.insertAssignment(assignment)
+    suspend fun deleteAssignment(assignment: Assignment) = appDao.deleteAssignment(assignment)
 }

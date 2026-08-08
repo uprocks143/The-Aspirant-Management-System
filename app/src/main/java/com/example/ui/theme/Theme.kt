@@ -105,17 +105,14 @@ private val ClassicMidnightColorScheme = darkColorScheme(
 
 @Composable
 fun MyApplicationTheme(
-    themeMode: String = "CLASSIC_IVORY",
+    themeMode: String = "CLASSIC_NAVY",
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when (themeMode) {
-        "CLASSIC_IVORY" -> ClassicIvoryColorScheme
-        "CLASSIC_NAVY" -> ClassicNavyColorScheme
-        "CLASSIC_FOREST" -> ClassicForestColorScheme
         "CLASSIC_MIDNIGHT" -> ClassicMidnightColorScheme
-        else -> if (darkTheme) ClassicMidnightColorScheme else ClassicIvoryColorScheme
+        else -> ClassicNavyColorScheme
     }
 
     MaterialTheme(

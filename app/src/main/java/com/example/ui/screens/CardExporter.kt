@@ -6,6 +6,8 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import com.example.data.model.Student
+import com.example.data.model.Batch
+import com.example.data.model.FeePayment
 import java.io.File
 import java.io.FileOutputStream
 
@@ -64,6 +66,16 @@ object CardExporter {
         canvas.drawColor(Color.WHITE)
 
         val themeColor = getThemeColor(theme)
+
+        // Draw elegant watermark background circles
+        val bgCirclePaint = Paint().apply {
+            color = themeColor
+            alpha = 10
+            style = Paint.Style.FILL
+            isAntiAlias = true
+        }
+        canvas.drawCircle(0f, 0f, 320f, bgCirclePaint)
+        canvas.drawCircle(width.toFloat(), height.toFloat(), 250f, bgCirclePaint)
 
         // Draw card border
         val borderPaint = Paint().apply {
@@ -434,6 +446,16 @@ object CardExporter {
             else -> 0xFF0C4A6E.toInt() // Ocean Breeze / default
         }
         canvas.drawColor(activeBg)
+
+        // Draw modern background circular glow patterns
+        val bgGlowPaint = Paint().apply {
+            color = Color.WHITE
+            alpha = 15
+            style = Paint.Style.FILL
+            isAntiAlias = true
+        }
+        canvas.drawCircle(width.toFloat(), 0f, 400f, bgGlowPaint)
+        canvas.drawCircle(0f, height.toFloat(), 300f, bgGlowPaint)
 
         // 1. Draw top Header portion (analogous to Row)
         val titlePaint = Paint().apply {
@@ -1221,5 +1243,898 @@ object CardExporter {
         } else {
             "Voucher receipt processed successfully in memory."
         }
+    }
+
+    fun generateStudentsSummaryPdf(
+        context: Context,
+        students: List<Student>,
+        batches: List<Batch>,
+        academyName: String,
+        address: String,
+        phone: String,
+        email: String
+    ): String {
+        val pdfDocument = android.graphics.pdf.PdfDocument()
+        var pageNumber = 1
+        var pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+        var page = pdfDocument.startPage(pageInfo)
+        var canvas = page.canvas
+
+        val textPaint = Paint().apply {
+            color = Color.BLACK
+            textSize = 9f
+            isAntiAlias = true
+        }
+        
+        val boldPaint = Paint().apply {
+            color = Color.BLACK
+            textSize = 9f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+
+        val headerBgPaint = Paint().apply {
+            color = Color.parseColor("#0F398A") // Cobalt Blue
+            style = Paint.Style.FILL
+            isAntiAlias = true
+        }
+
+        val titlePaint = Paint().apply {
+            color = Color.WHITE
+            textSize = 18f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+
+        val subPaint = Paint().apply {
+            color = Color.WHITE
+            alpha = 200
+            textSize = 9f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            isAntiAlias = true
+        }
+
+        val tableHeaderBgPaint = Paint().apply {
+            color = Color.parseColor("#F3F4F6")
+            style = Paint.Style.FILL
+        }
+
+        val divPaint = Paint().apply {
+            color = Color.parseColor("#E5E7EB")
+            strokeWidth = 1f
+        }
+
+        fun drawHeader(pageNum: Int) {
+            // Draw Cobalt Banner
+            canvas.drawRect(20f, 20f, 575f, 100f, headerBgPaint)
+            canvas.drawText(academyName.uppercase(), 40f, 50f, titlePaint)
+            canvas.drawText("📍 $address  |  📞 Phone: $phone  |  ✉️ Email: $email", 40f, 70f, subPaint)
+            canvas.drawText("STUDENTS COMPREHENSIVE DIRECTORY SUMMARY — PAGE $pageNum", 40f, 90f, subPaint)
+
+            // Draw Table Headers at Y = 120
+            canvas.drawRect(20f, 110f, 575f, 130f, tableHeaderBgPaint)
+            canvas.drawText("S.NO", 30f, 123f, boldPaint)
+            canvas.drawText("STUDENT NAME", 70f, 123f, boldPaint)
+            canvas.drawText("ROLL NO", 210f, 123f, boldPaint)
+            canvas.drawText("CLASS", 290f, 123f, boldPaint)
+            canvas.drawText("COACHING BATCH", 370f, 123f, boldPaint)
+            canvas.drawText("GUARDIAN PHONE", 480f, 123f, boldPaint)
+            canvas.drawLine(20f, 130f, 575f, 130f, divPaint)
+        }
+
+        drawHeader(pageNumber)
+
+        var y = 145f
+        val batchMap = batches.associateBy { it.id }
+
+        students.forEachIndexed { index, student ->
+            if (y > 770f) {
+                // Finish current page
+                pdfDocument.finishPage(page)
+                // Start next page
+                pageNumber++
+                pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+                page = pdfDocument.startPage(pageInfo)
+                canvas = page.canvas
+                y = 145f
+                drawHeader(pageNumber)
+            }
+
+            val batchName = batchMap[student.batchId]?.name ?: "No Batch"
+            
+            // S.No
+            canvas.drawText((index + 1).toString(), 30f, y, textPaint)
+            // Name
+            val nameToDraw = if (student.name.length > 25) student.name.take(23) + ".." else student.name
+            canvas.drawText(nameToDraw, 70f, y, textPaint)
+            // Roll No
+            canvas.drawText(student.rollNumber, 210f, y, textPaint)
+            // Class
+            canvas.drawText(student.studentClass.ifEmpty { "N/A" }, 290f, y, textPaint)
+            // Batch
+            val batchToDraw = if (batchName.length > 20) batchName.take(18) + ".." else batchName
+            canvas.drawText(batchToDraw, 370f, y, textPaint)
+            // Phone
+            canvas.drawText(student.parentPhone, 480f, y, textPaint)
+
+            // Light bottom divider
+            canvas.drawLine(20f, y + 8f, 575f, y + 8f, divPaint)
+            y += 24f
+        }
+
+        // Draw total students in summary block
+        if (y > 740f) {
+            pdfDocument.finishPage(page)
+            pageNumber++
+            pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+            page = pdfDocument.startPage(pageInfo)
+            canvas = page.canvas
+            y = 145f
+            drawHeader(pageNumber)
+        }
+
+        // Summary block background
+        val summaryBgPaint = Paint().apply {
+            color = Color.parseColor("#ECF3FF")
+            style = Paint.Style.FILL
+        }
+        canvas.drawRoundRect(RectF(20f, y, 575f, y + 50f), 6f, 6f, summaryBgPaint)
+        
+        val summaryTitlePaint = Paint().apply {
+            color = Color.parseColor("#0F398A")
+            textSize = 10f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+        val summaryTextPaint = Paint().apply {
+            color = Color.BLACK
+            textSize = 9f
+            isAntiAlias = true
+        }
+
+        val exportDateStr = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
+        canvas.drawText("REPORT DETAILS", 35f, y + 18f, summaryTitlePaint)
+        canvas.drawText("Total Active Scholars: ${students.size}", 35f, y + 36f, summaryTextPaint)
+        canvas.drawText("Exported On: $exportDateStr", 220f, y + 36f, summaryTextPaint)
+
+        // Verification Seal / Sign
+        val stampBorderPaint = Paint().apply {
+            color = Color.parseColor("#0F398A")
+            style = Paint.Style.STROKE
+            strokeWidth = 1.5f
+            isAntiAlias = true
+        }
+        canvas.drawRoundRect(RectF(440f, y + 8f, 555f, y + 42f), 4f, 4f, stampBorderPaint)
+        canvas.drawText("OFFICIAL SEAL", 458f, y + 21f, summaryTitlePaint)
+        canvas.drawText("TAMS DATABASE", 456f, y + 34f, summaryTextPaint)
+
+        pdfDocument.finishPage(page)
+
+        val fileName = "Student_Records_Summary_${System.currentTimeMillis()}.pdf"
+        var targetFile: File? = null
+        try {
+            val baseDownloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            if (!baseDownloads.exists()) {
+                baseDownloads.mkdirs()
+            }
+            targetFile = File(baseDownloads, fileName)
+            FileOutputStream(targetFile).use { out ->
+                pdfDocument.writeTo(out)
+            }
+        } catch (e: Exception) {
+            try {
+                val fallbackDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
+                if (!fallbackDir.exists()) {
+                    fallbackDir.mkdirs()
+                }
+                targetFile = File(fallbackDir, fileName)
+                FileOutputStream(targetFile).use { out ->
+                    pdfDocument.writeTo(out)
+                }
+            } catch (ex: Exception) {
+                ex.printStackTrace()
+            }
+        } finally {
+            pdfDocument.close()
+        }
+
+        return if (targetFile != null) {
+            "Student Records Summary exported successfully!\n📍 Saved to: Downloads/$fileName"
+        } else {
+            "Records processed successfully."
+        }
+    }
+
+    fun generatePaymentsSummaryPdf(
+        context: Context,
+        payments: List<FeePayment>,
+        students: List<Student>,
+        academyName: String,
+        address: String,
+        phone: String,
+        email: String
+    ): String {
+        val pdfDocument = android.graphics.pdf.PdfDocument()
+        var pageNumber = 1
+        var pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+        var page = pdfDocument.startPage(pageInfo)
+        var canvas = page.canvas
+
+        val textPaint = Paint().apply {
+            color = Color.BLACK
+            textSize = 9f
+            isAntiAlias = true
+        }
+        
+        val boldPaint = Paint().apply {
+            color = Color.BLACK
+            textSize = 9f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+
+        val headerBgPaint = Paint().apply {
+            color = Color.parseColor("#0F398A") // Cobalt Blue
+            style = Paint.Style.FILL
+            isAntiAlias = true
+        }
+
+        val titlePaint = Paint().apply {
+            color = Color.WHITE
+            textSize = 18f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+
+        val subPaint = Paint().apply {
+            color = Color.WHITE
+            alpha = 200
+            textSize = 9f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            isAntiAlias = true
+        }
+
+        val tableHeaderBgPaint = Paint().apply {
+            color = Color.parseColor("#F3F4F6")
+            style = Paint.Style.FILL
+        }
+
+        val divPaint = Paint().apply {
+            color = Color.parseColor("#E5E7EB")
+            strokeWidth = 1f
+        }
+
+        fun drawHeader(pageNum: Int) {
+            // Draw Cobalt Banner
+            canvas.drawRect(20f, 20f, 575f, 100f, headerBgPaint)
+            canvas.drawText(academyName.uppercase(), 40f, 50f, titlePaint)
+            canvas.drawText("📍 $address  |  📞 Phone: $phone  |  ✉️ Email: $email", 40f, 70f, subPaint)
+            canvas.drawText("TUITION FEES COLLECTION LEDGER REPORT — PAGE $pageNum", 40f, 90f, subPaint)
+
+            // Draw Table Headers at Y = 120
+            canvas.drawRect(20f, 110f, 575f, 130f, tableHeaderBgPaint)
+            canvas.drawText("S.NO", 30f, 123f, boldPaint)
+            canvas.drawText("DATE PAID", 70f, 123f, boldPaint)
+            canvas.drawText("STUDENT NAME", 150f, 123f, boldPaint)
+            canvas.drawText("RECEIPT NO", 280f, 123f, boldPaint)
+            canvas.drawText("MONTH/TYPE", 370f, 123f, boldPaint)
+            canvas.drawText("MODE", 460f, 123f, boldPaint)
+            canvas.drawText("NET AMOUNT", 510f, 123f, boldPaint)
+            canvas.drawLine(20f, 130f, 575f, 130f, divPaint)
+        }
+
+        drawHeader(pageNumber)
+
+        var y = 145f
+        val studentMap = students.associateBy { it.id }
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+
+        payments.forEachIndexed { index, pay ->
+            if (y > 770f) {
+                // Finish current page
+                pdfDocument.finishPage(page)
+                // Start next page
+                pageNumber++
+                pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+                page = pdfDocument.startPage(pageInfo)
+                canvas = page.canvas
+                y = 145f
+                drawHeader(pageNumber)
+            }
+
+            val studentName = studentMap[pay.studentId]?.name ?: "Unknown Student"
+            val dateStr = sdf.format(java.util.Date(pay.datePaid))
+            
+            // S.No
+            canvas.drawText((index + 1).toString(), 30f, y, textPaint)
+            // Date Paid
+            canvas.drawText(dateStr, 70f, y, textPaint)
+            // Student Name
+            val nameToDraw = if (studentName.length > 22) studentName.take(20) + ".." else studentName
+            canvas.drawText(nameToDraw, 150f, y, textPaint)
+            // Receipt No
+            canvas.drawText(pay.receiptNo.ifEmpty { "REC-${pay.id}" }, 280f, y, textPaint)
+            // Month / Type
+            val monthStr = pay.monthPaidFor.ifEmpty { pay.feeType }
+            canvas.drawText(monthStr, 370f, y, textPaint)
+            // Mode
+            canvas.drawText(pay.paymentMode, 460f, y, textPaint)
+            // Amount
+            canvas.drawText("₹${pay.amountPaid.toInt()}", 510f, y, boldPaint)
+
+            // Light bottom divider
+            canvas.drawLine(20f, y + 8f, 575f, y + 8f, divPaint)
+            y += 24f
+        }
+
+        // Draw summary statistics block
+        if (y > 740f) {
+            pdfDocument.finishPage(page)
+            pageNumber++
+            pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+            page = pdfDocument.startPage(pageInfo)
+            canvas = page.canvas
+            y = 145f
+            drawHeader(pageNumber)
+        }
+
+        // Summary block background
+        val summaryBgPaint = Paint().apply {
+            color = Color.parseColor("#ECFDF5") // light mint green
+            style = Paint.Style.FILL
+        }
+        canvas.drawRoundRect(RectF(20f, y, 575f, y + 50f), 6f, 6f, summaryBgPaint)
+        
+        val summaryTitlePaint = Paint().apply {
+            color = Color.parseColor("#065F46") // dark green
+            textSize = 10f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+        val summaryTextPaint = Paint().apply {
+            color = Color.BLACK
+            textSize = 9f
+            isAntiAlias = true
+        }
+
+        val totalAmountCollected = payments.sumOf { it.amountPaid }
+        val totalWaivers = payments.sumOf { it.discount }
+        val exportDateStr = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
+
+        canvas.drawText("FINANCIAL TRANSACTION SUMMARY", 35f, y + 18f, summaryTitlePaint)
+        canvas.drawText("Total Receipts: ${payments.size}  |  Total Waivers Given: ₹${totalWaivers.toInt()}", 35f, y + 36f, summaryTextPaint)
+        canvas.drawText("NET CASH COLLECTED: ₹${totalAmountCollected.toInt()}", 250f, y + 18f, boldPaint)
+        canvas.drawText("Exported On: $exportDateStr", 250f, y + 36f, summaryTextPaint)
+
+        // Verification Seal / Sign
+        val stampBorderPaint = Paint().apply {
+            color = Color.parseColor("#065F46")
+            style = Paint.Style.STROKE
+            strokeWidth = 1.5f
+            isAntiAlias = true
+        }
+        canvas.drawRoundRect(RectF(440f, y + 8f, 555f, y + 42f), 4f, 4f, stampBorderPaint)
+        canvas.drawText("FINANCE DESK", 458f, y + 21f, summaryTitlePaint)
+        canvas.drawText("TAMS AUDITED", 460f, y + 34f, summaryTextPaint)
+
+        pdfDocument.finishPage(page)
+
+        val fileName = "Fee_Payments_Ledger_Summary_${System.currentTimeMillis()}.pdf"
+        var targetFile: File? = null
+        try {
+            val baseDownloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            if (!baseDownloads.exists()) {
+                baseDownloads.mkdirs()
+            }
+            targetFile = File(baseDownloads, fileName)
+            FileOutputStream(targetFile).use { out ->
+                pdfDocument.writeTo(out)
+            }
+        } catch (e: Exception) {
+            try {
+                val fallbackDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
+                if (!fallbackDir.exists()) {
+                    fallbackDir.mkdirs()
+                }
+                targetFile = File(fallbackDir, fileName)
+                FileOutputStream(targetFile).use { out ->
+                    pdfDocument.writeTo(out)
+                }
+            } catch (ex: Exception) {
+                ex.printStackTrace()
+            }
+        } finally {
+            pdfDocument.close()
+        }
+
+        return if (targetFile != null) {
+            "Fee Payments Ledger Summary exported successfully!\n📍 Saved to: Downloads/$fileName"
+        } else {
+            "Ledger summary processed successfully."
+        }
+    }
+
+    fun generateMonthlyAndPendingFeesSummaryPdf(
+        context: Context,
+        payments: List<FeePayment>,
+        students: List<Student>,
+        batches: List<Batch>,
+        academyName: String,
+        address: String,
+        phone: String,
+        email: String
+    ): String {
+        val pdfDocument = android.graphics.pdf.PdfDocument()
+        var pageNumber = 1
+        var pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+        var page = pdfDocument.startPage(pageInfo)
+        var canvas = page.canvas
+
+        val textPaint = Paint().apply {
+            color = Color.BLACK
+            textSize = 8.5f
+            isAntiAlias = true
+        }
+        
+        val boldPaint = Paint().apply {
+            color = Color.BLACK
+            textSize = 8.5f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+
+        val headerBgPaint = Paint().apply {
+            color = Color.parseColor("#0F398A") // Cobalt Blue
+            style = Paint.Style.FILL
+            isAntiAlias = true
+        }
+
+        val titlePaint = Paint().apply {
+            color = Color.WHITE
+            textSize = 16f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+
+        val subPaint = Paint().apply {
+            color = Color.WHITE
+            alpha = 200
+            textSize = 8.5f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            isAntiAlias = true
+        }
+
+        val tableHeaderBgPaint = Paint().apply {
+            color = Color.parseColor("#F3F4F6")
+            style = Paint.Style.FILL
+        }
+
+        val sectionPaint = Paint().apply {
+            color = Color.parseColor("#1E3A8A")
+            textSize = 11f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+
+        val divPaint = Paint().apply {
+            color = Color.parseColor("#E5E7EB")
+            strokeWidth = 1f
+        }
+
+        val greenTextPaint = Paint().apply {
+            color = Color.parseColor("#15803D")
+            textSize = 8.5f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+
+        val redTextPaint = Paint().apply {
+            color = Color.parseColor("#B91C1C")
+            textSize = 8.5f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+
+        fun drawHeader(pageNum: Int, isFirstPage: Boolean) {
+            canvas.drawRect(20f, 20f, 575f, 95f, headerBgPaint)
+            canvas.drawText(academyName.uppercase(), 40f, 48f, titlePaint)
+            canvas.drawText("📍 $address  |  📞 Phone: $phone  |  ✉️ Email: $email", 40f, 66f, subPaint)
+            canvas.drawText("MONTHLY BILLING & STUDENT PENDING FEES SUMMARY REPORT — PAGE $pageNum", 40f, 84f, subPaint)
+        }
+
+        drawHeader(pageNumber, true)
+
+        var y = 120f
+
+        // Section 1 header
+        canvas.drawText("PART 1: MONTHLY BILLING STATUS SUMMARIES", 20f, y, sectionPaint)
+        y += 24f
+
+        // Draw Monthly Table Headers
+        canvas.drawRect(20f, y - 12f, 575f, y + 6f, tableHeaderBgPaint)
+        canvas.drawText("MONTH", 30f, y, boldPaint)
+        canvas.drawText("COLLECTED", 140f, y, boldPaint)
+        canvas.drawText("PENDING", 240f, y, boldPaint)
+        canvas.drawText("REBATES", 340f, y, boldPaint)
+        canvas.drawText("TARGETED", 440f, y, boldPaint)
+        canvas.drawText("RECOVERY RATE", 500f, y, boldPaint)
+        canvas.drawLine(20f, y + 6f, 575f, y + 6f, divPaint)
+        y += 20f
+
+        // Calculate Month List
+        val loggedMonths = payments.map { it.monthPaidFor }.filter { it.isNotBlank() }
+        val defaultMonths = listOf("May 2026", "June 2026", "July 2026", "August 2026")
+        val monthsToSummarize = (loggedMonths + defaultMonths).distinct().sortedWith { m1, m2 ->
+            val year1 = m1.takeLast(4).toIntOrNull() ?: 2026
+            val year2 = m2.takeLast(4).toIntOrNull() ?: 2026
+            if (year1 != year2) {
+                year1.compareTo(year2)
+            } else {
+                val monthsList = listOf("january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december")
+                val clean1 = m1.replace(m1.takeLast(4), "").trim().lowercase()
+                val clean2 = m2.replace(m2.takeLast(4), "").trim().lowercase()
+                val idx1 = monthsList.indexOf(clean1)
+                val idx2 = monthsList.indexOf(clean2)
+                idx1.compareTo(idx2)
+            }
+        }
+
+        var totalCol = 0.0
+        var totalPend = 0.0
+        var totalDisc = 0.0
+        var totalTarg = 0.0
+
+        monthsToSummarize.forEach { month ->
+            val collected = payments.filter { it.monthPaidFor.equals(month, ignoreCase = true) && it.transactionStatus == "SUCCESS" }.sumOf { it.amountPaid }
+            val disc = payments.filter { it.monthPaidFor.equals(month, ignoreCase = true) }.sumOf { it.discount }
+            val pending = students.sumOf { student ->
+                val b = batches.find { it.id == student.batchId }
+                val feeExpected = b?.feesAmount ?: 1000.0
+                val pmts = payments.filter { it.studentId == student.id && it.monthPaidFor.equals(month, ignoreCase = true) }
+                val pCol = pmts.filter { it.transactionStatus == "SUCCESS" }.sumOf { it.amountPaid }
+                val pDisc = pmts.sumOf { it.discount }
+                (feeExpected - pCol - pDisc).coerceAtLeast(0.0)
+            }
+            val targeted = collected + disc + pending
+            val recoveryRate = if (targeted > 0) (collected / targeted) * 100.0 else 0.0
+
+            totalCol += collected
+            totalPend += pending
+            totalDisc += disc
+            totalTarg += targeted
+
+            canvas.drawText(month, 30f, y, textPaint)
+            canvas.drawText("₹${collected.toInt()}", 140f, y, textPaint)
+            canvas.drawText("₹${pending.toInt()}", 240f, y, textPaint)
+            canvas.drawText("₹${disc.toInt()}", 340f, y, textPaint)
+            canvas.drawText("₹${targeted.toInt()}", 440f, y, textPaint)
+            canvas.drawText(String.format("%.1f%%", recoveryRate), 500f, y, if (recoveryRate >= 80) greenTextPaint else redTextPaint)
+
+            canvas.drawLine(20f, y + 6f, 575f, y + 6f, divPaint)
+            y += 20f
+        }
+
+        // Draw Month totals row
+        canvas.drawRect(20f, y - 12f, 575f, y + 6f, tableHeaderBgPaint)
+        canvas.drawText("TOTALS", 30f, y, boldPaint)
+        canvas.drawText("₹${totalCol.toInt()}", 140f, y, boldPaint)
+        canvas.drawText("₹${totalPend.toInt()}", 240f, y, boldPaint)
+        canvas.drawText("₹${totalDisc.toInt()}", 340f, y, boldPaint)
+        canvas.drawText("₹${totalTarg.toInt()}", 440f, y, boldPaint)
+        val grossRecoveryRate = if (totalTarg > 0) (totalCol / totalTarg) * 100.0 else 0.0
+        canvas.drawText(String.format("%.1f%%", grossRecoveryRate), 500f, y, boldPaint)
+        canvas.drawLine(20f, y + 6f, 575f, y + 6f, divPaint)
+        y += 35f
+
+        // Section 2 header
+        canvas.drawText("PART 2: DETAILED STUDENT FEE LEDGER", 20f, y, sectionPaint)
+        y += 24f
+
+        // Draw Student Table Headers
+        canvas.drawRect(20f, y - 12f, 575f, y + 6f, tableHeaderBgPaint)
+        canvas.drawText("S.NO", 30f, y, boldPaint)
+        canvas.drawText("STUDENT NAME", 65f, y, boldPaint)
+        canvas.drawText("ROLL NO & CLASS", 195f, y, boldPaint)
+        canvas.drawText("BATCH FEE", 310f, y, boldPaint)
+        canvas.drawText("PAID SO FAR", 390f, y, boldPaint)
+        canvas.drawText("PENDING DUES", 470f, y, boldPaint)
+        canvas.drawText("STATUS", 540f, y, boldPaint)
+        canvas.drawLine(20f, y + 6f, 575f, y + 6f, divPaint)
+        y += 20f
+
+        students.forEachIndexed { index, student ->
+            if (y > 780f) {
+                pdfDocument.finishPage(page)
+                pageNumber++
+                pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+                page = pdfDocument.startPage(pageInfo)
+                canvas = page.canvas
+                y = 120f
+                drawHeader(pageNumber, false)
+                
+                // Redraw table headers on new page
+                canvas.drawRect(20f, y - 12f, 575f, y + 6f, tableHeaderBgPaint)
+                canvas.drawText("S.NO", 30f, y, boldPaint)
+                canvas.drawText("STUDENT NAME", 65f, y, boldPaint)
+                canvas.drawText("ROLL NO & CLASS", 195f, y, boldPaint)
+                canvas.drawText("BATCH FEE", 310f, y, boldPaint)
+                canvas.drawText("PAID SO FAR", 390f, y, boldPaint)
+                canvas.drawText("PENDING DUES", 470f, y, boldPaint)
+                canvas.drawText("STATUS", 540f, y, boldPaint)
+                canvas.drawLine(20f, y + 6f, 575f, y + 6f, divPaint)
+                y += 20f
+            }
+
+            val studentPayments = payments.filter { it.studentId == student.id && it.transactionStatus == "SUCCESS" }
+            val paid = studentPayments.sumOf { it.amountPaid }
+            val studentBatch = batches.find { it.id == student.batchId }
+            val batchFee = studentBatch?.feesAmount ?: 1500.0
+            val pending = (batchFee - paid).coerceAtLeast(0.0)
+
+            // S.No
+            canvas.drawText((index + 1).toString(), 30f, y, textPaint)
+            // Name
+            val nameToDraw = if (student.name.length > 22) student.name.take(20) + ".." else student.name
+            canvas.drawText(nameToDraw, 65f, y, textPaint)
+            // Roll & Class
+            val rollAndClass = "${student.rollNumber} | ${student.studentClass.ifEmpty { "X" }}"
+            val rcToDraw = if (rollAndClass.length > 20) rollAndClass.take(18) + ".." else rollAndClass
+            canvas.drawText(rcToDraw, 195f, y, textPaint)
+            // Batch Fee
+            canvas.drawText("₹${batchFee.toInt()}", 310f, y, textPaint)
+            // Paid So Far
+            canvas.drawText("₹${paid.toInt()}", 390f, y, textPaint)
+            // Pending Dues
+            canvas.drawText("₹${pending.toInt()}", 470f, y, textPaint)
+            // Status
+            if (pending <= 0) {
+                canvas.drawText("PAID", 540f, y, greenTextPaint)
+            } else {
+                canvas.drawText("DUE", 540f, y, redTextPaint)
+            }
+
+            canvas.drawLine(20f, y + 6f, 575f, y + 6f, divPaint)
+            y += 20f
+        }
+
+        // Draw summary stamp/disclaimer block at the end
+        if (y > 750f) {
+            pdfDocument.finishPage(page)
+            pageNumber++
+            pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(595, 842, pageNumber).create()
+            page = pdfDocument.startPage(pageInfo)
+            canvas = page.canvas
+            y = 120f
+            drawHeader(pageNumber, false)
+        }
+
+        val summaryBgPaint = Paint().apply {
+            color = Color.parseColor("#F3F4F6")
+            style = Paint.Style.FILL
+        }
+        canvas.drawRoundRect(RectF(20f, y, 575f, y + 45f), 6f, 6f, summaryBgPaint)
+        
+        val footerLabelPaint = Paint().apply {
+            color = Color.parseColor("#1F2937")
+            textSize = 9f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+        val footerDescPaint = Paint().apply {
+            color = Color.GRAY
+            textSize = 8f
+            isAntiAlias = true
+        }
+
+        canvas.drawText("OFFICIAL FINANCIAL LEDGER DISCLAIMER", 35f, y + 18f, footerLabelPaint)
+        canvas.drawText("This report logs direct tuition payments, subsidies, and outstanding pending dues for active academic batches.", 35f, y + 32f, footerDescPaint)
+
+        val stampBorderPaint = Paint().apply {
+            color = Color.parseColor("#0F398A")
+            style = Paint.Style.STROKE
+            strokeWidth = 1.2f
+            isAntiAlias = true
+        }
+        canvas.drawRoundRect(RectF(435f, y + 6f, 555f, y + 38f), 4f, 4f, stampBorderPaint)
+        canvas.drawText("OFFICE AUDITED", 448f, y + 18f, footerLabelPaint.apply { color = Color.parseColor("#0F398A"); textSize = 8.5f })
+        canvas.drawText("TAMS LEDGER DESK", 445f, y + 29f, footerDescPaint.apply { textSize = 7.5f })
+
+        pdfDocument.finishPage(page)
+
+        val fileName = "Monthly_Billing_And_Pending_Dues_Summary_${System.currentTimeMillis()}.pdf"
+        var targetFile: File? = null
+        try {
+            val baseDownloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            if (!baseDownloads.exists()) {
+                baseDownloads.mkdirs()
+            }
+            targetFile = File(baseDownloads, fileName)
+            FileOutputStream(targetFile).use { out ->
+                pdfDocument.writeTo(out)
+            }
+        } catch (e: Exception) {
+            try {
+                val fallbackDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
+                if (!fallbackDir.exists()) {
+                    fallbackDir.mkdirs()
+                }
+                targetFile = File(fallbackDir, fileName)
+                FileOutputStream(targetFile).use { out ->
+                    pdfDocument.writeTo(out)
+                }
+            } catch (ex: Exception) {
+                ex.printStackTrace()
+            }
+        } finally {
+            pdfDocument.close()
+        }
+
+        return if (targetFile != null) {
+            "Monthly Billing & Pending Dues Summary exported successfully!\n📍 Saved to: Downloads/$fileName"
+        } else {
+            "Summary processed successfully."
+        }
+    }
+
+    fun drawPosterFlyer(
+        context: Context,
+        academyName: String,
+        mottoText: String,
+        campaignTitle: String,
+        subTitleText: String,
+        footerText: String,
+        contactText: String,
+        theme: String
+    ): Bitmap {
+        val width = 1000
+        val height = 1000
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+
+        // Draw background gradient
+        val gradTheme = when(theme) {
+            "Teal Amber Accent" -> intArrayOf(0xFF004D40.toInt(), 0xFF00796B.toInt(), 0xFF009688.toInt())
+            "Rich Crimson Golden" -> intArrayOf(0xFF881010.toInt(), 0xFFD32F2F.toInt(), 0xFFFFB300.toInt())
+            else -> intArrayOf(0xFF0F2027.toInt(), 0xFF203A43.toInt(), 0xFF2C5364.toInt()) // Calm slate
+        }
+
+        val gradient = LinearGradient(
+            0f, 0f, 0f, height.toFloat(),
+            gradTheme, null, Shader.TileMode.CLAMP
+        )
+        val bgPaint = Paint().apply {
+            shader = gradient
+            isAntiAlias = true
+        }
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgPaint)
+
+        // Draw decorative abstract shapes/grid in background for premium feel
+        val gridPaint = Paint().apply {
+            color = Color.WHITE
+            alpha = 15 // Very subtle
+            strokeWidth = 2f
+            style = Paint.Style.STROKE
+            isAntiAlias = true
+        }
+        val gridSpacing = 80f
+        for (i in 0..(width / gridSpacing).toInt()) {
+            canvas.drawLine(i * gridSpacing, 0f, i * gridSpacing, height.toFloat(), gridPaint)
+            canvas.drawLine(0f, i * gridSpacing, width.toFloat(), i * gridSpacing, gridPaint)
+        }
+
+        // Draw circular gradient glows or premium overlays
+        val overlayPaint = Paint().apply {
+            color = Color.WHITE
+            alpha = 25
+            style = Paint.Style.FILL
+            isAntiAlias = true
+        }
+        canvas.drawCircle(0f, 0f, 350f, overlayPaint)
+        canvas.drawCircle(width.toFloat(), height.toFloat(), 300f, overlayPaint)
+
+        // Draw elegant thin border inside card
+        val borderPaint = Paint().apply {
+            color = Color.WHITE
+            alpha = 50
+            style = Paint.Style.STROKE
+            strokeWidth = 4f
+            isAntiAlias = true
+        }
+        canvas.drawRoundRect(RectF(30f, 30f, width - 30f, height - 30f), 24f, 24f, borderPaint)
+
+        // Top Header Academy name
+        val academyPaint = Paint().apply {
+            color = Color.WHITE
+            textSize = 48f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textAlign = Paint.Align.CENTER
+            isAntiAlias = true
+            letterSpacing = 0.05f
+        }
+        canvas.drawText("★ ${academyName.uppercase()} ★", width / 2f, 150f, academyPaint)
+
+        // Motto/Tagline
+        val mottoPaint = Paint().apply {
+            color = Color.WHITE
+            alpha = 204 // 0.8 alpha
+            textSize = 24f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.ITALIC)
+            textAlign = Paint.Align.CENTER
+            isAntiAlias = true
+        }
+        canvas.drawText(mottoText, width / 2f, 210f, mottoPaint)
+
+        // Large Accent Banner Card in the center
+        val bannerCardPaint = Paint().apply {
+            color = Color.WHITE
+            style = Paint.Style.FILL
+            isAntiAlias = true
+            setShadowLayer(15f, 0f, 10f, Color.BLACK and 0x40FFFFFF)
+        }
+        val bannerRect = RectF(100f, 300f, width - 100f, 560f)
+        canvas.drawRoundRect(bannerRect, 20f, 20f, bannerCardPaint)
+
+        // Text inside the banner card
+        val campaignPaint = Paint().apply {
+            color = gradTheme.first()
+            textSize = 46f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textAlign = Paint.Align.CENTER
+            isAntiAlias = true
+            letterSpacing = 0.05f
+        }
+        canvas.drawText(campaignTitle.uppercase(), width / 2f, 410f, campaignPaint)
+
+        val subTitlePaint = Paint().apply {
+            color = Color.DKGRAY
+            textSize = 28f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textAlign = Paint.Align.CENTER
+            isAntiAlias = true
+            letterSpacing = 0.02f
+        }
+        canvas.drawText(subTitleText, width / 2f, 490f, subTitlePaint)
+
+        // Footer Bullet Highlights
+        val bulletPaint = Paint().apply {
+            color = Color.WHITE
+            textSize = 26f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textAlign = Paint.Align.CENTER
+            isAntiAlias = true
+        }
+        canvas.drawText(footerText, width / 2f, 700f, bulletPaint)
+
+        // Accent Line below highlights
+        val linePaint = Paint().apply {
+            color = Color.WHITE
+            alpha = 100
+            strokeWidth = 3f
+            isAntiAlias = true
+        }
+        canvas.drawLine(200f, 750f, width - 200f, 750f, linePaint)
+
+        // Helpline and Campus Details
+        val contactPaint = Paint().apply {
+            color = Color.WHITE
+            textSize = 32f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textAlign = Paint.Align.CENTER
+            isAntiAlias = true
+        }
+        canvas.drawText(contactText, width / 2f, 840f, contactPaint)
+
+        // Premium Badge stamp at the bottom
+        val stampPaint = Paint().apply {
+            color = Color.WHITE
+            alpha = 40
+            textSize = 18f
+            typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+            textAlign = Paint.Align.CENTER
+            isAntiAlias = true
+        }
+        canvas.drawText("GENERATED VIA ASPIRANTS AI ADVERTISING ENGINE", width / 2f, 930f, stampPaint)
+
+        return bitmap
     }
 }
