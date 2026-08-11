@@ -26,7 +26,7 @@ import com.example.data.model.*
         ChatMessage::class,
         Assignment::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

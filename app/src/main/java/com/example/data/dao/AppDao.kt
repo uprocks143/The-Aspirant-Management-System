@@ -11,13 +11,13 @@ interface AppDao {
     fun getAllBatches(): Flow<List<Batch>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertBatch(batch: Batch): Long
+    fun insertBatch(batch: Batch): Long
 
     @Update
-    suspend fun updateBatch(batch: Batch)
+    fun updateBatch(batch: Batch): Int
 
     @Delete
-    suspend fun deleteBatch(batch: Batch)
+    fun deleteBatch(batch: Batch): Int
 
     // === Students ===
     @Query("SELECT * FROM students ORDER BY name ASC")
@@ -27,16 +27,16 @@ interface AppDao {
     fun getStudentsByBatch(batchId: Long): Flow<List<Student>>
 
     @Query("SELECT * FROM students WHERE id = :id")
-    suspend fun getStudentById(id: Long): Student?
+    fun getStudentById(id: Long): Student?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertStudent(student: Student): Long
+    fun insertStudent(student: Student): Long
 
     @Update
-    suspend fun updateStudent(student: Student)
+    fun updateStudent(student: Student): Int
 
     @Delete
-    suspend fun deleteStudent(student: Student)
+    fun deleteStudent(student: Student): Int
 
     // === Attendance ===
     @Query("SELECT * FROM attendance WHERE dateString = :dateString")
@@ -46,10 +46,10 @@ interface AppDao {
     fun getAttendanceForBatchAndDate(batchId: Long, dateString: String): Flow<List<Attendance>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAttendance(attendance: Attendance)
+    fun insertAttendance(attendance: Attendance): Long
 
     @Query("DELETE FROM attendance WHERE studentId = :studentId AND dateString = :dateString")
-    suspend fun deleteAttendance(studentId: Long, dateString: String)
+    fun deleteAttendance(studentId: Long, dateString: String): Int
 
     // === Fees Payments ===
     @Query("SELECT * FROM fees_payments ORDER BY datePaid DESC")
@@ -59,20 +59,20 @@ interface AppDao {
     fun getFeePaymentsForStudent(studentId: Long): Flow<List<FeePayment>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertFeePayment(feePayment: FeePayment): Long
+    fun insertFeePayment(feePayment: FeePayment): Long
 
     @Delete
-    suspend fun deleteFeePayment(feePayment: FeePayment)
+    fun deleteFeePayment(feePayment: FeePayment): Int
 
     // === Transactions (Ledger or accounts) ===
     @Query("SELECT * FROM transactions ORDER BY date DESC")
     fun getAllTransactions(): Flow<List<FinancialTransaction>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertTransaction(transaction: FinancialTransaction): Long
+    fun insertTransaction(transaction: FinancialTransaction): Long
 
     @Delete
-    suspend fun deleteTransaction(transaction: FinancialTransaction)
+    fun deleteTransaction(transaction: FinancialTransaction): Int
 
     // === Study Material ===
     @Query("SELECT * FROM study_materials ORDER BY timestamp DESC")
@@ -82,57 +82,57 @@ interface AppDao {
     fun getStudyMaterialsForBatch(batchId: Long): Flow<List<StudyMaterial>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertStudyMaterial(material: StudyMaterial): Long
+    fun insertStudyMaterial(material: StudyMaterial): Long
 
     @Delete
-    suspend fun deleteStudyMaterial(material: StudyMaterial)
+    fun deleteStudyMaterial(material: StudyMaterial): Int
 
     // === Message Templates ===
     @Query("SELECT * FROM message_templates ORDER BY title ASC")
     fun getAllMessageTemplates(): Flow<List<MessageTemplate>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertMessageTemplate(template: MessageTemplate): Long
+    fun insertMessageTemplate(template: MessageTemplate): Long
 
     @Update
-    suspend fun updateMessageTemplate(template: MessageTemplate)
+    fun updateMessageTemplate(template: MessageTemplate): Int
 
     @Delete
-    suspend fun deleteMessageTemplate(template: MessageTemplate)
+    fun deleteMessageTemplate(template: MessageTemplate): Int
 
     // === Cloud Backup & Restoration Utilities ===
     @Query("SELECT * FROM attendance")
     fun getAllAttendance(): Flow<List<Attendance>>
 
     @Query("DELETE FROM batches")
-    suspend fun clearBatches()
+    fun clearBatches(): Int
 
     @Query("DELETE FROM students")
-    suspend fun clearStudents()
+    fun clearStudents(): Int
 
     @Query("DELETE FROM attendance")
-    suspend fun clearAttendance()
+    fun clearAttendance(): Int
 
     @Query("DELETE FROM fees_payments")
-    suspend fun clearFeePayments()
+    fun clearFeePayments(): Int
 
     @Query("DELETE FROM transactions")
-    suspend fun clearTransactions()
+    fun clearTransactions(): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertBatchesBulk(batches: List<Batch>)
+    fun insertBatchesBulk(batches: List<Batch>): List<Long>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertStudentsBulk(students: List<Student>)
+    fun insertStudentsBulk(students: List<Student>): List<Long>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAttendanceBulk(attendanceList: List<Attendance>)
+    fun insertAttendanceBulk(attendanceList: List<Attendance>): List<Long>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertFeePaymentsBulk(payments: List<FeePayment>)
+    fun insertFeePaymentsBulk(payments: List<FeePayment>): List<Long>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertTransactionsBulk(transactions: List<FinancialTransaction>)
+    fun insertTransactionsBulk(transactions: List<FinancialTransaction>): List<Long>
 
     // === Exams ===
     @Query("SELECT * FROM exams ORDER BY title ASC")
@@ -142,20 +142,20 @@ interface AppDao {
     fun getExamsForBatch(batchId: Long): Flow<List<Exam>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertExam(exam: Exam): Long
+    fun insertExam(exam: Exam): Long
 
     @Delete
-    suspend fun deleteExam(exam: Exam)
+    fun deleteExam(exam: Exam): Int
 
     // === Exam Questions ===
     @Query("SELECT * FROM exam_questions WHERE examId = :examId")
     fun getQuestionsForExam(examId: Long): Flow<List<ExamQuestion>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertExamQuestion(question: ExamQuestion): Long
+    fun insertExamQuestion(question: ExamQuestion): Long
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertExamQuestionsBulk(questions: List<ExamQuestion>)
+    fun insertExamQuestionsBulk(questions: List<ExamQuestion>): List<Long>
 
     // === Exam Attempts ===
     @Query("SELECT * FROM exam_attempts WHERE studentId = :studentId")
@@ -165,59 +165,59 @@ interface AppDao {
     fun getAttemptsForExam(examId: Long): Flow<List<ExamAttempt>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertExamAttempt(attempt: ExamAttempt): Long
+    fun insertExamAttempt(attempt: ExamAttempt): Long
 
     // === Material Quizzes ===
     @Query("SELECT * FROM material_quizzes WHERE studyMaterialId = :studyMaterialId ORDER BY id DESC")
     fun getQuizzesForMaterial(studyMaterialId: Long): Flow<List<MaterialQuiz>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertMaterialQuiz(quiz: MaterialQuiz): Long
+    fun insertMaterialQuiz(quiz: MaterialQuiz): Long
 
     @Delete
-    suspend fun deleteMaterialQuiz(quiz: MaterialQuiz)
+    fun deleteMaterialQuiz(quiz: MaterialQuiz): Int
 
     // === Material Quiz Questions ===
     @Query("SELECT * FROM material_quiz_questions WHERE quizId = :quizId ORDER BY id ASC")
     fun getQuestionsForQuiz(quizId: Long): Flow<List<MaterialQuizQuestion>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertMaterialQuizQuestion(question: MaterialQuizQuestion): Long
+    fun insertMaterialQuizQuestion(question: MaterialQuizQuestion): Long
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertMaterialQuizQuestionsBulk(questions: List<MaterialQuizQuestion>)
+    fun insertMaterialQuizQuestionsBulk(questions: List<MaterialQuizQuestion>): List<Long>
 
     // === Material Quiz Attempts ===
     @Query("SELECT * FROM material_quiz_attempts WHERE quizId = :quizId ORDER BY attemptDate DESC")
     fun getAttemptsForQuiz(quizId: Long): Flow<List<MaterialQuizAttempt>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertMaterialQuizAttempt(attempt: MaterialQuizAttempt): Long
+    fun insertMaterialQuizAttempt(attempt: MaterialQuizAttempt): Long
 
     // === Community Chats ===
     @Query("SELECT * FROM chat_channels ORDER BY createdDate ASC")
     fun getAllChatChannels(): Flow<List<ChatChannel>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertChatChannel(channel: ChatChannel): Long
+    fun insertChatChannel(channel: ChatChannel): Long
 
     @Query("SELECT * FROM chat_messages WHERE channelId = :channelId ORDER BY timestamp ASC")
     fun getMessagesForChannel(channelId: Long): Flow<List<ChatMessage>>
 
     @Query("SELECT * FROM chat_messages WHERE id = :messageId LIMIT 1")
-    suspend fun getChatMessageById(messageId: Long): ChatMessage?
+    fun getChatMessageById(messageId: Long): ChatMessage?
 
     @Query("SELECT * FROM chat_channels WHERE id = :channelId LIMIT 1")
-    suspend fun getChatChannelById(channelId: Long): ChatChannel?
+    fun getChatChannelById(channelId: Long): ChatChannel?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertChatMessage(message: ChatMessage): Long
+    fun insertChatMessage(message: ChatMessage): Long
 
     @Query("DELETE FROM chat_messages WHERE channelId = :channelId")
-    suspend fun clearMessagesForChannel(channelId: Long)
+    fun clearMessagesForChannel(channelId: Long): Int
 
     @Query("DELETE FROM chat_channels WHERE id = :channelId")
-    suspend fun deleteChatChannel(channelId: Long)
+    fun deleteChatChannel(channelId: Long): Int
 
     // === Assignments ===
     @Query("SELECT * FROM assignments ORDER BY createdAt DESC")
@@ -227,8 +227,8 @@ interface AppDao {
     fun getAssignmentsForBatch(batchId: Long): Flow<List<Assignment>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAssignment(assignment: Assignment): Long
+    fun insertAssignment(assignment: Assignment): Long
 
     @Delete
-    suspend fun deleteAssignment(assignment: Assignment)
+    fun deleteAssignment(assignment: Assignment): Int
 }

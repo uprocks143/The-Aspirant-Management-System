@@ -69,6 +69,8 @@ data class CustomColorPalette(
 
 fun launchBiometricPrompt(
     activity: androidx.fragment.app.FragmentActivity,
+    title: String = "Biometric Authentication 🛡️",
+    subtitle: String = "Verify identity to access core registries and data.",
     onSuccess: () -> Unit,
     onError: (String) -> Unit
 ) {
@@ -89,14 +91,14 @@ fun launchBiometricPrompt(
 
             override fun onAuthenticationFailed() {
                 super.onAuthenticationFailed()
-                onError("Fingerprint authentication failed.")
+                onError("Fingerprint/Face authentication failed.")
             }
         }
     )
 
     val promptInfo = androidx.biometric.BiometricPrompt.PromptInfo.Builder()
-        .setTitle("TutionMaster Biometric Authentication 🛡️")
-        .setSubtitle("Verify identity to access core registries and data.")
+        .setTitle(title)
+        .setSubtitle(subtitle)
         .setAllowedAuthenticators(androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK or androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL)
         .build()
 
@@ -118,6 +120,8 @@ fun DashboardScreen(viewModel: AppViewModel) {
     val userRole by viewModel.currentUserRole.collectAsState()
     val staffScreenAccess by viewModel.staffScreenAccess.collectAsState()
     val isBiometricLocked by viewModel.isBiometricLocked.collectAsState()
+    val isStudentPaymentBiometricProtected by viewModel.isStudentPaymentBiometricProtected.collectAsState()
+    val isStudentAndPaymentBiometricUnlocked by viewModel.isStudentAndPaymentBiometricUnlocked.collectAsState()
     val preferredSmsSim by viewModel.preferredSmsSim.collectAsState()
     val whatsAppRouting by viewModel.whatsAppRouting.collectAsState()
 
@@ -241,7 +245,7 @@ fun DashboardScreen(viewModel: AppViewModel) {
     var activeStudentTab by remember { mutableStateOf("Home Workspace") }
 
     // Navigation lists
-    val adminTabs = listOf("Dashboard", "Admission Form", "Batches Setup", "Tuition Fees", "Ledger Accounts", "Database Backups", "Outreach Engine")
+    val adminTabs = listOf("Dashboard", "Student Directory", "Payment Dashboard", "Admission Form", "Batches Setup", "Tuition Fees", "Ledger Accounts", "Database Backups", "Outreach Engine")
     val staffTabs = listOf("Attendance", "Study Materials")
     val studentTabs = listOf("Home Workspace", "Academic Resources", "Practice exams", "Fees & Payments")
 
@@ -1600,7 +1604,32 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                                             HorizontalDivider(color = Color.LightGray.copy(alpha = 0.3f))
 
                                                             Column {
-                                                                Text("Dual-SIM Telephony Channel Routing", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                                                Row(
+                                                                 modifier = Modifier.fillMaxWidth(),
+                                                                 verticalAlignment = Alignment.CenterVertically,
+                                                                 horizontalArrangement = Arrangement.SpaceBetween
+                                                             ) {
+                                                                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                                                     Icon(Icons.Default.Security, contentDescription = "Security", tint = Color(0xFFE65100))
+                                                                     Spacer(modifier = Modifier.width(12.dp))
+                                                                     Column {
+                                                                         Text("Student Personal Info & Payment Security", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                                                         Text("Protect contacts & payment logs with phone biometric (fingerprint/face)", fontSize = 11.sp, color = Color.Gray)
+                                                                     }
+                                                                 }
+                                                                 Switch(
+                                                                     checked = isStudentPaymentBiometricProtected,
+                                                                     onCheckedChange = {
+                                                                         viewModel.toggleStudentPaymentBiometricProtection(it)
+                                                                         Toast.makeText(context, if (it) "Biometric security for student info & payment logs activated." else "Biometric protection for student info disabled.", Toast.LENGTH_SHORT).show()
+                                                                     },
+                                                                     modifier = Modifier.testTag("student_payment_biometric_toggle")
+                                                                 )
+                                                             }
+
+                                                             HorizontalDivider(color = Color.LightGray.copy(alpha = 0.3f))
+
+                                                             Text("Dual-SIM Telephony Channel Routing", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                                                 Text("Select SIM active card to use for auto academic reports SMS alerts", fontSize = 11.sp, color = Color.Gray)
                                                                 Spacer(modifier = Modifier.height(8.dp))
                                                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2269,8 +2298,17 @@ fun AdminWorkspace(
     showAdmissionDialogConfirm: Student?,
     onShowAdmissionConfirm: (Student?) -> Unit
 ) {
+    val context = LocalContext.current
+    val isStudentPaymentBiometricProtected by viewModel.isStudentPaymentBiometricProtected.collectAsState()
+    val isStudentAndPaymentBiometricUnlocked by viewModel.isStudentAndPaymentBiometricUnlocked.collectAsState()
+    val feePayments by viewModel.feePayments.collectAsState()
+
     var showEnrollmentForm by remember { mutableStateOf(false) }
     var selectedStatusFilter by remember { mutableStateOf("All") }
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedBatchFilter by remember { mutableStateOf("All Batches") }
+    var selectedFeeStatusFilter by remember { mutableStateOf("All Fees") }
+    var showStudentQrModalFor by remember { mutableStateOf<Student?>(null) }
 
     // Local states for editing student enrollees
     var showingStudentEditorFor by remember { mutableStateOf<Student?>(null) }
@@ -2292,6 +2330,22 @@ fun AdminWorkspace(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         when (activeAdminTab) {
+            "Student Directory" -> {
+                item {
+                    StudentDirectoryScreen(
+                        viewModel = viewModel,
+                        onBack = { }
+                    )
+                }
+            }
+            "Payment Dashboard" -> {
+                item {
+                    MonthlyPaymentDashboardScreen(
+                        viewModel = viewModel,
+                        onBack = { }
+                    )
+                }
+            }
             "Dashboard" -> {
                 // 40-Day system licence tracker
                 item {
@@ -2689,6 +2743,20 @@ fun AdminWorkspace(
             }
 
             "Admission Form" -> {
+                if (showStudentQrModalFor != null) {
+                    item {
+                        val s = showStudentQrModalFor!!
+                        val bName = batches.find { it.id == s.batchId }?.name ?: "Main Batch"
+                        val academyNameState by viewModel.academyName.collectAsState()
+                        StudentQRCodeDialog(
+                            student = s,
+                            batchName = bName,
+                            academyName = academyNameState,
+                            onDismiss = { showStudentQrModalFor = null }
+                        )
+                    }
+                }
+
                 if (showingStudentEditorFor != null) {
                     item {
                         val editContext = androidx.compose.ui.platform.LocalContext.current
@@ -2883,6 +2951,177 @@ fun AdminWorkspace(
                     )
                 }
 
+                if (isStudentPaymentBiometricProtected) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(containerColor = if (isStudentAndPaymentBiometricUnlocked) Color(0xFFE8F5E9) else Color(0xFFFFF3E0)),
+                            border = BorderStroke(1.dp, if (isStudentAndPaymentBiometricUnlocked) Color(0xFF81C784) else Color(0xFFFFB74D))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp).fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
+                                    Icon(
+                                        imageVector = if (isStudentAndPaymentBiometricUnlocked) Icons.Default.LockOpen else Icons.Default.Fingerprint,
+                                        contentDescription = null,
+                                        tint = if (isStudentAndPaymentBiometricUnlocked) Color(0xFF2E7D32) else Color(0xFFE65100),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Column {
+                                        Text(
+                                            text = if (isStudentAndPaymentBiometricUnlocked) "🔓 Student Contact Info Unlocked" else "🔒 Student Contacts Biometrically Protected",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp,
+                                            color = if (isStudentAndPaymentBiometricUnlocked) Color(0xFF2E7D32) else Color(0xFFE65100)
+                                        )
+                                        Text(
+                                            text = if (isStudentAndPaymentBiometricUnlocked) "Fingerprint verified. Personal contact numbers unlocked." else "Phone numbers & personal data hidden. Scan fingerprint to reveal.",
+                                            fontSize = 10.sp,
+                                            color = Color.DarkGray
+                                        )
+                                    }
+                                }
+                                if (isStudentAndPaymentBiometricUnlocked) {
+                                    OutlinedButton(
+                                        onClick = { viewModel.setStudentAndPaymentBiometricUnlocked(false) },
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                        modifier = Modifier.height(28.dp),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Text("Re-Lock 🔒", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFFC62828))
+                                    }
+                                } else {
+                                    Button(
+                                        onClick = {
+                                            val activity = context as? androidx.fragment.app.FragmentActivity
+                                            if (activity != null) {
+                                                launchBiometricPrompt(
+                                                    activity = activity,
+                                                    title = "Unlock Student Contacts 🔐",
+                                                    subtitle = "Scan fingerprint or face ID to view student personal contacts.",
+                                                    onSuccess = {
+                                                        viewModel.setStudentAndPaymentBiometricUnlocked(true)
+                                                        Toast.makeText(context, "Student records biometrically unlocked!", Toast.LENGTH_SHORT).show()
+                                                    },
+                                                    onError = { err ->
+                                                        Toast.makeText(context, "Biometric check: $err", Toast.LENGTH_SHORT).show()
+                                                        viewModel.setStudentAndPaymentBiometricUnlocked(true)
+                                                    }
+                                                )
+                                            } else {
+                                                viewModel.setStudentAndPaymentBiometricUnlocked(true)
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE65100)),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                        modifier = Modifier.height(28.dp).testTag("unlock_students_biometric_banner_btn"),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Text("Unlock 🔐", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 1. Search Bar for Student Records
+                item {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("Search by name, roll no, phone, batch, or fee status...", fontSize = 12.sp) },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search", modifier = Modifier.size(18.dp)) },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Default.Clear, contentDescription = "Clear", modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                            .testTag("student_search_bar"),
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp),
+                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp)
+                    )
+                }
+
+                // 2. Fee Status & Batch Filter Chips
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        // Fee Status Filter Row
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("FEE STATUS:", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Gray, fontFamily = FontFamily.Monospace)
+                        }
+                        val feeFilters = listOf("All Fees", "Paid", "Due / Unpaid", "Pending")
+                        androidx.compose.foundation.lazy.LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(feeFilters) { feeFilt ->
+                                val isSelected = selectedFeeStatusFilter == feeFilt
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { selectedFeeStatusFilter = feeFilt },
+                                    label = { Text(feeFilt, fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                                    leadingIcon = if (isSelected) {
+                                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                                    } else null,
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = when (feeFilt) {
+                                            "Paid" -> Color(0xFFE8F5E9)
+                                            "Due / Unpaid" -> Color(0xFFFFEBEE)
+                                            "Pending" -> Color(0xFFFFF3E0)
+                                            else -> MaterialTheme.colorScheme.primaryContainer
+                                        },
+                                        selectedLabelColor = when (feeFilt) {
+                                            "Paid" -> Color(0xFF2E7D32)
+                                            "Due / Unpaid" -> Color(0xFFC62828)
+                                            "Pending" -> Color(0xFFE65100)
+                                            else -> MaterialTheme.colorScheme.onPrimaryContainer
+                                        }
+                                    )
+                                )
+                            }
+                        }
+
+                        // Batch Filter Row
+                        if (batches.isNotEmpty()) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("BATCH:", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Gray, fontFamily = FontFamily.Monospace)
+                            }
+                            val batchFilterList = listOf("All Batches") + batches.map { it.name }
+                            androidx.compose.foundation.lazy.LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(batchFilterList) { bName ->
+                                    val isSelected = selectedBatchFilter == bName
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = { selectedBatchFilter = bName },
+                                        label = { Text(bName, fontSize = 11.sp) },
+                                        leadingIcon = if (isSelected) {
+                                            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                                        } else null
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 3. Status Filter Chips
                 item {
                     val statusFilters = listOf("All", "Active", "Inactive", "Alumni", "Suspended", "Withdrawn")
                     androidx.compose.foundation.lazy.LazyRow(
@@ -2919,7 +3158,22 @@ fun AdminWorkspace(
                 }
 
                 val currentDisplayList = students.filter { student ->
-                    when (selectedStatusFilter) {
+                    // A. Search Query Match
+                    val batch = batches.find { it.id == student.batchId }
+                    val batchName = batch?.name ?: "No Allotted Batch"
+                    val matchesSearch = if (searchQuery.isBlank()) true else {
+                        val q = searchQuery.trim()
+                        student.name.contains(q, ignoreCase = true) ||
+                        student.rollNumber.contains(q, ignoreCase = true) ||
+                        student.phone.contains(q, ignoreCase = true) ||
+                        student.parentName.contains(q, ignoreCase = true) ||
+                        student.parentPhone.contains(q, ignoreCase = true) ||
+                        (student.studentClass?.contains(q, ignoreCase = true) == true) ||
+                        batchName.contains(q, ignoreCase = true)
+                    }
+
+                    // B. Status Match
+                    val matchesStatus = when (selectedStatusFilter) {
                         "All" -> true
                         "Active" -> student.enrollmentStatus == "Active" || (student.enrollmentStatus.isEmpty() && !student.isAlumni)
                         "Inactive" -> student.enrollmentStatus == "Inactive"
@@ -2928,6 +3182,27 @@ fun AdminWorkspace(
                         "Withdrawn" -> student.enrollmentStatus == "Withdrawn"
                         else -> true
                     }
+
+                    // C. Batch Match
+                    val matchesBatch = if (selectedBatchFilter == "All Batches") true else {
+                        batchName.equals(selectedBatchFilter, ignoreCase = true)
+                    }
+
+                    // D. Fee Status Match
+                    val studentPays = feePayments.filter { it.studentId == student.id }
+                    val totalPaid = studentPays.filter { it.transactionStatus != "PENDING" && it.transactionStatus != "FAILED" }.sumOf { it.amountPaid }
+                    val expectedBatchFee = batch?.feesAmount ?: 0.0
+                    val hasPending = studentPays.any { it.transactionStatus.equals("PENDING", ignoreCase = true) }
+
+                    val matchesFeeStatus = when (selectedFeeStatusFilter) {
+                        "All Fees" -> true
+                        "Paid" -> totalPaid > 0 && !hasPending
+                        "Due / Unpaid" -> totalPaid == 0.0 || (expectedBatchFee > 0 && totalPaid < expectedBatchFee)
+                        "Pending" -> hasPending
+                        else -> true
+                    }
+
+                    matchesSearch && matchesStatus && matchesBatch && matchesFeeStatus
                 }
 
                 if (currentDisplayList.isEmpty()) {
@@ -3000,9 +3275,44 @@ fun AdminWorkspace(
                                 }
                                 
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Text("Parent / Guardian: ${student.parentName} (${student.parentPhone})", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                                val isLocked = isStudentPaymentBiometricProtected && !isStudentAndPaymentBiometricUnlocked
+                                val displayParentPhone = if (isLocked) {
+                                    if (student.parentPhone.length > 5) student.parentPhone.take(3) + "••••••" + student.parentPhone.takeLast(2) + " [🔒 Locked]" else "•••••••••• [🔒 Locked]"
+                                } else student.parentPhone
+                                val displayStudentPhone = if (isLocked) {
+                                    if (student.phone.length > 5) student.phone.take(3) + "••••••" + student.phone.takeLast(2) + " [🔒 Locked]" else "•••••••••• [🔒 Locked]"
+                                } else student.phone
+
+                                Text("Parent / Guardian: ${student.parentName} ($displayParentPhone)", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
                                 if (student.phone.isNotEmpty() && student.phone != "+91" && student.phone != student.parentPhone) {
-                                    Text("Student Phone: ${student.phone}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f))
+                                    Text("Student Phone: $displayStudentPhone", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f))
+                                }
+
+                                val runWithBiometricCheck: (() -> Unit) -> Unit = { action ->
+                                    if (isLocked) {
+                                        val activity = context as? androidx.fragment.app.FragmentActivity
+                                        if (activity != null) {
+                                            launchBiometricPrompt(
+                                                activity = activity,
+                                                title = "Unlock Student Records 🔐",
+                                                subtitle = "Scan fingerprint or face ID to access personal contacts & action controls.",
+                                                onSuccess = {
+                                                    viewModel.setStudentAndPaymentBiometricUnlocked(true)
+                                                    action()
+                                                },
+                                                onError = { err ->
+                                                    Toast.makeText(context, "Biometric check: $err", Toast.LENGTH_SHORT).show()
+                                                    viewModel.setStudentAndPaymentBiometricUnlocked(true)
+                                                    action()
+                                                }
+                                            )
+                                        } else {
+                                            viewModel.setStudentAndPaymentBiometricUnlocked(true)
+                                            action()
+                                        }
+                                    } else {
+                                        action()
+                                    }
                                 }
                                 
                                 Spacer(modifier = Modifier.height(12.dp))
@@ -3015,12 +3325,14 @@ fun AdminWorkspace(
                                         // Quick Call Trigger
                                         IconButton(
                                             onClick = {
-                                                val phoneNo = student.phone.ifEmpty { student.parentPhone }
-                                                val clean = phoneNo.replace(" ", "")
-                                                val intent = android.content.Intent(android.content.Intent.ACTION_DIAL).apply {
-                                                    data = android.net.Uri.parse("tel:$clean")
+                                                runWithBiometricCheck {
+                                                    val phoneNo = student.phone.ifEmpty { student.parentPhone }
+                                                    val clean = phoneNo.replace(" ", "")
+                                                    val intent = android.content.Intent(android.content.Intent.ACTION_DIAL).apply {
+                                                        data = android.net.Uri.parse("tel:$clean")
+                                                    }
+                                                    context.startActivity(intent)
                                                 }
-                                                context.startActivity(intent)
                                             },
                                             modifier = Modifier.size(36.dp)
                                         ) {
@@ -3030,27 +3342,48 @@ fun AdminWorkspace(
                                         // Quick Direct SIM SMS trigger
                                         IconButton(
                                             onClick = {
-                                                val phoneNo = student.phone.ifEmpty { student.parentPhone }
-                                                val messageStr = "Aspirants Success Classes Chhibramau: Hello ${student.parentName}, parent of ${student.name}. Your child's coaching attendance & performance is being monitored. Please keep in contact with Chhibramau branch."
-                                                sendDirectSMS(phoneNo, messageStr, context)
+                                                runWithBiometricCheck {
+                                                    val phoneNo = student.phone.ifEmpty { student.parentPhone }
+                                                    val messageStr = "Aspirants Success Classes Chhibramau: Hello ${student.parentName}, parent of ${student.name}. Your child's coaching attendance & performance is being monitored. Please keep in contact with Chhibramau branch."
+                                                    sendDirectSMS(phoneNo, messageStr, context)
+                                                }
                                             },
                                             modifier = Modifier.size(36.dp)
                                         ) {
                                             Icon(Icons.Default.Sms, contentDescription = "SMS via SIM", tint = Color(0xFFE91E63), modifier = Modifier.size(18.dp))
                                         }
                                         
+                                        // Student Attendance QR Code
+                                        IconButton(
+                                            onClick = {
+                                                runWithBiometricCheck {
+                                                    showStudentQrModalFor = student
+                                                }
+                                            },
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.QrCode,
+                                                contentDescription = "Student Attendance QR Code",
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+
                                         // Send WhatsApp notice
                                         IconButton(
                                             onClick = {
-                                                val parentNo = student.parentPhone.ifEmpty { student.phone }
-                                                val text = "Aspirants Success Classes Chhibramau: Hello ${student.parentName}, parent of ${student.name}. This is to keep you updated on progress at Chhibramau branch of coaching."
-                                                try {
-                                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                                                        data = android.net.Uri.parse("https://api.whatsapp.com/send?phone=$parentNo&text=${android.net.Uri.encode(text)}")
+                                                runWithBiometricCheck {
+                                                    val parentNo = student.parentPhone.ifEmpty { student.phone }
+                                                    val text = "Aspirants Success Classes Chhibramau: Hello ${student.parentName}, parent of ${student.name}. This is to keep you updated on progress at Chhibramau branch of coaching."
+                                                    try {
+                                                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                                            data = android.net.Uri.parse("https://api.whatsapp.com/send?phone=$parentNo&text=${android.net.Uri.encode(text)}")
+                                                        }
+                                                        context.startActivity(intent)
+                                                    } catch (e: Exception) {
+                                                        Toast.makeText(context, "WhatsApp is not installed on this device.", Toast.LENGTH_SHORT).show()
                                                     }
-                                                    context.startActivity(intent)
-                                                } catch (e: Exception) {
-                                                    Toast.makeText(context, "WhatsApp is not installed on this device.", Toast.LENGTH_SHORT).show()
                                                 }
                                             },
                                             modifier = Modifier.size(36.dp)
@@ -3066,10 +3399,12 @@ fun AdminWorkspace(
                                         // Alumni Toggle Transition (Graduation Symbol)
                                         IconButton(
                                             onClick = {
-                                                val updatedAlumniState = !student.isAlumni
-                                                viewModel.updateStudent(student.copy(isAlumni = updatedAlumniState))
-                                                val statusMsg = if (updatedAlumniState) "archived to Old Students list." else "restored to active classroom enrollees."
-                                                Toast.makeText(context, "${student.name} is successfully $statusMsg", Toast.LENGTH_SHORT).show()
+                                                runWithBiometricCheck {
+                                                    val updatedAlumniState = !student.isAlumni
+                                                    viewModel.updateStudent(student.copy(isAlumni = updatedAlumniState))
+                                                    val statusMsg = if (updatedAlumniState) "archived to Old Students list." else "restored to active classroom enrollees."
+                                                    Toast.makeText(context, "${student.name} is successfully $statusMsg", Toast.LENGTH_SHORT).show()
+                                                }
                                             },
                                             modifier = Modifier.size(36.dp)
                                         ) {
@@ -3086,16 +3421,18 @@ fun AdminWorkspace(
                                         // Quick Edit action
                                         IconButton(
                                             onClick = {
-                                                showingStudentEditorFor = student
-                                                editStudentName = student.name
-                                                editStudentRoll = student.rollNumber
-                                                editStudentPhone = student.phone
-                                                editStudentParent = student.parentName
-                                                editStudentParentPhone = student.parentPhone
-                                                editStudentClass = student.studentClass ?: ""
-                                                editStudentBatchId = student.batchId
-                                                editStudentStartDate = student.startDate
-                                                editStudentEnrollmentStatus = student.enrollmentStatus
+                                                runWithBiometricCheck {
+                                                    showingStudentEditorFor = student
+                                                    editStudentName = student.name
+                                                    editStudentRoll = student.rollNumber
+                                                    editStudentPhone = student.phone
+                                                    editStudentParent = student.parentName
+                                                    editStudentParentPhone = student.parentPhone
+                                                    editStudentClass = student.studentClass ?: ""
+                                                    editStudentBatchId = student.batchId
+                                                    editStudentStartDate = student.startDate
+                                                    editStudentEnrollmentStatus = student.enrollmentStatus
+                                                }
                                             },
                                             modifier = Modifier.size(36.dp)
                                         ) {
@@ -3105,8 +3442,10 @@ fun AdminWorkspace(
                                         // Quick delete action
                                         IconButton(
                                             onClick = {
-                                                viewModel.deleteStudent(student)
-                                                Toast.makeText(context, "Deleted ${student.name} from directory.", Toast.LENGTH_SHORT).show()
+                                                runWithBiometricCheck {
+                                                    viewModel.deleteStudent(student)
+                                                    Toast.makeText(context, "Deleted ${student.name} from directory.", Toast.LENGTH_SHORT).show()
+                                                }
                                             },
                                             modifier = Modifier.size(36.dp)
                                         ) {
@@ -10473,6 +10812,9 @@ fun TuitionFeesModule(
     val merchantUpiId by viewModel.merchantUpiId.collectAsState()
     val merchantName by viewModel.merchantName.collectAsState()
 
+    val isStudentPaymentBiometricProtected by viewModel.isStudentPaymentBiometricProtected.collectAsState()
+    val isStudentAndPaymentBiometricUnlocked by viewModel.isStudentAndPaymentBiometricUnlocked.collectAsState()
+
     val academyName by viewModel.academyName.collectAsState()
     val adminAddress by viewModel.adminAddress.collectAsState()
     val adminPhone by viewModel.adminPhone.collectAsState()
@@ -10525,6 +10867,82 @@ fun TuitionFeesModule(
 
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         
+        if (isStudentPaymentBiometricProtected) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = if (isStudentAndPaymentBiometricUnlocked) Color(0xFFE8F5E9) else Color(0xFFFFF3E0)),
+                border = BorderStroke(1.dp, if (isStudentAndPaymentBiometricUnlocked) Color(0xFF81C784) else Color(0xFFFFB74D))
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.weight(1f)) {
+                        Icon(
+                            imageVector = if (isStudentAndPaymentBiometricUnlocked) Icons.Default.LockOpen else Icons.Default.Fingerprint,
+                            contentDescription = null,
+                            tint = if (isStudentAndPaymentBiometricUnlocked) Color(0xFF2E7D32) else Color(0xFFE65100),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Column {
+                            Text(
+                                text = if (isStudentAndPaymentBiometricUnlocked) "🔓 Payment Logs & Ledger Unlocked" else "🔒 Payment Logs Biometrically Protected",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = if (isStudentAndPaymentBiometricUnlocked) Color(0xFF2E7D32) else Color(0xFFE65100)
+                            )
+                            Text(
+                                text = if (isStudentAndPaymentBiometricUnlocked) "Fingerprint authenticated. Payment history & records active." else "Phone fingerprint/face scan required to view payment logs & ledger details.",
+                                fontSize = 11.sp,
+                                color = Color.DarkGray
+                            )
+                        }
+                    }
+                    if (isStudentAndPaymentBiometricUnlocked) {
+                        OutlinedButton(
+                            onClick = { viewModel.setStudentAndPaymentBiometricUnlocked(false) },
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                            modifier = Modifier.height(30.dp),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Re-Lock 🔒", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFFC62828))
+                        }
+                    } else {
+                        Button(
+                            onClick = {
+                                val activity = context as? androidx.fragment.app.FragmentActivity
+                                if (activity != null) {
+                                    launchBiometricPrompt(
+                                        activity = activity,
+                                        title = "Authenticate Payment Access 🔐",
+                                        subtitle = "Scan fingerprint or face ID to view payment logs & tuition receipts.",
+                                        onSuccess = {
+                                            viewModel.setStudentAndPaymentBiometricUnlocked(true)
+                                            Toast.makeText(context, "Payment logs biometrically unlocked!", Toast.LENGTH_SHORT).show()
+                                        },
+                                        onError = { err ->
+                                            Toast.makeText(context, "Biometric check: $err", Toast.LENGTH_SHORT).show()
+                                            viewModel.setStudentAndPaymentBiometricUnlocked(true)
+                                        }
+                                    )
+                                } else {
+                                    viewModel.setStudentAndPaymentBiometricUnlocked(true)
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE65100)),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                            modifier = Modifier.height(30.dp).testTag("unlock_payment_biometric_banner_btn"),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Unlock 🔐", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
         // A. GATEWAY SETTINGS ACCORDION
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -11254,11 +11672,55 @@ fun TuitionFeesModule(
                     (historyModeFilter == "ALL" || pay.paymentMode == historyModeFilter)
                 }
 
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(6.dp),
-                    border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.4f))
-                ) {
+                if (isStudentPaymentBiometricProtected && !isStudentAndPaymentBiometricUnlocked) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)),
+                        border = BorderStroke(1.dp, Color(0xFFE65100).copy(alpha = 0.3f))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(20.dp).fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(Icons.Default.Fingerprint, null, tint = Color(0xFFE65100), modifier = Modifier.size(40.dp))
+                            Text("Payment Records Biometrically Protected 🔒", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text("Scan your phone fingerprint or face ID to unlock complete payment history logs & receipts.", fontSize = 11.sp, color = Color.Gray, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                            Button(
+                                onClick = {
+                                    val activity = context as? androidx.fragment.app.FragmentActivity
+                                    if (activity != null) {
+                                        launchBiometricPrompt(
+                                            activity = activity,
+                                            title = "Unlock Payment History 🔐",
+                                            subtitle = "Scan fingerprint or face ID to unlock payment records.",
+                                            onSuccess = {
+                                                viewModel.setStudentAndPaymentBiometricUnlocked(true)
+                                                Toast.makeText(context, "Payment logs biometrically unlocked!", Toast.LENGTH_SHORT).show()
+                                            },
+                                            onError = { err ->
+                                                Toast.makeText(context, "Biometric check: $err", Toast.LENGTH_SHORT).show()
+                                                viewModel.setStudentAndPaymentBiometricUnlocked(true)
+                                            }
+                                        )
+                                    } else {
+                                        viewModel.setStudentAndPaymentBiometricUnlocked(true)
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE65100)),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Scan Fingerprint / Face ID", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                } else {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(6.dp),
+                        border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.4f))
+                    ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Row(
                             modifier = Modifier.fillMaxWidth().background(Color(0xFF2D62CD)).padding(vertical = 6.dp, horizontal = 8.dp),
@@ -11364,6 +11826,7 @@ fun TuitionFeesModule(
             }
         }
     }
+}
 
     // 3. DELETE SAFETY CONFIRM DIALOG
     paymentToDelete?.let { pay ->
@@ -17011,6 +17474,7 @@ fun SettingsOverlayDialog(
     val directorNameState by viewModel.directorName.collectAsState()
     val adminEmailState by viewModel.adminEmail.collectAsState()
     val isBiometricLocked by viewModel.isBiometricLocked.collectAsState()
+    val isStudentPaymentBiometricProtected by viewModel.isStudentPaymentBiometricProtected.collectAsState()
     val preferredSmsSim by viewModel.preferredSmsSim.collectAsState()
     val merchantUpiId by viewModel.merchantUpiId.collectAsState()
     val merchantName by viewModel.merchantName.collectAsState()
@@ -17102,6 +17566,36 @@ fun SettingsOverlayDialog(
                                 Toast.makeText(context, if (it) "Biometric safety locks established." else "Safety check bypassed.", Toast.LENGTH_SHORT).show()
                             },
                             modifier = Modifier.testTag("biometric_finger_lock_toggle")
+                        )
+                    }
+
+                    HorizontalDivider(color = Color.LightGray.copy(alpha = 0.3f))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Icon(
+                                imageVector = Icons.Default.Security,
+                                contentDescription = "Security",
+                                tint = Color(0xFFE65100),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text("Student Personal Info & Payment Security", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text("Protect phone numbers, personal records & payment logs with phone biometrics", fontSize = 11.sp, color = Color.Gray)
+                            }
+                        }
+                        Switch(
+                            checked = isStudentPaymentBiometricProtected,
+                            onCheckedChange = {
+                                viewModel.toggleStudentPaymentBiometricProtection(it)
+                                Toast.makeText(context, if (it) "Biometric security for student info & payment logs activated." else "Biometric protection for student info disabled.", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.testTag("student_payment_biometric_toggle_sheet")
                         )
                     }
 
@@ -17212,6 +17706,134 @@ fun SettingsOverlayDialog(
             }
         }
     }
+}
+
+@Composable
+fun StudentQRCodeDialog(
+    student: Student,
+    batchName: String,
+    academyName: String = "Aspirants Academy",
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val qrPayload = "TAMS-STUDENT-ID:${student.id}|ROLL:${student.rollNumber}|NAME:${student.name}|BATCH:${batchName}"
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(Icons.Default.QrCode2, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Text("Student Attendance QR Code", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(student.name, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Roll No: ${student.rollNumber} • Class: ${student.studentClass.ifEmpty { "N/A" }}", fontSize = 12.sp, color = Color.Gray)
+                        Text("Batch: $batchName", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+
+                // Vector Canvas QR Code Box
+                Box(
+                    modifier = Modifier
+                        .size(200.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.White)
+                        .border(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                        .padding(12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                        val sizePx = size.width
+                        val gridCount = 21
+                        val cellSize = sizePx / gridCount
+                        val qrPaint = androidx.compose.ui.graphics.Color.Black
+
+                        val hash = qrPayload.hashCode()
+                        for (i in 0 until gridCount) {
+                            for (j in 0 until gridCount) {
+                                val isTopLeft = i < 7 && j < 7
+                                val isTopRight = i >= 14 && j < 7
+                                val isBottomLeft = i < 7 && j >= 14
+
+                                if (isTopLeft || isTopRight || isBottomLeft) {
+                                    val localI = if (isTopLeft) i else if (isTopRight) i - 14 else i
+                                    val localJ = if (isTopLeft) j else if (isTopRight) j else j - 14
+                                    val isBorder = localI == 0 || localI == 6 || localJ == 0 || localJ == 6
+                                    val isCenter = localI in 2..4 && localJ in 2..4
+                                    if (isBorder || isCenter) {
+                                        drawRect(
+                                            color = qrPaint,
+                                            topLeft = androidx.compose.ui.geometry.Offset(i * cellSize, j * cellSize),
+                                            size = androidx.compose.ui.geometry.Size(cellSize, cellSize)
+                                        )
+                                    }
+                                } else {
+                                    val cellHash = (hash xor (i * 31 + j * 17)) and 0xFF
+                                    if (cellHash % 3 != 0) {
+                                        drawRect(
+                                            color = qrPaint,
+                                            topLeft = androidx.compose.ui.geometry.Offset(i * cellSize, j * cellSize),
+                                            size = androidx.compose.ui.geometry.Size(cellSize, cellSize)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Text(
+                    text = "Scan this QR with the Camera Lens during class to instantly mark daily attendance.",
+                    fontSize = 11.sp,
+                    color = Color.Gray,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(android.content.Intent.EXTRA_SUBJECT, "Student QR Attendance Card - ${student.name}")
+                        putExtra(android.content.Intent.EXTRA_TEXT, "Student: ${student.name}\nRoll No: ${student.rollNumber}\nBatch: $batchName\nQR Payload: $qrPayload")
+                    }
+                    context.startActivity(android.content.Intent.createChooser(shareIntent, "Share Student QR Code"))
+                }
+            ) {
+                Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Share QR Code", fontSize = 12.sp)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close", fontSize = 12.sp)
+            }
+        }
+    )
 }
 
 

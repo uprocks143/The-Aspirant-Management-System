@@ -114,30 +114,7 @@ class FeeCheckService : Service() {
                         val unpaidAmount = feesAmount - totalPaid
                         Log.d("FeeCheckService", "Student ${student.name} owes ₹$unpaidAmount for $monthName")
                         
-                        // Check if a PENDING FeePayment record already exists so we don't duplicate,
-                        // or check if we should auto-calculate it and create a pending installment record
-                        val pendingExists = allPayments.any {
-                            it.studentId == student.id &&
-                            it.monthPaidFor.equals(monthName, ignoreCase = true) &&
-                            it.transactionStatus.equals("PENDING", ignoreCase = true)
-                        }
-                        
-                        if (!pendingExists && unpaidAmount > 0) {
-                            val pendingPayment = FeePayment(
-                                studentId = student.id,
-                                feeType = "Monthly-based",
-                                amountPaid = 0.0,
-                                discount = 0.0,
-                                receiptNo = "REC-AUTO-${System.currentTimeMillis() % 100000}",
-                                monthPaidFor = monthName,
-                                paymentMode = "UPI",
-                                remarks = "Auto-calculated unpaid fee installment of ₹$unpaidAmount",
-                                transactionStatus = "PENDING"
-                            )
-                            dao.insertFeePayment(pendingPayment)
-                        }
-                        
-                        // Trigger fee reminder alert notification
+                        // Trigger fee reminder alert notification without inserting automated dummy records
                         NotificationHelper.triggerFeeReminderNotification(
                             context = context,
                             studentName = student.name,

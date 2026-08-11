@@ -1103,6 +1103,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _isBiometricLocked = MutableStateFlow(getSafeBoolean(sharedPrefs, "biometric_locked", false))
     val isBiometricLocked = _isBiometricLocked.asStateFlow()
 
+    private val _isStudentPaymentBiometricProtected = MutableStateFlow(getSafeBoolean(sharedPrefs, "student_payment_biometric_protected", true))
+    val isStudentPaymentBiometricProtected = _isStudentPaymentBiometricProtected.asStateFlow()
+
+    private val _isStudentAndPaymentBiometricUnlocked = MutableStateFlow(false)
+    val isStudentAndPaymentBiometricUnlocked = _isStudentAndPaymentBiometricUnlocked.asStateFlow()
+
     private val _preferredSmsSim = MutableStateFlow(getSafeString(sharedPrefs, "preferred_sms_sim", "SIM 1"))
     val preferredSmsSim = _preferredSmsSim.asStateFlow()
 
@@ -1363,6 +1369,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (savedStr.isNotEmpty()) {
             _completedAssignmentIds.value = savedStr.split(",").mapNotNull { it.toLongOrNull() }.toSet()
         }
+        repository.startRealtimeFirestoreSync(viewModelScope)
+        runDailyFirestoreBackup()
     }
 
     fun toggleAssignmentCompleted(assignmentId: Long) {
@@ -1760,6 +1768,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         sharedPrefs.edit().putBoolean("biometric_locked", enabled).apply()
     }
 
+    fun toggleStudentPaymentBiometricProtection(enabled: Boolean) {
+        _isStudentPaymentBiometricProtected.value = enabled
+        sharedPrefs.edit().putBoolean("student_payment_biometric_protected", enabled).apply()
+    }
+
+    fun setStudentAndPaymentBiometricUnlocked(unlocked: Boolean) {
+        _isStudentAndPaymentBiometricUnlocked.value = unlocked
+    }
+
     // === Teacher Management & SaaS Partition Engine ===
     private val _teachersList = java.util.concurrent.CopyOnWriteArrayList<TeacherAccount>()
     private val _observableTeachersList = MutableStateFlow<List<TeacherAccount>>(emptyList())
@@ -2107,29 +2124,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val batch = batches.value.find { it.id == adjustedStudent.batchId }
                 val feeAmt = batch?.feesAmount ?: 1000.0
 
-                val pendingPayment = FeePayment(
-                    studentId = adjustedStudent.id,
-                    feeType = "Monthly-based",
-                    amountPaid = 0.0,
-                    receiptNo = "REC-PEND-${System.currentTimeMillis() % 10000}",
-                    monthPaidFor = newMonth,
-                    paymentMode = "UPI",
-                    remarks = "Pending fee installment after changing admission month to $newMonth",
-                    transactionStatus = "PENDING"
-                )
-                repository.insertFeePayment(pendingPayment)
-
-                // Sync with cloud if initialized
-                try {
-                    FirebaseService.initialize(context)
-                    if (FirebaseService.isInitialized) {
-                        FirebaseService.syncFeePaymentToCloud(pendingPayment)
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.e("AppViewModel", "Cloud sync of pending payment failed: ${e.localizedMessage}")
-                }
-
-                val alertMsg = "🔔 FEE ALERT: Dear ${adjustedStudent.name}, your admission date has been shifted to ${adjustedStudent.startDate}. Outstanding coaching fees of ₹${feeAmt.toInt()} for $newMonth is now marked PENDING. Please clear VPA dues."
+                val alertMsg = "🔔 FEE ALERT: Dear ${adjustedStudent.name}, your admission date has been shifted to ${adjustedStudent.startDate}. Outstanding coaching fees of ₹${feeAmt.toInt()} for $newMonth is calculated. Please clear dues."
                 Toast.makeText(context, alertMsg, Toast.LENGTH_LONG).show()
                 android.util.Log.d("AppViewModel", "Mock SMS sent to ${adjustedStudent.phone}: $alertMsg")
             }
@@ -2674,6 +2669,40 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun runDailyFirestoreBackup(force: Boolean = false, onComplete: ((Boolean, String) -> Unit)? = null) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                FirebaseService.initialize(context)
+                val batchList = batches.value
+                val studentList = students.value
+                val paymentsList = feePayments.value
+                val transList = transactions.value
+                val attList = repository.allAttendanceList.first()
+
+                val success = FirebaseService.performDailyRoomToFirestoreBackup(
+                    context = context,
+                    batches = batchList,
+                    students = studentList,
+                    payments = paymentsList,
+                    transactions = transList,
+                    attendanceList = attList,
+                    force = force
+                )
+                withContext(Dispatchers.Main) {
+                    if (success) {
+                        onComplete?.invoke(true, "Automated daily Firestore backup completed successfully.")
+                    } else {
+                        onComplete?.invoke(false, "Daily Firestore backup could not complete.")
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    onComplete?.invoke(false, "Backup error: ${e.localizedMessage}")
+                }
+            }
+        }
+    }
+
     fun triggerFirestorePull(onResult: (Boolean, String) -> Unit) {
         viewModelScope.launch {
             try {
@@ -2913,24 +2942,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                             if (!hasPaid) {
                                 unpaidTotal += monthlyFeeAmt
                                 unpaidMonthsString += (if (unpaidMonthsString.isEmpty()) "" else ", ") + targetMonth
-                                
-                                val alreadyPending = studentPayments.any {
-                                    it.monthPaidFor.equals(targetMonth, ignoreCase = true) &&
-                                    it.transactionStatus.equals("PENDING", ignoreCase = true)
-                                }
-                                if (!alreadyPending) {
-                                    val pendingFee = FeePayment(
-                                        studentId = student.id,
-                                        feeType = "Monthly-based",
-                                        amountPaid = 0.0,
-                                        receiptNo = "REC-AUTO-${System.currentTimeMillis() % 10000}",
-                                        monthPaidFor = targetMonth,
-                                        paymentMode = "CASH",
-                                        remarks = "Auto-calculated outstanding due for $targetMonth",
-                                        transactionStatus = "PENDING"
-                                    )
-                                    repository.insertFeePayment(pendingFee)
-                                }
                             }
                         }
                         
@@ -2977,6 +2988,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             notificationManager.notify(studentName.hashCode(), builder.build())
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+    }
+
+    fun insertStudent(student: Student) {
+        viewModelScope.launch {
+            repository.insertStudent(student)
+        }
+    }
+
+    fun addStudent(student: Student) {
+        viewModelScope.launch {
+            repository.insertStudent(student)
         }
     }
 }

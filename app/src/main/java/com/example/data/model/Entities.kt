@@ -106,7 +106,7 @@ data class FeePayment(
     val transactionStatus: String = "SUCCESS"
 )
 
-@Entity(tableName = "transactions")
+@Entity(tableName = "transactions", indices = [Index(value = ["type"]), Index(value = ["date"])])
 data class FinancialTransaction(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val type: String, // "INCOME" or "EXPENSE"
@@ -117,7 +117,7 @@ data class FinancialTransaction(
     val instituteEmail: String = "" // SaaS partition column
 )
 
-@Entity(tableName = "study_materials")
+@Entity(tableName = "study_materials", indices = [Index(value = ["batchId"])])
 data class StudyMaterial(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val batchId: Long = 0, // Organizes content strictly by: Batch Access -> Main Category -> Topic/Sub-category
@@ -299,7 +299,18 @@ data class ChatChannel(
     val isAnnouncementOnly: Boolean = false
 )
 
-@Entity(tableName = "chat_messages")
+@Entity(
+    tableName = "chat_messages",
+    foreignKeys = [
+        ForeignKey(
+            entity = ChatChannel::class,
+            parentColumns = ["id"],
+            childColumns = ["channelId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index(value = ["channelId"])]
+)
 data class ChatMessage(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val channelId: Long,
@@ -325,7 +336,7 @@ data class ChatMessage(
     val pollVotes: String? = null // e.g. "Yes:2,No:1"
 )
 
-@Entity(tableName = "assignments")
+@Entity(tableName = "assignments", indices = [Index(value = ["batchId"])])
 data class Assignment(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val batchId: Long = 0, // 0 means All Batches, or refer to Batch ID

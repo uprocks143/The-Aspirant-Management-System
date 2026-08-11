@@ -2,43 +2,133 @@ package com.example.repository
 
 import com.example.data.dao.AppDao
 import com.example.data.model.*
+import com.example.services.FirebaseService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 
 class AppRepository(private val appDao: AppDao) {
+
+    /**
+     * Start real-time Firestore listeners to sync cloud changes directly into local Room database.
+     */
+    fun startRealtimeFirestoreSync(scope: CoroutineScope) {
+        FirebaseService.startRealtimeFirestoreSync(scope, appDao)
+    }
+
     // === Batches ===
     val allBatches: Flow<List<Batch>> = appDao.getAllBatches()
 
-    suspend fun insertBatch(batch: Batch): Long = appDao.insertBatch(batch)
-    suspend fun updateBatch(batch: Batch) = appDao.updateBatch(batch)
-    suspend fun deleteBatch(batch: Batch) = appDao.deleteBatch(batch)
+    suspend fun insertBatch(batch: Batch): Long {
+        val id = appDao.insertBatch(batch)
+        val batchToSync = if (batch.id == 0L) batch.copy(id = id) else batch
+        CoroutineScope(Dispatchers.IO).launch {
+            FirebaseService.syncBatchToCloud(batchToSync)
+        }
+        return id
+    }
+
+    suspend fun updateBatch(batch: Batch) {
+        appDao.updateBatch(batch)
+        CoroutineScope(Dispatchers.IO).launch {
+            FirebaseService.syncBatchToCloud(batch)
+        }
+    }
+
+    suspend fun deleteBatch(batch: Batch) {
+        appDao.deleteBatch(batch)
+        CoroutineScope(Dispatchers.IO).launch {
+            FirebaseService.deleteBatchFromCloud(batch.id)
+        }
+    }
 
     // === Students ===
     val allStudents: Flow<List<Student>> = appDao.getAllStudents()
 
     fun getStudentsByBatch(batchId: Long): Flow<List<Student>> = appDao.getStudentsByBatch(batchId)
     suspend fun getStudentById(id: Long): Student? = appDao.getStudentById(id)
-    suspend fun insertStudent(student: Student): Long = appDao.insertStudent(student)
-    suspend fun updateStudent(student: Student) = appDao.updateStudent(student)
-    suspend fun deleteStudent(student: Student) = appDao.deleteStudent(student)
+
+    suspend fun insertStudent(student: Student): Long {
+        val id = appDao.insertStudent(student)
+        val studentToSync = if (student.id == 0L) student.copy(id = id) else student
+        CoroutineScope(Dispatchers.IO).launch {
+            FirebaseService.syncStudentToCloud(studentToSync)
+        }
+        return id
+    }
+
+    suspend fun updateStudent(student: Student) {
+        appDao.updateStudent(student)
+        CoroutineScope(Dispatchers.IO).launch {
+            FirebaseService.syncStudentToCloud(student)
+        }
+    }
+
+    suspend fun deleteStudent(student: Student) {
+        appDao.deleteStudent(student)
+        CoroutineScope(Dispatchers.IO).launch {
+            FirebaseService.deleteStudentFromCloud(student.id)
+        }
+    }
 
     // === Attendance ===
     fun getAttendanceByDate(dateString: String): Flow<List<Attendance>> = appDao.getAttendanceByDate(dateString)
     fun getAttendanceForBatchAndDate(batchId: Long, dateString: String): Flow<List<Attendance>> = 
         appDao.getAttendanceForBatchAndDate(batchId, dateString)
 
-    suspend fun insertAttendance(attendance: Attendance) = appDao.insertAttendance(attendance)
-    suspend fun deleteAttendance(studentId: Long, dateString: String) = appDao.deleteAttendance(studentId, dateString)
+    suspend fun insertAttendance(attendance: Attendance) {
+        appDao.insertAttendance(attendance)
+        CoroutineScope(Dispatchers.IO).launch {
+            FirebaseService.syncAttendanceToCloud(attendance)
+        }
+    }
+
+    suspend fun deleteAttendance(studentId: Long, dateString: String) {
+        appDao.deleteAttendance(studentId, dateString)
+        CoroutineScope(Dispatchers.IO).launch {
+            FirebaseService.deleteAttendanceFromCloud(studentId, dateString)
+        }
+    }
 
     // === Fees Payments ===
     val allFeePayments: Flow<List<FeePayment>> = appDao.getAllFeePayments()
     fun getFeePaymentsForStudent(studentId: Long): Flow<List<FeePayment>> = appDao.getFeePaymentsForStudent(studentId)
-    suspend fun insertFeePayment(feePayment: FeePayment): Long = appDao.insertFeePayment(feePayment)
-    suspend fun deleteFeePayment(feePayment: FeePayment) = appDao.deleteFeePayment(feePayment)
+
+    suspend fun insertFeePayment(feePayment: FeePayment): Long {
+        val id = appDao.insertFeePayment(feePayment)
+        val paymentToSync = if (feePayment.id == 0L) feePayment.copy(id = id) else feePayment
+        CoroutineScope(Dispatchers.IO).launch {
+            FirebaseService.syncFeePaymentToCloud(paymentToSync)
+        }
+        return id
+    }
+
+    suspend fun deleteFeePayment(feePayment: FeePayment) {
+        appDao.deleteFeePayment(feePayment)
+        CoroutineScope(Dispatchers.IO).launch {
+            FirebaseService.deleteFeePaymentFromCloud(feePayment.id)
+        }
+    }
 
     // === Transactions ===
     val allTransactions: Flow<List<FinancialTransaction>> = appDao.getAllTransactions()
-    suspend fun insertTransaction(transaction: FinancialTransaction): Long = appDao.insertTransaction(transaction)
-    suspend fun deleteTransaction(transaction: FinancialTransaction) = appDao.deleteTransaction(transaction)
+
+    suspend fun insertTransaction(transaction: FinancialTransaction): Long {
+        val id = appDao.insertTransaction(transaction)
+        val transactionToSync = if (transaction.id == 0L) transaction.copy(id = id) else transaction
+        CoroutineScope(Dispatchers.IO).launch {
+            FirebaseService.syncTransactionToCloud(transactionToSync)
+        }
+        return id
+    }
+
+    suspend fun deleteTransaction(transaction: FinancialTransaction) {
+        appDao.deleteTransaction(transaction)
+        CoroutineScope(Dispatchers.IO).launch {
+            FirebaseService.deleteTransactionFromCloud(transaction.id)
+        }
+    }
 
     // === Study Materials ===
     val allStudyMaterials: Flow<List<StudyMaterial>> = appDao.getAllStudyMaterials()

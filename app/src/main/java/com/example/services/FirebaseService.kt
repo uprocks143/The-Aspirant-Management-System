@@ -8,6 +8,8 @@ import com.google.firebase.FirebaseOptions
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import org.json.JSONArray
 import org.json.JSONObject
@@ -219,11 +221,25 @@ object FirebaseService {
                 "id" to student.id,
                 "batchId" to student.batchId,
                 "name" to student.name,
+                "rollNumber" to student.rollNumber,
+                "parentName" to student.parentName,
+                "dateOfBirth" to student.dateOfBirth,
                 "address" to student.address,
                 "phone" to student.phone,
                 "parentPhone" to student.parentPhone,
+                "gender" to student.gender,
                 "startDate" to student.startDate,
+                "studentClass" to student.studentClass,
+                "subject" to student.subject,
+                "schoolCollegeName" to student.schoolCollegeName,
+                "familyId" to student.familyId,
                 "isAlumni" to student.isAlumni,
+                "enrollmentStatus" to student.enrollmentStatus,
+                "customField1" to student.customField1,
+                "customField2" to student.customField2,
+                "customField3" to student.customField3,
+                "profilePhotoPath" to (student.profilePhotoPath ?: ""),
+                "documentAttachments" to (student.documentAttachments ?: ""),
                 "lastSynced" to System.currentTimeMillis()
             )
             db?.collection("students")?.document(student.id.toString())?.set(studentMap)?.await()
@@ -406,6 +422,225 @@ object FirebaseService {
         } catch (e: Exception) {
             Log.e(TAG, "Error syncing financial transaction: ${e.localizedMessage}")
         }
+    }
+
+    suspend fun deleteBatchFromCloud(batchId: Long) {
+        if (!isInitialized) return
+        try {
+            db?.collection("batches")?.document(batchId.toString())?.delete()?.await()
+            Log.d(TAG, "Batch $batchId deleted from Firestore.")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deleting batch from cloud: ${e.localizedMessage}")
+        }
+    }
+
+    suspend fun deleteStudentFromCloud(studentId: Long) {
+        if (!isInitialized) return
+        try {
+            db?.collection("students")?.document(studentId.toString())?.delete()?.await()
+            Log.d(TAG, "Student $studentId deleted from Firestore.")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deleting student from cloud: ${e.localizedMessage}")
+        }
+    }
+
+    suspend fun deleteFeePaymentFromCloud(paymentId: Long) {
+        if (!isInitialized) return
+        try {
+            db?.collection("fees")?.document(paymentId.toString())?.delete()?.await()
+            Log.d(TAG, "Fee payment $paymentId deleted from Firestore.")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deleting fee payment from cloud: ${e.localizedMessage}")
+        }
+    }
+
+    suspend fun deleteTransactionFromCloud(transactionId: Long) {
+        if (!isInitialized) return
+        try {
+            db?.collection("transactions")?.document(transactionId.toString())?.delete()?.await()
+            Log.d(TAG, "Transaction $transactionId deleted from Firestore.")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deleting transaction from cloud: ${e.localizedMessage}")
+        }
+    }
+
+    suspend fun deleteAttendanceFromCloud(studentId: Long, dateString: String) {
+        if (!isInitialized) return
+        try {
+            val docId = "${studentId}_${dateString}"
+            db?.collection("attendance")?.document(docId)?.delete()?.await()
+            Log.d(TAG, "Attendance for $studentId on $dateString deleted from Firestore.")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deleting attendance from cloud: ${e.localizedMessage}")
+        }
+    }
+
+    /**
+     * Attaches real-time listeners to Firestore collections ("batches", "students", "fees", "transactions", "attendance")
+     * to keep the local Room database automatically updated in real-time when remote updates occur.
+     */
+    fun startRealtimeFirestoreSync(
+        scope: kotlinx.coroutines.CoroutineScope,
+        appDao: com.example.data.dao.AppDao
+    ): List<com.google.firebase.firestore.ListenerRegistration> {
+        if (!isInitialized || db == null) return emptyList()
+
+        val registrations = mutableListOf<com.google.firebase.firestore.ListenerRegistration>()
+
+        // 1. Batches real-time listener
+        db?.collection("batches")?.addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                Log.e(TAG, "Real-time batches listener error: ${error.localizedMessage}")
+                return@addSnapshotListener
+            }
+            snapshot?.documentChanges?.forEach { change ->
+                val doc = change.document
+                val batchId = doc.getLong("id") ?: doc.id.toLongOrNull() ?: return@forEach
+                val batch = Batch(
+                    id = batchId,
+                    name = doc.getString("name") ?: "",
+                    subject = doc.getString("subject") ?: "Mathematics",
+                    classTimings = doc.getString("classTimings") ?: "04:00 PM - 05:00 PM",
+                    feesAmount = doc.getDouble("feesAmount") ?: 1000.0,
+                    daysOfWeek = doc.getString("daysOfWeek") ?: "Mon, Wed, Fri"
+                )
+                scope.launch(Dispatchers.IO) {
+                    when (change.type) {
+                        com.google.firebase.firestore.DocumentChange.Type.ADDED,
+                        com.google.firebase.firestore.DocumentChange.Type.MODIFIED -> appDao.insertBatch(batch)
+                        com.google.firebase.firestore.DocumentChange.Type.REMOVED -> appDao.deleteBatch(batch)
+                    }
+                }
+            }
+        }?.let { registrations.add(it) }
+
+        // 2. Students real-time listener
+        db?.collection("students")?.addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                Log.e(TAG, "Real-time students listener error: ${error.localizedMessage}")
+                return@addSnapshotListener
+            }
+            snapshot?.documentChanges?.forEach { change ->
+                val doc = change.document
+                val studentId = doc.getLong("id") ?: doc.id.toLongOrNull() ?: return@forEach
+                val student = Student(
+                    id = studentId,
+                    batchId = doc.getLong("batchId") ?: 0L,
+                    name = doc.getString("name") ?: "",
+                    address = doc.getString("address") ?: "",
+                    phone = doc.getString("phone") ?: "",
+                    parentPhone = doc.getString("parentPhone") ?: "",
+                    startDate = doc.getString("startDate") ?: "",
+                    rollNumber = doc.getString("rollNumber") ?: "R-${doc.id}",
+                    parentName = doc.getString("parentName") ?: "Guardian",
+                    dateOfBirth = doc.getString("dateOfBirth") ?: "2000-01-01",
+                    gender = doc.getString("gender") ?: "Male",
+                    studentClass = doc.getString("studentClass") ?: "",
+                    subject = doc.getString("subject") ?: "",
+                    schoolCollegeName = doc.getString("schoolCollegeName") ?: "",
+                    familyId = doc.getString("familyId") ?: "",
+                    isAlumni = doc.getBoolean("isAlumni") ?: false,
+                    enrollmentStatus = doc.getString("enrollmentStatus") ?: "Active",
+                    customField1 = doc.getString("customField1") ?: "",
+                    customField2 = doc.getString("customField2") ?: "",
+                    customField3 = doc.getString("customField3") ?: "",
+                    profilePhotoPath = doc.getString("profilePhotoPath")?.ifEmpty { null },
+                    documentAttachments = doc.getString("documentAttachments")?.ifEmpty { null }
+                )
+                scope.launch(Dispatchers.IO) {
+                    when (change.type) {
+                        com.google.firebase.firestore.DocumentChange.Type.ADDED,
+                        com.google.firebase.firestore.DocumentChange.Type.MODIFIED -> appDao.insertStudent(student)
+                        com.google.firebase.firestore.DocumentChange.Type.REMOVED -> appDao.deleteStudent(student)
+                    }
+                }
+            }
+        }?.let { registrations.add(it) }
+
+        // 3. Fee Payments real-time listener
+        db?.collection("fees")?.addSnapshotListener { snapshot, error ->
+            if (error != null) return@addSnapshotListener
+            snapshot?.documentChanges?.forEach { change ->
+                val doc = change.document
+                val feeId = doc.getLong("id") ?: doc.id.toLongOrNull() ?: return@forEach
+                val payment = FeePayment(
+                    id = feeId,
+                    studentId = doc.getLong("studentId") ?: 0L,
+                    feeType = doc.getString("feeType") ?: "Monthly-based",
+                    amountPaid = doc.getDouble("amountPaid") ?: 0.0,
+                    discount = doc.getDouble("discount") ?: 0.0,
+                    datePaid = doc.getLong("datePaid") ?: System.currentTimeMillis(),
+                    receiptNo = doc.getString("receiptNo") ?: "",
+                    monthPaidFor = doc.getString("monthPaidFor") ?: "",
+                    paymentMode = doc.getString("paymentMode") ?: "CASH",
+                    remarks = doc.getString("remarks") ?: "",
+                    transactionStatus = doc.getString("transactionStatus") ?: "SUCCESS"
+                )
+                scope.launch(Dispatchers.IO) {
+                    when (change.type) {
+                        com.google.firebase.firestore.DocumentChange.Type.ADDED,
+                        com.google.firebase.firestore.DocumentChange.Type.MODIFIED -> appDao.insertFeePayment(payment)
+                        com.google.firebase.firestore.DocumentChange.Type.REMOVED -> appDao.deleteFeePayment(payment)
+                    }
+                }
+            }
+        }?.let { registrations.add(it) }
+
+        // 4. Financial Transactions real-time listener
+        db?.collection("transactions")?.addSnapshotListener { snapshot, error ->
+            if (error != null) return@addSnapshotListener
+            snapshot?.documentChanges?.forEach { change ->
+                val doc = change.document
+                val transId = doc.getLong("id") ?: doc.id.toLongOrNull() ?: return@forEach
+                val trans = FinancialTransaction(
+                    id = transId,
+                    type = doc.getString("type") ?: "EXPENSE",
+                    amount = doc.getDouble("amount") ?: 0.0,
+                    category = doc.getString("category") ?: "",
+                    description = doc.getString("description") ?: "",
+                    date = doc.getLong("date") ?: System.currentTimeMillis()
+                )
+                scope.launch(Dispatchers.IO) {
+                    when (change.type) {
+                        com.google.firebase.firestore.DocumentChange.Type.ADDED,
+                        com.google.firebase.firestore.DocumentChange.Type.MODIFIED -> appDao.insertTransaction(trans)
+                        com.google.firebase.firestore.DocumentChange.Type.REMOVED -> appDao.deleteTransaction(trans)
+                    }
+                }
+            }
+        }?.let { registrations.add(it) }
+
+        // 5. Attendance real-time listener
+        db?.collection("attendance")?.addSnapshotListener { snapshot, error ->
+            if (error != null) return@addSnapshotListener
+            snapshot?.documentChanges?.forEach { change ->
+                val doc = change.document
+                val studentId = doc.getLong("studentId") ?: 0L
+                val dateStr = doc.getString("dateString") ?: ""
+                val att = Attendance(
+                    id = doc.getLong("id") ?: 0L,
+                    studentId = studentId,
+                    batchId = doc.getLong("batchId") ?: 0L,
+                    dateString = dateStr,
+                    status = doc.getString("status") ?: "Present",
+                    trackingMethod = doc.getString("trackingMethod") ?: "Manual",
+                    checkInTime = doc.getString("checkInTime") ?: ""
+                )
+                scope.launch(Dispatchers.IO) {
+                    when (change.type) {
+                        com.google.firebase.firestore.DocumentChange.Type.ADDED,
+                        com.google.firebase.firestore.DocumentChange.Type.MODIFIED -> appDao.insertAttendance(att)
+                        com.google.firebase.firestore.DocumentChange.Type.REMOVED -> {
+                            if (studentId > 0 && dateStr.isNotEmpty()) {
+                                appDao.deleteAttendance(studentId, dateStr)
+                            }
+                        }
+                    }
+                }
+            }
+        }?.let { registrations.add(it) }
+
+        return registrations
     }
 
     /**
@@ -845,6 +1080,58 @@ object FirebaseService {
         } catch (e: Exception) {
             Log.e(TAG, "Failed downloading snapshot database: ${e.localizedMessage}")
             throw e
+        }
+    }
+
+    /**
+     * Performs automated daily backup of local Room database tables to Firebase Firestore.
+     * Records the backup under a daily document snapshot 'daily_backups/{yyyy-MM-dd}' as well as
+     * syncing live collections to ensure data persistence across app resets/devices.
+     */
+    suspend fun performDailyRoomToFirestoreBackup(
+        context: Context,
+        batches: List<Batch>,
+        students: List<Student>,
+        payments: List<FeePayment>,
+        transactions: List<FinancialTransaction>,
+        attendanceList: List<Attendance>,
+        force: Boolean = false
+    ): Boolean {
+        try {
+            val prefs = context.getSharedPreferences("tams_settings", Context.MODE_PRIVATE)
+            val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+            val lastBackupDate = prefs.getString("last_daily_firestore_backup_date", "") ?: ""
+
+            if (!force && todayStr == lastBackupDate) {
+                Log.d(TAG, "Daily Firestore backup already performed today ($todayStr). Skipping duplicate backup.")
+                return true
+            }
+
+            if (!isInitialized) {
+                initialize(context)
+            }
+
+            // 1. Sync live collections
+            syncAllRecordsToFirestore(batches, students, payments, transactions, attendanceList)
+
+            // 2. Store dated backup snapshot in Firestore 'daily_backups' collection
+            val backupDocMap = hashMapOf<String, Any>(
+                "backupDate" to todayStr,
+                "timestamp" to System.currentTimeMillis(),
+                "batchCount" to batches.size,
+                "studentCount" to students.size,
+                "paymentCount" to payments.size,
+                "transactionCount" to transactions.size,
+                "attendanceCount" to attendanceList.size
+            )
+            db?.collection("daily_backups")?.document(todayStr)?.set(backupDocMap)?.await()
+
+            prefs.edit().putString("last_daily_firestore_backup_date", todayStr).apply()
+            Log.d(TAG, "Automated Daily Firestore backup completed successfully for $todayStr!")
+            return true
+        } catch (e: Exception) {
+            Log.e(TAG, "Daily Firestore backup failed: ${e.localizedMessage}")
+            return false
         }
     }
 }
