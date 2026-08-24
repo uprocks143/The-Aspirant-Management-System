@@ -111,6 +111,22 @@ class AppRepository(private val appDao: AppDao) {
         }
     }
 
+    // === Payment Logs (Room-based payment logging) ===
+    val allPaymentLogs: Flow<List<PaymentLog>> = appDao.getAllPaymentLogs()
+    fun getPaymentLogsForStudent(studentId: Long): Flow<List<PaymentLog>> = appDao.getPaymentLogsForStudent(studentId)
+
+    suspend fun insertPaymentLog(paymentLog: PaymentLog): Long {
+        return appDao.insertPaymentLog(paymentLog)
+    }
+
+    suspend fun deletePaymentLog(paymentLog: PaymentLog) {
+        appDao.deletePaymentLog(paymentLog)
+    }
+
+    suspend fun deletePaymentLogsForStudent(studentId: Long) {
+        appDao.deletePaymentLogsForStudent(studentId)
+    }
+
     // === Transactions ===
     val allTransactions: Flow<List<FinancialTransaction>> = appDao.getAllTransactions()
 

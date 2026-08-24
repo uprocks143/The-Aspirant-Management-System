@@ -55,7 +55,7 @@ object GoogleDriveService {
             onProgress("Connecting to Google Drive APIs for $userEmail...")
             kotlinx.coroutines.delay(800)
 
-            onProgress("Creating remote folder 'Aspirants_TAMS_Disaster_Backups'...")
+            onProgress("Creating remote folder 'TAMS_Disaster_Backups'...")
             kotlinx.coroutines.delay(600)
 
             onProgress("Uploading Encrypted SQLite Flat File (Size: $formattedSize)...")
@@ -65,7 +65,7 @@ object GoogleDriveService {
             val jsonMetadata = JSONObject().apply {
                 put("name", "TAMS_Disaster_Backup_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())}.db")
                 put("mimeType", "application/vnd.sqlite3")
-                put("description", "Automated disaster recovery snapshot for Aspirants Success Classes ($userEmail)")
+                put("description", "Automated disaster recovery snapshot for TAMS Academy ($userEmail)")
             }
 
             val mediaTypeJson = "application/json; charset=utf-8".toMediaType()

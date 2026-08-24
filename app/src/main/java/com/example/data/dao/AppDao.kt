@@ -64,6 +64,28 @@ interface AppDao {
     @Delete
     fun deleteFeePayment(feePayment: FeePayment): Int
 
+    // === Payment Logs (Transaction Dates, Student IDs, Amounts Received) ===
+    @Query("SELECT * FROM payment_logs ORDER BY transactionDate DESC")
+    fun getAllPaymentLogs(): Flow<List<PaymentLog>>
+
+    @Query("SELECT * FROM payment_logs WHERE studentId = :studentId ORDER BY transactionDate DESC")
+    fun getPaymentLogsForStudent(studentId: Long): Flow<List<PaymentLog>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun insertPaymentLog(paymentLog: PaymentLog): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun insertPaymentLogsBulk(logs: List<PaymentLog>)
+
+    @Delete
+    fun deletePaymentLog(paymentLog: PaymentLog): Int
+
+    @Query("DELETE FROM payment_logs WHERE studentId = :studentId")
+    fun deletePaymentLogsForStudent(studentId: Long): Int
+
+    @Query("DELETE FROM payment_logs")
+    fun clearPaymentLogs(): Int
+
     // === Transactions (Ledger or accounts) ===
     @Query("SELECT * FROM transactions ORDER BY date DESC")
     fun getAllTransactions(): Flow<List<FinancialTransaction>>

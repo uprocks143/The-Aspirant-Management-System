@@ -74,39 +74,13 @@ fun launchBiometricPrompt(
     onSuccess: () -> Unit,
     onError: (String) -> Unit
 ) {
-    val executor = androidx.core.content.ContextCompat.getMainExecutor(activity)
-    val biometricPrompt = androidx.biometric.BiometricPrompt(
-        activity,
-        executor,
-        object : androidx.biometric.BiometricPrompt.AuthenticationCallback() {
-            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                super.onAuthenticationError(errorCode, errString)
-                onError(errString.toString())
-            }
-
-            override fun onAuthenticationSucceeded(result: androidx.biometric.BiometricPrompt.AuthenticationResult) {
-                super.onAuthenticationSucceeded(result)
-                onSuccess()
-            }
-
-            override fun onAuthenticationFailed() {
-                super.onAuthenticationFailed()
-                onError("Fingerprint/Face authentication failed.")
-            }
-        }
+    com.example.security.BiometricSecurityManager.promptAuthentication(
+        activity = activity,
+        title = title,
+        subtitle = subtitle,
+        onSuccess = onSuccess,
+        onError = onError
     )
-
-    val promptInfo = androidx.biometric.BiometricPrompt.PromptInfo.Builder()
-        .setTitle(title)
-        .setSubtitle(subtitle)
-        .setAllowedAuthenticators(androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK or androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL)
-        .build()
-
-    try {
-        biometricPrompt.authenticate(promptInfo)
-    } catch (e: Exception) {
-        onError(e.localizedMessage ?: "Biometric prompt error")
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -235,7 +209,7 @@ fun DashboardScreen(viewModel: AppViewModel) {
     }
 
     // Active screen switcher flow to match photographs
-    var currentScreenFlow by remember { mutableStateOf("SPLASH") } // "SPLASH", "PORTAL_SELECT", "ADMIN_LOGIN", "STUDENT_LOGIN", "MAIN_APP"
+    var currentScreenFlow by remember { mutableStateOf(if (userRole != "GUEST") "MAIN_APP" else "PORTAL_SELECT") } // "PORTAL_SELECT", "ADMIN_LOGIN", "STUDENT_LOGIN", "MAIN_APP", "PARENT_LOGIN"
     var lastBackPressTime by remember { mutableStateOf(0L) }
     var activeBottomNavTab by remember { mutableStateOf("DASHBOARD") } // "DASHBOARD", "MY_ACCOUNT"
 
@@ -265,7 +239,6 @@ fun DashboardScreen(viewModel: AppViewModel) {
     var showEnquiryManagerDialog by remember { mutableStateOf(false) }
     var showStaffManagerDialog by remember { mutableStateOf(false) }
     var showTeacherSalariesDialog by remember { mutableStateOf(false) }
-    var showLibraryCenterDialog by remember { mutableStateOf(false) }
     var showReportsConsoleDialog by remember { mutableStateOf(false) }
     var showHomeworkAssignDialog by remember { mutableStateOf(false) }
     var showTodoTaskDialog by remember { mutableStateOf(false) }
@@ -294,14 +267,7 @@ fun DashboardScreen(viewModel: AppViewModel) {
 
     MaterialTheme(colorScheme = m3ColorScheme) {
         Box(modifier = Modifier.fillMaxSize()) {
-            val backEnabled = currentScreenFlow != "SPLASH" ||
-                    showHelpSupportDialog || showDoubtSolverBot || showQrAttendanceScanner || showPerformanceReportDialog ||
-                    showEnquiryManagerDialog || showStaffManagerDialog || showTeacherSalariesDialog || showLibraryCenterDialog || showReportsConsoleDialog || showHomeworkAssignDialog ||
-                    showTodoTaskDialog || showPaperGeneratorDialog || showNotificationsDialog || showCommunityChatDialog ||
-                    showNextGenAILearningDialog || showNextGenEdTechDialog || showNextGenInsightsDialog ||
-                    showNextGenMonetizationDialog || showNextGenEngagementDialog || showNextGenSecurityDialog ||
-                    showNextGenSocialFlyerDialog || showMotivationalDialog || showAboutAppDialog || showOtherAppsDialog ||
-                    activeAdminTab != "Dashboard" || activeBottomNavTab != "DASHBOARD"
+            val backEnabled = true
 
             BackHandler(enabled = backEnabled) {
                 if (showCommunityChatDialog) { showCommunityChatDialog = false }
@@ -323,7 +289,6 @@ fun DashboardScreen(viewModel: AppViewModel) {
                 else if (showEnquiryManagerDialog) { showEnquiryManagerDialog = false }
                 else if (showStaffManagerDialog) { showStaffManagerDialog = false }
                 else if (showTeacherSalariesDialog) { showTeacherSalariesDialog = false }
-                else if (showLibraryCenterDialog) { showLibraryCenterDialog = false }
                 else if (showReportsConsoleDialog) { showReportsConsoleDialog = false }
                 else if (showHomeworkAssignDialog) { showHomeworkAssignDialog = false }
                 else if (showTodoTaskDialog) { showTodoTaskDialog = false }
@@ -337,10 +302,10 @@ fun DashboardScreen(viewModel: AppViewModel) {
                 }
                 else {
                     when (currentScreenFlow) {
-                        "ADMIN_LOGIN", "STUDENT_LOGIN", "LIBRARY_LOGIN" -> {
+                        "ADMIN_LOGIN", "STUDENT_LOGIN", "PARENT_LOGIN" -> {
                             currentScreenFlow = "PORTAL_SELECT"
                         }
-                        "MAIN_APP" -> {
+                        "MAIN_APP", "PORTAL_SELECT", "STUDENT_CONTEXT_SWITCHER" -> {
                             val currentTime = System.currentTimeMillis()
                             if (currentTime - lastBackPressTime < 2000) {
                                 (context as? android.app.Activity)?.finish()
@@ -349,27 +314,22 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                 Toast.makeText(context, "Press back again to exit", Toast.LENGTH_SHORT).show()
                             }
                         }
-                        "PORTAL_SELECT" -> {
-                            currentScreenFlow = "SPLASH"
-                        }
                     }
                 }
             }
 
             when (currentScreenFlow) {
-                "SPLASH" -> {
-                    SplashScreenWalkthrough(onFinish = {
-                        if (userRole != "GUEST") {
-                            currentScreenFlow = "MAIN_APP"
-                            Toast.makeText(context, "Welcome back! Session restored.", Toast.LENGTH_SHORT).show()
-                        } else {
-                            currentScreenFlow = "PORTAL_SELECT"
-                        }
-                    })
-                }
                 "PORTAL_SELECT" -> {
                     PortalSelectScreen(
-                        onBack = { currentScreenFlow = "SPLASH" },
+                        onBack = {
+                            val currentTime = System.currentTimeMillis()
+                            if (currentTime - lastBackPressTime < 2000) {
+                                (context as? android.app.Activity)?.finish()
+                            } else {
+                                lastBackPressTime = currentTime
+                                Toast.makeText(context, "Press back again to exit", Toast.LENGTH_SHORT).show()
+                            }
+                        },
                         onAdminSelect = { 
                             currentScreenFlow = "ADMIN_LOGIN"
                         },
@@ -381,9 +341,6 @@ fun DashboardScreen(viewModel: AppViewModel) {
                         },
                         onParentSelect = {
                             currentScreenFlow = "PARENT_LOGIN"
-                        },
-                        onLibrarySelect = {
-                            currentScreenFlow = "LIBRARY_LOGIN"
                         }
                     )
                 }
@@ -419,18 +376,6 @@ fun DashboardScreen(viewModel: AppViewModel) {
                         onBack = { currentScreenFlow = "PORTAL_SELECT" }
                     )
                 }
-                "LIBRARY_LOGIN" -> {
-                    LibraryAuthView(
-                        viewModel = viewModel,
-                        showBackButton = true,
-                        onLoginSuccess = {
-                            currentScreenFlow = "MAIN_APP"
-                        },
-                        onBack = {
-                            currentScreenFlow = "PORTAL_SELECT"
-                        }
-                    )
-                }
                 "ADMIN_LOGIN" -> {
                     AdminLoginScreen(
                         viewModel = viewModel,
@@ -442,16 +387,7 @@ fun DashboardScreen(viewModel: AppViewModel) {
                     )
                 }
                 "MAIN_APP" -> {
-                    if (userRole == "LIBRARY") {
-                        LibraryCenterOverlay(
-                            viewModel = viewModel,
-                            onClose = {
-                                viewModel.loginAs("GUEST")
-                                currentScreenFlow = "PORTAL_SELECT"
-                            },
-                            isInlineDashboard = true
-                        )
-                    } else {
+                    run {
                         val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
                         ModalNavigationDrawer(
@@ -823,30 +759,32 @@ fun DashboardScreen(viewModel: AppViewModel) {
                             } else {
                                 Column(modifier = Modifier.fillMaxSize()) {
                                     // Section Header reflecting the active side menu / shortcut selection
-                                    Surface(
-                                        color = MaterialTheme.colorScheme.surface,
-                                        shadowElevation = 2.dp
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-                                            verticalAlignment = Alignment.CenterVertically
+                                    val activeTitle = if (activeAdminTab.isNotEmpty()) activeAdminTab else if (activeStudentTab.isNotEmpty()) activeStudentTab else "Dashboard"
+                                    if (activeTitle != "Dashboard") {
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.surface,
+                                            shadowElevation = 2.dp
                                         ) {
-                                            Icon(
-                                                imageVector = Icons.Default.FolderOpen,
-                                                contentDescription = "Active Section",
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            val activeTitle = if (activeAdminTab.isNotEmpty()) activeAdminTab else if (activeStudentTab.isNotEmpty()) activeStudentTab else "Dashboard"
-                                            Text(
-                                                text = "ACTIVE CONSOLE  ❯  " + activeTitle.uppercase(),
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.primary,
-                                                fontFamily = FontFamily.Monospace,
-                                                letterSpacing = 1.sp
-                                            )
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.FolderOpen,
+                                                    contentDescription = "Active Section",
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = "ACTIVE CONSOLE  ❯  " + activeTitle.uppercase(),
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    letterSpacing = 1.sp
+                                                )
+                                            }
                                         }
                                     }
 
@@ -935,55 +873,6 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                                     }
                                                 }
 
-                                                // Dynamic Theme Switcher Card (Single Toggle Switch)
-                                                item {
-                                                    val isDarkTheme = themeKey == "CLASSIC_MIDNIGHT"
-                                                    Card(
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        shape = RoundedCornerShape(16.dp),
-                                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                                                    ) {
-                                                        Row(
-                                                            modifier = Modifier
-                                                                .fillMaxWidth()
-                                                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                                                            verticalAlignment = Alignment.CenterVertically,
-                                                            horizontalArrangement = Arrangement.SpaceBetween
-                                                        ) {
-                                                            Row(
-                                                                verticalAlignment = Alignment.CenterVertically,
-                                                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                                            ) {
-                                                                Text(if (isDarkTheme) "🌙" else "☀️", fontSize = 20.sp)
-                                                                Column {
-                                                                    Text(
-                                                                        text = "APPLICATION THEME",
-                                                                        fontSize = 10.sp,
-                                                                        fontWeight = FontWeight.ExtraBold,
-                                                                        color = MaterialTheme.colorScheme.primary,
-                                                                        letterSpacing = 1.sp
-                                                                    )
-                                                                    Text(
-                                                                        text = if (isDarkTheme) "Dark Theme" else "Light Classic Theme",
-                                                                        fontSize = 14.sp,
-                                                                        fontWeight = FontWeight.Bold,
-                                                                        color = MaterialTheme.colorScheme.onSurface
-                                                                    )
-                                                                }
-                                                            }
-
-                                                            androidx.compose.material3.Switch(
-                                                                checked = isDarkTheme,
-                                                                onCheckedChange = { checked ->
-                                                                    viewModel.switchTheme(if (checked) "CLASSIC_MIDNIGHT" else "CLASSIC_NAVY")
-                                                                }
-                                                            )
-                                                        }
-                                                    }
-                                                }
-
                                                 // Side-by-Side Cosmic Summary just below the institute name
                                                 item {
                                                     MetricCountersScrollableRow(
@@ -1064,11 +953,7 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                                         ShortcutItem("Paper Generator", Icons.Default.Description, Color(0xFF00838F), true) {
                                                             checkAccessAndRun("Paper Generator", listOf("ADMIN", "STAFF")) { showPaperGeneratorDialog = true }
                                                         },
-                                                        ShortcutItem("Physical Library", Icons.Default.MenuBook, Color(0xFF512DA8)) {
-                                                            checkAccessAndRun("Physical Library", listOf("ADMIN", "TEACHER", "STAFF")) {
-                                                                activeAdminTab = "Physical Library"
-                                                            }
-                                                        },
+
                                                         
                                                          ShortcutItem("Community Chat", Icons.Default.Forum, Color(0xFF2196F3)) {
                                                              showCommunityChatDialog = true
@@ -1734,15 +1619,7 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                     } else {
                                             // Handle all remaining original sub-workspace tabs
                                             when {
-                                                activeAdminTab == "Physical Library" -> {
-                                                    LibraryCenterOverlay(
-                                                        viewModel = viewModel,
-                                                        onClose = {
-                                                            activeAdminTab = "Dashboard"
-                                                        },
-                                                        isInlineDashboard = false
-                                                    )
-                                                }
+
                                                 activeAdminTab == "Admission Form" || activeAdminTab == "Batches Setup" || activeAdminTab == "Tuition Fees" || activeAdminTab == "Ledger Accounts" || activeAdminTab == "Database Backups" || activeAdminTab == "Outreach Engine" -> {
                                                     AdminWorkspace(
                                                         activeAdminTab = activeAdminTab,
@@ -1873,9 +1750,7 @@ fun DashboardScreen(viewModel: AppViewModel) {
                 com.example.ui.screens.CommunityChatOverlay(viewModel = viewModel, onClose = { showCommunityChatDialog = false })
             }
 
-            if (showLibraryCenterDialog) {
-                LibraryCenterOverlay(viewModel = viewModel, onClose = { showLibraryCenterDialog = false })
-            }
+
 
             if (showHelpSupportDialog) {
                 com.example.ui.screens.HelpSupportOverlay(onClose = { showHelpSupportDialog = false })
@@ -2395,7 +2270,7 @@ fun AdminWorkspace(
                 // Section 1: Interactive Key Metrics Cards row
                 item {
                     Text(
-                        text = "THE ASPIRANT SYSTEM (TAMS) CONSOLE",
+                        text = "TAMS CONSOLE",
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.primary,
@@ -2418,7 +2293,7 @@ fun AdminWorkspace(
                             modifier = Modifier.weight(1f)
                         )
                         StatCard(
-                            title = "Aspirants Enrolled",
+                            title = "Students Enrolled",
                             value = students.size.toString(),
                             subtitle = "Offline database",
                             color = MaterialTheme.colorScheme.secondaryContainer,
@@ -2605,7 +2480,7 @@ fun AdminWorkspace(
                                                 context = reportContext,
                                                 students = students,
                                                 batches = batches,
-                                                academyName = academyName.ifEmpty { "Aspirant Coaching Academy" },
+                                                academyName = academyName.ifEmpty { "TAMS Academy" },
                                                 address = adminAddress.ifEmpty { "Chhibramau, UP" },
                                                 phone = adminPhone.ifEmpty { "+919999999999" },
                                                 email = adminEmail.ifEmpty { "admin@tams.com" }
@@ -2638,7 +2513,7 @@ fun AdminWorkspace(
                                                 context = reportContext,
                                                 payments = payments,
                                                 students = students,
-                                                academyName = academyName.ifEmpty { "Aspirant Coaching Academy" },
+                                                academyName = academyName.ifEmpty { "TAMS Academy" },
                                                 address = adminAddress.ifEmpty { "Chhibramau, UP" },
                                                 phone = adminPhone.ifEmpty { "+919999999999" },
                                                 email = adminEmail.ifEmpty { "admin@tams.com" }
@@ -3344,7 +3219,7 @@ fun AdminWorkspace(
                                             onClick = {
                                                 runWithBiometricCheck {
                                                     val phoneNo = student.phone.ifEmpty { student.parentPhone }
-                                                    val messageStr = "Aspirants Success Classes Chhibramau: Hello ${student.parentName}, parent of ${student.name}. Your child's coaching attendance & performance is being monitored. Please keep in contact with Chhibramau branch."
+                                                    val messageStr = "TAMS Academy Chhibramau: Hello ${student.parentName}, parent of ${student.name}. Your child's coaching attendance & performance is being monitored. Please keep in contact with Chhibramau branch."
                                                     sendDirectSMS(phoneNo, messageStr, context)
                                                 }
                                             },
@@ -3375,7 +3250,7 @@ fun AdminWorkspace(
                                             onClick = {
                                                 runWithBiometricCheck {
                                                     val parentNo = student.parentPhone.ifEmpty { student.phone }
-                                                    val text = "Aspirants Success Classes Chhibramau: Hello ${student.parentName}, parent of ${student.name}. This is to keep you updated on progress at Chhibramau branch of coaching."
+                                                    val text = "TAMS Academy Chhibramau: Hello ${student.parentName}, parent of ${student.name}. This is to keep you updated on progress at Chhibramau branch of coaching."
                                                     try {
                                                         val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
                                                             data = android.net.Uri.parse("https://api.whatsapp.com/send?phone=$parentNo&text=${android.net.Uri.encode(text)}")
@@ -3847,7 +3722,7 @@ fun StudentWorkspace(
                         Column(
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Text("Aap ek click me standard registered tuition / coaching / library swap kar sakte hain:", fontSize = 12.sp)
+                            Text("Aap ek click me standard registered tuition / coaching center swap kar sakte hain:", fontSize = 12.sp)
                             
                             registeredWorkspaces.forEach { contextVal ->
                                 Row(
@@ -5185,7 +5060,7 @@ fun StudentWorkspace(
                                 title = { Text("Fee Payment Receipt 🧾", fontWeight = FontWeight.Bold) },
                                 text = {
                                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Text("THE ASPIRANTS ACADEMY INC", fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+                                        Text("TAMS ACADEMY INC", fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
                                         Text("GSTIN Registration: 09AAPCT1420K1ZX", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                         HorizontalDivider()
                                         Text("Receipt No: ${payment.receiptNo}", fontWeight = FontWeight.Bold, fontSize = 12.sp)
@@ -5358,7 +5233,7 @@ fun UPIQRCodeCard(
     parentPhone: String,
     amount: Double,
     upiId: String = "smtsharma282.sks@okaxis",
-    merchantName: String = "Aspirants Success Classes",
+    merchantName: String = "TAMS Academy",
     onWhatsAppSent: () -> Unit
 ) {
     val upiUri = "upi://pay?pa=$upiId&pn=${android.net.Uri.encode(merchantName)}&am=$amount&cu=INR&tn=Coaching%20Fees%20for%20$studentName"
@@ -5746,7 +5621,7 @@ fun RegistrationIntakeForm(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Aspirant Admission Details Builder", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Text("Student Admission Details Builder", fontWeight = FontWeight.Bold, fontSize = 15.sp)
             
             OutlinedTextField(
                 value = rollNo,
@@ -8747,7 +8622,7 @@ fun AttendanceLoggerSubModule(
 
                             Button(
                                 onClick = {
-                                    val sendText = "=== ATTENDANCE PASS ===\nScan this in Aspirants Coaching classes to check into the batch ${activeBatch?.name ?: ""}.\nSession Date: $selectedDateStr\nCenter ID: 0d8c93c730"
+                                    val sendText = "=== ATTENDANCE PASS ===\nScan this in TAMS Academy classes to check into the batch ${activeBatch?.name ?: ""}.\nSession Date: $selectedDateStr\nCenter ID: 0d8c93c730"
                                     val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                                         putExtra(android.content.Intent.EXTRA_TEXT, sendText)
                                         type = "text/plain"
@@ -8849,10 +8724,33 @@ fun UploadStudyResourcesSubModule(
     var content by remember { mutableStateOf("") } // Material description
     var pdfName by remember { mutableStateOf("") } // PDF file name/link
     var youtubeUrl by remember { mutableStateOf("") } // YouTube tutorial/lecture link
+    var selectedGrade by remember { mutableStateOf("Grade 10") }
+    var selectedSubject by remember { mutableStateOf("Physics") }
 
     var teacherSearchQuery by remember { mutableStateOf("") }
     var teacherTypeFilter by remember { mutableStateOf("All") }
     var teacherBatchFilter by remember { mutableStateOf<Long?>(null) }
+    var teacherGradeFilter by remember { mutableStateOf("All Grades") }
+    var teacherSubjectFilter by remember { mutableStateOf("All Subjects") }
+
+    val filePickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        if (uri != null) {
+            val fileName = uri.lastPathSegment?.substringAfterLast("/") ?: "material_${System.currentTimeMillis()}.pdf"
+            val targetBatch = selectedBatchIndexId ?: batches.firstOrNull()?.id ?: 1L
+            viewModel.uploadDigitalMaterialWithFirebaseStorage(
+                ctx = context,
+                fileUri = uri,
+                fileName = fileName,
+                batchId = targetBatch,
+                title = title.ifBlank { "$selectedSubject - $selectedGrade Material" },
+                grade = selectedGrade,
+                subject = selectedSubject,
+                contentType = if (fileName.endsWith(".png", true) || fileName.endsWith(".jpg", true) || fileName.endsWith(".jpeg", true)) "Image" else "PDF"
+            )
+        }
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -8863,13 +8761,40 @@ fun UploadStudyResourcesSubModule(
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Default.LibraryBooks, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Text("📚 Teachers Digital Library & Resource Organizer", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text("📚 Digital Study Materials Library (Firebase Storage)", fontWeight = FontWeight.Bold, fontSize = 15.sp)
             }
             Text(
-                "Organize study materials, syllabus, external links, PDFs, and video lectures. Specify a detailed description and web links for students to access.",
+                "Manage and upload PDF & image digital study materials categorized by Grade and Subject, with Firebase Storage cloud persistence.",
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            // Select Grade & Subject Categorization
+            Text("Categorize by Grade & Subject:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                listOf("Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12").forEach { g ->
+                    FilterChip(
+                        selected = selectedGrade == g,
+                        onClick = { selectedGrade = g },
+                        label = { Text(g, fontSize = 11.sp) }
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                listOf("Physics", "Mathematics", "Chemistry", "Biology", "English", "Computer Science", "General").forEach { s ->
+                    FilterChip(
+                        selected = selectedSubject == s,
+                        onClick = { selectedSubject = s; category = "$s Core" },
+                        label = { Text(s, fontSize = 11.sp) }
+                    )
+                }
+            }
 
             // Select active batch
             Text("Select Access Batch:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
@@ -8907,14 +8832,14 @@ fun UploadStudyResourcesSubModule(
                 value = title,
                 onValueChange = { title = it },
                 label = { Text("Material Topic Title") },
-                placeholder = { Text("e.g. Class 12 Coulomb's Law Notes & Reference Links") },
+                placeholder = { Text("e.g. Class 10 Coulomb's Law PDF Notes") },
                 modifier = Modifier.fillMaxWidth()
             )
             
             Column {
                 Text("Primary Content Type Tag:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("URL", "PDF", "YouTube video", "Plain Text").forEach { plat ->
+                    listOf("PDF", "Image", "URL", "YouTube video", "Plain Text").forEach { plat ->
                         FilterChip(
                             selected = type == plat,
                             onClick = { type = plat },
@@ -8927,11 +8852,26 @@ fun UploadStudyResourcesSubModule(
             OutlinedTextField(
                 value = content,
                 onValueChange = { content = it },
-                label = { Text("Study Material Description / Detail text") },
-                placeholder = { Text("Provide complete details, chapter summaries, or instructional text...") },
+                label = { Text("Study Material Description / Details") },
+                placeholder = { Text("Provide details, chapter summaries, or instructional text...") },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 2
             )
+
+            if (type == "PDF" || type == "Image") {
+                Button(
+                    onClick = {
+                        val mime = if (type == "Image") "image/*" else "application/pdf"
+                        filePickerLauncher.launch(mime)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
+                ) {
+                    Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("📁 Choose & Upload $type File to Firebase Storage", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
 
             if (type == "PDF" || type == "URL" || type == "Plain Text") {
                 OutlinedTextField(
@@ -8975,9 +8915,11 @@ fun UploadStudyResourcesSubModule(
                         type = type,
                         content = content,
                         pdf = pdfName.ifBlank { null },
-                        tube = youtubeUrl.ifBlank { null }
+                        tube = youtubeUrl.ifBlank { null },
+                        grade = selectedGrade,
+                        subject = selectedSubject
                     )
-                    Toast.makeText(context, "Material added to Digital Library successfully!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Material added to Library successfully!", Toast.LENGTH_SHORT).show()
                     title = ""
                     content = ""
                     pdfName = ""
@@ -8987,7 +8929,7 @@ fun UploadStudyResourcesSubModule(
             ) {
                 Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Organize & Upload to Digital Library")
+                Text("Organize & Save to Digital Library")
             }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
@@ -9038,13 +8980,43 @@ fun UploadStudyResourcesSubModule(
                 }
             }
 
+            // Grade filtering chips
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                listOf("All Grades", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12").forEach { g ->
+                    FilterChip(
+                        selected = teacherGradeFilter == g,
+                        onClick = { teacherGradeFilter = g },
+                        label = { Text(g, fontSize = 11.sp) }
+                    )
+                }
+            }
+
+            // Subject filtering chips
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                listOf("All Subjects", "Physics", "Mathematics", "Chemistry", "Biology", "English", "Computer Science", "General").forEach { s ->
+                    FilterChip(
+                        selected = teacherSubjectFilter == s,
+                        onClick = { teacherSubjectFilter = s },
+                        label = { Text(s, fontSize = 11.sp) }
+                    )
+                }
+            }
+
             // Material type filtering chips
             Row(
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                listOf("All", "Plain Text", "PDF", "YouTube video", "URL").forEach { plat ->
+                listOf("All", "Plain Text", "PDF", "Image", "YouTube video", "URL").forEach { plat ->
                     FilterChip(
                         selected = teacherTypeFilter == plat,
                         onClick = { teacherTypeFilter = plat },
@@ -9060,7 +9032,9 @@ fun UploadStudyResourcesSubModule(
                                     mat.content.contains(teacherSearchQuery, ignoreCase = true)
                 val matchesType = teacherTypeFilter == "All" || mat.contentType.equals(teacherTypeFilter, ignoreCase = true)
                 val matchesBatch = teacherBatchFilter == null || mat.batchId == teacherBatchFilter
-                matchesSearch && matchesType && matchesBatch
+                val matchesGrade = teacherGradeFilter == "All Grades" || mat.grade.equals(teacherGradeFilter, ignoreCase = true) || mat.mainCategory.contains(teacherGradeFilter, ignoreCase = true)
+                val matchesSubject = teacherSubjectFilter == "All Subjects" || mat.subject.equals(teacherSubjectFilter, ignoreCase = true) || mat.topicSubCategory.contains(teacherSubjectFilter, ignoreCase = true) || mat.mainCategory.contains(teacherSubjectFilter, ignoreCase = true)
+                matchesSearch && matchesType && matchesBatch && matchesGrade && matchesSubject
             }
 
             if (filteredTeacherMaterials.isEmpty()) {
@@ -10054,7 +10028,59 @@ fun DrawerNavigationItems(
             onClick = onOtherAppsClick
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
+        HorizontalDivider(color = Color.LightGray.copy(alpha = 0.3f))
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Side Menu Theme Switch Toggle
+        val isDarkTheme = themeMode == "CLASSIC_MIDNIGHT"
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isDarkTheme) Icons.Default.DarkMode else Icons.Default.LightMode,
+                        contentDescription = "Theme Toggle",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Column {
+                        Text(
+                            text = "Dark Theme",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (isDarkTheme) "Midnight Dark" else "Light Classic",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                androidx.compose.material3.Switch(
+                    checked = isDarkTheme,
+                    onCheckedChange = { checked ->
+                        onSwitchTheme(if (checked) "CLASSIC_MIDNIGHT" else "CLASSIC_NAVY")
+                    }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
         HorizontalDivider(color = Color.LightGray.copy(alpha = 0.3f))
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -10287,7 +10313,7 @@ fun AppOwnerMonitorView(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                listOf("All", "Individual", "Institute", "Library").forEach { filterLabel ->
+                                listOf("All", "Individual", "Institute", "Tuition").forEach { filterLabel ->
                                     val isSelected = selectedFilterChip.equals(filterLabel, ignoreCase = true)
                                     Box(
                                         modifier = Modifier
@@ -10347,7 +10373,7 @@ fun AppOwnerMonitorView(
                         "all" -> true
                         "individual" -> inst.profileType.equals("ADMIN", ignoreCase = true) || inst.profileType.equals("COACHING_OWNER", ignoreCase = true)
                         "institute" -> inst.academyName.contains("Institute", ignoreCase = true) || inst.academyName.contains("Academy", ignoreCase = true)
-                        "library" -> inst.profileType.contains("LIBRARY", ignoreCase = true)
+                        "tuition" -> inst.profileType.contains("TUITION", ignoreCase = true)
                         else -> true
                     }
                     matchesSearch && matchesChip
@@ -11066,6 +11092,45 @@ fun TuitionFeesModule(
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("Auto-Check Unpaid Fees & Alert Defaulters", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
+
+                // Firestore Dues Threshold Auto-Notification Control
+                var thresholdValueText by remember { mutableStateOf("1000") }
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                ) {
+                    Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(Icons.Default.CloudSync, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                            Text("🔥 Firestore Pending Dues Threshold Alert", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        }
+                        Text("Automatically queries Firestore data and fires local notifications when a student's pending dues hit or exceed the threshold.", fontSize = 10.sp, color = Color.Gray)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = thresholdValueText,
+                                onValueChange = { thresholdValueText = it },
+                                label = { Text("Alert Threshold (₹)") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            Button(
+                                onClick = {
+                                    val thresholdVal = thresholdValueText.toDoubleOrNull() ?: 1000.0
+                                    viewModel.checkFirestoreDuesThreshold(context, thresholdVal)
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                            ) {
+                                Icon(Icons.Default.NotificationsActive, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Check Dues Threshold", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -11114,7 +11179,7 @@ fun TuitionFeesModule(
                                     payments = payments,
                                     students = students,
                                     batches = batches,
-                                    academyName = academyName.ifEmpty { "Aspirant Coaching Academy" },
+                                    academyName = academyName.ifEmpty { "TAMS Academy" },
                                     address = adminAddress.ifEmpty { "Chhibramau, UP" },
                                     phone = adminPhone.ifEmpty { "+919999999999" },
                                     email = adminEmail.ifEmpty { "admin@tams.com" }
@@ -12053,7 +12118,7 @@ fun TuitionFeesModule(
                     border = BorderStroke(1.dp, Color.LightGray)
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("ASPIRANTS SUCCESS CLASSES", fontWeight = FontWeight.Black, fontSize = 14.sp, color = Color(0xFF0D47A1), textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                        Text("TAMS ACADEMY", fontWeight = FontWeight.Black, fontSize = 14.sp, color = Color(0xFF0D47A1), textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.fillMaxWidth())
                         Text("Chhibramau, Uttar Pradesh | Director: Sumit Kumar", fontSize = 9.sp, color = Color.Gray, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.fillMaxWidth())
                         
                         Canvas(modifier = Modifier.fillMaxWidth().height(8.dp)) {
@@ -12105,7 +12170,7 @@ fun TuitionFeesModule(
                         Text("Mode: ${pay.paymentMode} | Settlement: REALTIME SETTLED", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
 
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("Issued securely of Aspirants Success Classes. Verified & authenticated Ledger client node.", fontSize = 7.sp, color = Color.Gray, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                        Text("Issued securely by TAMS Academy. Verified & authenticated Ledger client node.", fontSize = 7.sp, color = Color.Gray, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.fillMaxWidth())
                     }
                 }
             },
@@ -12184,7 +12249,7 @@ fun TuitionFeesModule(
         val remainingDue = (studentBatchFee - studentPaid).coerceAtLeast(0.0)
 
         val parentName = if (student.parentName.isNotBlank()) student.parentName else "Parent"
-        val academyTitle = merchantName.ifEmpty { "Aspirant Coaching Academy" }
+        val academyTitle = merchantName.ifEmpty { "TAMS Academy" }
         val courseName = batch?.name ?: "Preparatory"
 
         val templateOptions = listOf(
@@ -13211,7 +13276,7 @@ fun ParentWorkspace(
                 border = BorderStroke(2.dp, Color.Black)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("THE ASPIRANTS ACADEMY INC", fontWeight = FontWeight.Black, color = Color.Blue)
+                    Text("TAMS ACADEMY INC", fontWeight = FontWeight.Black, color = Color.Blue)
                     Text("12/A, Civil Lines, Near General Chowk, India", fontSize = 10.sp, color = Color.Gray)
                     Text("GSTIN Registration: 09AAPCT1420K1ZX", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     
@@ -13302,7 +13367,7 @@ fun ParentWorkspace(
                 ) {
                     Text("★ CERTIFICATE OF ACADEMIC EXCELLENCE ★", fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color(0xFFD4AF37))
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text("THE ASPIRANTS CLASSES INDIA", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("TAMS ACADEMY INDIA", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     
                     HorizontalDivider(color = Color(0xFFD4AF37), thickness = 2.dp)
                     
@@ -13585,7 +13650,7 @@ fun NextGenAILearningOverlay(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Icon(Icons.Default.School, contentDescription = null, tint = Color.White)
                         Column {
-                            Text("Aspirants Learning Engine", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 16.sp)
+                            Text("TAMS Learning Engine", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 16.sp)
                             Text("Real AI Adaptive Systems & Customized Planning Focus", color = Color.White.copy(alpha = 0.7f), fontSize = 10.sp)
                         }
                     }
@@ -13974,7 +14039,7 @@ fun NextGenEdTechOverlay(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Icon(Icons.Default.CloudSync, contentDescription = null, tint = Color.White)
                         Column {
-                            Text("Aspirants EdTech Sync Engine", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
+                            Text("TAMS EdTech Sync Engine", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
                             Text("Active Nodes: Google Classroom, Zoom Webinars, LMS REST APIs", color = Color.White.copy(alpha = 0.7f), fontSize = 10.sp)
                         }
                     }
@@ -14002,7 +14067,7 @@ fun NextGenEdTechOverlay(
                     Tab(
                         selected = activeSubTab == "Library",
                         onClick = { activeSubTab = "Library" },
-                        text = { Text("📚 NCERT & Prep Library", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                        text = { Text("📚 NCERT & Study Notes", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
                     )
                 }
 
@@ -14130,7 +14195,7 @@ fun NextGenEdTechOverlay(
                     } else if (activeSubTab == "LmsLogs") {
                         // LMS CREDENTIALS & API LOGS
                         Text("Active External LMS Gateway Node", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        Text("Utilize security tokens of Aspirants management server directly on Moodle, Blackboard, Canvas or customized private institutional portals.", fontSize = 11.sp)
+                        Text("Utilize security tokens of TAMS management server directly on Moodle, Blackboard, Canvas or customized private institutional portals.", fontSize = 11.sp)
 
                         Card(
                             modifier = Modifier.fillMaxWidth(),
@@ -14153,7 +14218,7 @@ fun NextGenEdTechOverlay(
 
                                 Text("Live External Endpoint Log Tracker", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.LightGray)
                                 val endpointLogs = listOf(
-                                    "2026-06-15 11:15 - [API] GET /v1/students - Origin: canvas.aspirants.com - 200 OK",
+                                    "2026-06-15 11:15 - [API] GET /v1/students - Origin: canvas.tamsacademy.com - 200 OK",
                                     "2026-06-15 11:18 - [API] POST /v1/attendance - Payload: {batchId:103} - 202 Accepted",
                                     "2026-06-15 11:22 - [API] GET /v1/tuition/unpaid - Status: Query Passed - 200 OK",
                                     "2026-06-15 11:25 - [API] POST /v1/webhooks/trigger - Sync Event Queue: 0 - 201 Created"
@@ -14250,7 +14315,7 @@ fun NextGenInsightsOverlay(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Icon(Icons.Default.Insights, contentDescription = null, tint = Color.White)
                         Column {
-                            Text("Aspirants Predictive Analytics", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
+                            Text("TAMS Predictive Analytics", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
                             Text("Deep Risk Indices, Student Dropout Matrices & Teacher Optimization", color = Color.White.copy(alpha = 0.7f), fontSize = 10.sp)
                         }
                     }
@@ -14708,7 +14773,7 @@ fun NextGenMonetizationOverlay(
                         }
                         val cleanRef = inputRefName.lowercase().replace(" ", "_")
                         isReferralGenerated = true
-                        generatedReferText = "https://aspirantsapp.com/admission_referral/$cleanRef\nDiscount coupon code: GET10_ASPIRANT"
+                        generatedReferText = "https://tamsapp.com/admission_referral/$cleanRef\nDiscount coupon code: GET10_TAMS"
                     },
                     modifier = Modifier.fillMaxWidth().testTag("generate_ref_btn")
                 ) {
@@ -14787,7 +14852,7 @@ fun NextGenEngagementOverlay(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Icon(Icons.Default.EmojiEvents, contentDescription = null, tint = Color.White)
                         Column {
-                            Text("Aspirants Gamified Classroom", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
+                            Text("TAMS Gamified Classroom", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
                             Text("Unlocked achievements, AR Laboratories, Batch forums support", color = Color.White.copy(alpha = 0.7f), fontSize = 10.sp)
                         }
                     }
@@ -15182,7 +15247,7 @@ fun NextGenSocialFlyerOverlay(
 
     // Interactive custom poster inputs for Canva
     var selectColorBaseTheme by remember { mutableStateOf("Calm Slate") }
-    var posterAcademyName by remember(academyName) { mutableStateOf(academyName.ifEmpty { "THE ASPIRANTS CLASSES" }) }
+    var posterAcademyName by remember(academyName) { mutableStateOf(academyName.ifEmpty { "TAMS ACADEMY" }) }
     var posterMotto by remember { mutableStateOf("Nurturing Ranks, Unlocking Potentials") }
     var posterCampaign by remember(marketingTargetCampaign) { mutableStateOf(marketingTargetCampaign) }
     var posterDetails by remember { mutableStateOf("ADMISSIONS LAUNCHING NOW") }
@@ -15214,7 +15279,7 @@ fun NextGenSocialFlyerOverlay(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Icon(Icons.Default.Campaign, contentDescription = null, tint = Color.White)
                         Column {
-                            Text("Aspirants AI Social Promoting Arena", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
+                            Text("TAMS AI Social Promoting Arena", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
                             Text("Formulate high-yield marketing flyers, statuses, and posts using Gemini-3.5", color = Color.White.copy(alpha = 0.7f), fontSize = 10.sp)
                         }
                     }
@@ -15300,7 +15365,7 @@ fun NextGenSocialFlyerOverlay(
                                         isGeneratingCopyText = true
                                         scope.launch {
                                             try {
-                                                val finalPrompt = "Create a brief highly catchy promotional social post of format $activePlatformName, encouraging parents and student enrollments for Aspirants Academy. Focal theme: $marketingTargetCampaign. Include telephone: 9876543210, premium hashtags, and vivid educational emojis. Keep it extremely exciting!"
+                                                val finalPrompt = "Create a brief highly catchy promotional social post of format $activePlatformName, encouraging parents and student enrollments for TAMS Academy. Focal theme: $marketingTargetCampaign. Include telephone: 9876543210, premium hashtags, and vivid educational emojis. Keep it extremely exciting!"
                                                 val resultValue = com.example.services.GeminiService.generateContent(
                                                     prompt = finalPrompt,
                                                     systemInstruction = "You are a senior social advertisement copywriter for elite preparatory coaching institutes. Output creative marketing text blocks."
@@ -17712,7 +17777,7 @@ fun SettingsOverlayDialog(
 fun StudentQRCodeDialog(
     student: Student,
     batchName: String,
-    academyName: String = "Aspirants Academy",
+    academyName: String = "TAMS Academy",
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current

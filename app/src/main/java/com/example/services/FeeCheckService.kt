@@ -26,10 +26,11 @@ class FeeCheckService : Service() {
         serviceScope.launch {
             try {
                 val count = calculateAndAlertUnpaidFees(applicationContext)
+                val firestoreAlerts = FirebaseService.checkFirestorePendingDuesAndNotify(applicationContext, 1000.0)
                 withContext(Dispatchers.Main) {
                     Toast.makeText(
                         applicationContext,
-                        "Fee check complete! Calculated unpaid fees and sent $count alert notifications.",
+                        "Fee check complete! Sent $count fee alerts and $firestoreAlerts Firestore threshold notifications.",
                         Toast.LENGTH_LONG
                     ).show()
                 }

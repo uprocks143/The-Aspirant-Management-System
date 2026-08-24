@@ -32,7 +32,7 @@ object GeminiService {
         prompt: String,
         base64Media: String? = null,
         mimeType: String? = null,
-        systemInstruction: String = "You are an expert personalized AI Doubts Solving Tutor for students using 'Aspirant Management'. Provide concise, friendly dynamic feedback, breaking down STEM, literature, worksheets, and literature (e.g. primary CVC worksheets, phonics, Hindi literature like Bhakti Kal and Chayavad). Keep explanations scannable, engaging, and precise.",
+        systemInstruction: String = "You are an expert personalized AI Doubts Solving Tutor for students using 'TAMS (Tuition & Academy Management System)'. Provide concise, friendly dynamic feedback, breaking down STEM, literature, worksheets, and problem sets. Keep explanations scannable, engaging, and precise.",
         customApiKey: String? = null
     ): String = withContext(Dispatchers.IO) {
         val apiKey = if (!customApiKey.isNullOrBlank()) customApiKey else BuildConfig.GEMINI_API_KEY

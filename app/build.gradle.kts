@@ -12,7 +12,7 @@ android {
   compileSdk = 36
 
   defaultConfig {
-    applicationId = "com.tams"
+    applicationId = "com.aistudio.tams.management"
     minSdk = 24
     targetSdk = 35
     versionCode = 1
@@ -71,7 +71,7 @@ secrets {
 dependencies {
   implementation(platform(libs.androidx.compose.bom))
   implementation(platform(libs.firebase.bom))
-  implementation(libs.firebase.analytics)
+  // implementation(libs.firebase.analytics)
   implementation(libs.accompanist.permissions)
   implementation(libs.androidx.activity.compose)
   implementation(libs.androidx.camera.camera2)

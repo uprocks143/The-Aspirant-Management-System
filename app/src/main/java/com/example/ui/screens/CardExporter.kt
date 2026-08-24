@@ -2133,7 +2133,7 @@ object CardExporter {
             textAlign = Paint.Align.CENTER
             isAntiAlias = true
         }
-        canvas.drawText("GENERATED VIA ASPIRANTS AI ADVERTISING ENGINE", width / 2f, 930f, stampPaint)
+        canvas.drawText("GENERATED VIA TAMS AI ADVERTISING ENGINE", width / 2f, 930f, stampPaint)
 
         return bitmap
     }

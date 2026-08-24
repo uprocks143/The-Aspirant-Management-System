@@ -164,6 +164,37 @@ object NotificationHelper {
         }
     }
 
+    fun triggerDuesThresholdNotification(context: Context, studentName: String, totalPending: Double, threshold: Double) {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            (System.currentTimeMillis() % 10000).toInt(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val builder = NotificationCompat.Builder(context, FEE_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle("⚠️ Dues Threshold Exceeded")
+            .setContentText("$studentName's dues (₹${totalPending.toInt()}) hit threshold ₹${threshold.toInt()}")
+            .setStyle(NotificationCompat.BigTextStyle()
+                .bigText("Firestore Dues Alert: Student $studentName has accumulated ₹${totalPending.toInt()} in pending dues, exceeding your notification threshold of ₹${threshold.toInt()}.")
+            )
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+
+        with(NotificationManagerCompat.from(context)) {
+            try {
+                notify(FEE_NOTIFICATION_ID + studentName.hashCode() + 500, builder.build())
+            } catch (e: SecurityException) {
+                // Ignore missing permissions
+            }
+        }
+    }
+
     fun triggerAssignmentNotification(context: Context, title: String, batchName: String, dueDate: String) {
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK

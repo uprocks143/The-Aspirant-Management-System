@@ -37,6 +37,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.FeePayment
 import com.example.data.model.Student
+import com.example.security.BiometricLockedBarrierCard
+import com.example.security.BiometricSecurityHeaderBanner
+import com.example.security.BiometricSecurityManager
 import com.example.ui.viewmodel.AppViewModel
 import java.text.NumberFormat
 import java.util.Locale
@@ -58,6 +61,36 @@ fun MonthlyPaymentDashboardScreen(
     val feePayments by viewModel.feePayments.collectAsState()
     val students by viewModel.students.collectAsState()
     val batches by viewModel.batches.collectAsState()
+
+    val isProtected by viewModel.isStudentPaymentBiometricProtected.collectAsState()
+    val isUnlocked by viewModel.isStudentAndPaymentBiometricUnlocked.collectAsState()
+    val isLocked = isProtected && !isUnlocked
+
+    fun runWithBiometricCheck(action: () -> Unit) {
+        if (isProtected && !isUnlocked) {
+            val activity = context as? androidx.fragment.app.FragmentActivity
+            if (activity != null) {
+                BiometricSecurityManager.promptAuthentication(
+                    activity = activity,
+                    title = "Unlock Financial Ledger 🔐",
+                    subtitle = "Scan fingerprint, face recognition, or PIN to view fee dues & revenue data.",
+                    description = "Confidential fee collections, pending student dues, and ledger reports are protected.",
+                    onSuccess = {
+                        viewModel.setStudentAndPaymentBiometricUnlocked(true)
+                        Toast.makeText(context, "Financial ledger biometrically unlocked!", Toast.LENGTH_SHORT).show()
+                        action()
+                    },
+                    onError = { err ->
+                        Toast.makeText(context, err, Toast.LENGTH_SHORT).show()
+                    }
+                )
+            } else {
+                action()
+            }
+        } else {
+            action()
+        }
+    }
 
     var selectedSession by remember { mutableStateOf("2025 - 2026") }
     var selectedMonthTab by remember { mutableStateOf("ALL_MONTHS") } // "ALL_MONTHS" or month name
@@ -202,34 +235,49 @@ fun MonthlyPaymentDashboardScreen(
             ) {
                 FinanceStatCard(
                     title = "Collected Revenue",
-                    amount = "₹${totalCollected.toInt()}",
-                    subtitle = "${collectionPercentage.toInt()}% of Target",
+                    amount = if (isLocked) "₹ ••••••" else "₹${totalCollected.toInt()}",
+                    subtitle = if (isLocked) "Tap to unlock 🔐" else "${collectionPercentage.toInt()}% of Target",
                     color = Color(0xFF2E7D32),
                     container = Color(0xFFE8F5E9),
-                    icon = Icons.Default.Payments,
+                    icon = if (isLocked) Icons.Default.Lock else Icons.Default.Payments,
+                    onClick = if (isLocked) { { runWithBiometricCheck { } } } else null,
                     modifier = Modifier.weight(1.2f)
                 )
 
                 FinanceStatCard(
                     title = "Pending Dues",
-                    amount = "₹${totalPending.toInt()}",
-                    subtitle = "Action required",
+                    amount = if (isLocked) "₹ ••••••" else "₹${totalPending.toInt()}",
+                    subtitle = if (isLocked) "Protected 🛡️" else "Action required",
                     color = Color(0xFFC62828),
                     container = Color(0xFFFFEBEE),
-                    icon = Icons.Default.PendingActions,
+                    icon = if (isLocked) Icons.Default.Fingerprint else Icons.Default.PendingActions,
+                    onClick = if (isLocked) { { runWithBiometricCheck { } } } else null,
                     modifier = Modifier.weight(1f)
                 )
 
                 FinanceStatCard(
                     title = "Session Target",
-                    amount = "₹${totalTarget.toInt()}",
+                    amount = if (isLocked) "₹ ••••••" else "₹${totalTarget.toInt()}",
                     subtitle = "$selectedSession",
                     color = Color(0xFF0D47A1),
                     container = Color(0xFFE3F2FD),
                     icon = Icons.Default.AccountBalance,
+                    onClick = if (isLocked) { { runWithBiometricCheck { } } } else null,
                     modifier = Modifier.weight(1f)
                 )
             }
+
+            // Biometric Protection Banner
+            BiometricSecurityHeaderBanner(
+                isProtected = isProtected,
+                isUnlocked = isUnlocked,
+                itemLabel = "Financial Ledger & Dues",
+                onUnlockRequest = { runWithBiometricCheck { } },
+                onLockRequest = {
+                    viewModel.setStudentAndPaymentBiometricUnlocked(false)
+                    Toast.makeText(context, "Financial records re-locked 🔒", Toast.LENGTH_SHORT).show()
+                }
+            )
 
             // Tab Navigation (Charts vs Student Dues vs Modes)
             Row(
@@ -393,74 +441,83 @@ fun MonthlyPaymentDashboardScreen(
                 }
 
                 "STUDENT_DUES" -> {
-                    // List of students with pending dues
-                    val studentsWithDues = remember(students, feePayments) {
-                        students.map { st ->
-                            val totalPaidBySt = feePayments.filter { it.studentId == st.id }.sumOf { it.amountPaid }
-                            val totalDueForSt = 12000.0 - totalPaidBySt // Standard session fee expectation
-                            Triple(st, totalPaidBySt, totalDueForSt.coerceAtLeast(0.0))
-                        }.sortedByDescending { it.third }
-                    }
-
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(bottom = 80.dp)
-                    ) {
-                        item {
-                            Text(
-                                text = "STUDENT-WISE PAYMENT STATUS & DUES",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontFamily = FontFamily.Monospace
-                            )
+                    if (isLocked) {
+                        BiometricLockedBarrierCard(
+                            title = "Student Fee Ledger Protected 🔒",
+                            description = "Scan your fingerprint, face recognition, or PIN to access confidential student-by-student fee dues, records, and contact options.",
+                            onUnlockClick = { runWithBiometricCheck { } },
+                            modifier = Modifier.padding(top = 16.dp)
+                        )
+                    } else {
+                        // List of students with pending dues
+                        val studentsWithDues = remember(students, feePayments) {
+                            students.map { st ->
+                                val totalPaidBySt = feePayments.filter { it.studentId == st.id }.sumOf { it.amountPaid }
+                                val totalDueForSt = 12000.0 - totalPaidBySt // Standard session fee expectation
+                                Triple(st, totalPaidBySt, totalDueForSt.coerceAtLeast(0.0))
+                            }.sortedByDescending { it.third }
                         }
 
-                        items(studentsWithDues) { (st, paid, due) ->
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(st.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                        Text("Roll: ${st.rollNumber} • Class: ${st.studentClass.ifEmpty { "10th" }}", fontSize = 11.sp, color = Color.Gray)
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                            Text("Paid: ₹${paid.toInt()}", fontSize = 11.sp, color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
-                                            Text("Due: ₹${due.toInt()}", fontSize = 11.sp, color = if (due > 0) Color(0xFFC62828) else Color.Gray, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(bottom = 80.dp)
+                        ) {
+                            item {
+                                Text(
+                                    text = "STUDENT-WISE PAYMENT STATUS & DUES",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
 
-                                    if (due > 0) {
-                                        Button(
-                                            onClick = {
-                                                try {
-                                                    val msg = "Dear Parent, this is a reminder regarding pending fee dues of ₹${due.toInt()} for ${st.name} at TAMS Academy. Kindly clear at your earliest."
-                                                    val phone = st.parentPhone.ifEmpty { st.phone }.replace(Regex("[^0-9]"), "")
-                                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/91$phone?text=${Uri.encode(msg)}"))
-                                                    context.startActivity(intent)
-                                                } catch (e: Exception) {
-                                                    Toast.makeText(context, "Could not launch WhatsApp", Toast.LENGTH_SHORT).show()
-                                                }
-                                            },
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
-                                            shape = RoundedCornerShape(8.dp),
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                                        ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(14.dp))
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text("Remind Dues", fontSize = 11.sp)
+                            items(studentsWithDues) { (st, paid, due) ->
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(st.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                            Text("Roll: ${st.rollNumber} • Class: ${st.studentClass.ifEmpty { "10th" }}", fontSize = 11.sp, color = Color.Gray)
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                                Text("Paid: ₹${paid.toInt()}", fontSize = 11.sp, color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
+                                                Text("Due: ₹${due.toInt()}", fontSize = 11.sp, color = if (due > 0) Color(0xFFC62828) else Color.Gray, fontWeight = FontWeight.Bold)
                                             }
                                         }
-                                    } else {
-                                        Surface(color = Color(0xFFE8F5E9), shape = RoundedCornerShape(12.dp)) {
-                                            Text("Paid In Full", modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontSize = 10.sp, color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
+
+                                        if (due > 0) {
+                                            Button(
+                                                onClick = {
+                                                    try {
+                                                        val msg = "Dear Parent, this is a reminder regarding pending fee dues of ₹${due.toInt()} for ${st.name} at TAMS Academy. Kindly clear at your earliest."
+                                                        val phone = st.parentPhone.ifEmpty { st.phone }.replace(Regex("[^0-9]"), "")
+                                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/91$phone?text=${Uri.encode(msg)}"))
+                                                        context.startActivity(intent)
+                                                    } catch (e: Exception) {
+                                                        Toast.makeText(context, "Could not launch WhatsApp", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
+                                                shape = RoundedCornerShape(8.dp),
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(14.dp))
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text("Remind Dues", fontSize = 11.sp)
+                                                }
+                                            }
+                                        } else {
+                                            Surface(color = Color(0xFFE8F5E9), shape = RoundedCornerShape(12.dp)) {
+                                                Text("Paid In Full", modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontSize = 10.sp, color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
+                                            }
                                         }
                                     }
                                 }
@@ -470,48 +527,57 @@ fun MonthlyPaymentDashboardScreen(
                 }
 
                 "PAYMENT_MODES" -> {
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding = PaddingValues(bottom = 80.dp)
-                    ) {
-                        item {
-                            Text(
-                                text = "PAYMENT METHOD DISTRIBUTION",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
+                    if (isLocked) {
+                        BiometricLockedBarrierCard(
+                            title = "Payment Mode Distribution Protected 🔒",
+                            description = "Scan your fingerprint or face recognition to view transaction breakdown across UPI, Cash, and Bank transfers.",
+                            onUnlockClick = { runWithBiometricCheck { } },
+                            modifier = Modifier.padding(top = 16.dp)
+                        )
+                    } else {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            contentPadding = PaddingValues(bottom = 80.dp)
+                        ) {
+                            item {
+                                Text(
+                                    text = "PAYMENT METHOD DISTRIBUTION",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
 
-                        items(modeBreakdown) { (mode, amount) ->
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                            items(modeBreakdown) { (mode, amount) ->
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp)
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = when {
-                                                mode.contains("UPI") -> Icons.Default.QrCode
-                                                mode.contains("Cash") -> Icons.Default.Payments
-                                                else -> Icons.Default.AccountBalance
-                                            },
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
-                                        Spacer(modifier = Modifier.width(12.dp))
-                                        Column {
-                                            Text(mode, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                            Text("Session transactions", fontSize = 11.sp, color = Color.Gray)
+                                    Row(
+                                        modifier = Modifier.padding(14.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = when {
+                                                    mode.contains("UPI") -> Icons.Default.QrCode
+                                                    mode.contains("Cash") -> Icons.Default.Payments
+                                                    else -> Icons.Default.AccountBalance
+                                                },
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Column {
+                                                Text(mode, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                                Text("Session transactions", fontSize = 11.sp, color = Color.Gray)
+                                            }
                                         }
-                                    }
 
-                                    Text("₹${amount.toInt()}", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.primary)
+                                        Text("₹${amount.toInt()}", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.primary)
+                                    }
                                 }
                             }
                         }
@@ -603,10 +669,11 @@ fun FinanceStatCard(
     color: Color,
     container: Color,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = modifier,
+        modifier = if (onClick != null) modifier.clickable { onClick() } else modifier,
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = container)
     ) {

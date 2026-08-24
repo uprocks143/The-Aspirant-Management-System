@@ -10,6 +10,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
 import org.json.JSONArray
 import org.json.JSONObject
@@ -77,14 +78,26 @@ object FirebaseService {
 
         try {
             // Respect already initialized application
-            val existingApps = FirebaseApp.getApps(context)
+            val existingApps = FirebaseApp.getApps(context.applicationContext)
             if (existingApps.isNotEmpty()) {
-                auth = FirebaseAuth.getInstance()
-                db = FirebaseFirestore.getInstance()
-                storage = FirebaseStorage.getInstance()
-                isInitialized = true
-                Log.d(TAG, "Firebase linked successfully via existing app target.")
-                return true
+                try {
+                    auth = FirebaseAuth.getInstance()
+                } catch (t: Throwable) {
+                    Log.w(TAG, "FirebaseAuth initialization fallback: ${t.localizedMessage}")
+                }
+                try {
+                    db = FirebaseFirestore.getInstance()
+                } catch (t: Throwable) {
+                    Log.w(TAG, "FirebaseFirestore initialization fallback: ${t.localizedMessage}")
+                }
+                try {
+                    storage = FirebaseStorage.getInstance()
+                } catch (t: Throwable) {
+                    Log.w(TAG, "FirebaseStorage initialization fallback: ${t.localizedMessage}")
+                }
+                isInitialized = (db != null || auth != null)
+                Log.d(TAG, "Firebase linked successfully via existing app target. isInitialized=$isInitialized")
+                return isInitialized
             }
 
             // Fallback manual configurations with SharedPreferences fallback
@@ -136,8 +149,8 @@ object FirebaseService {
             Log.d(TAG, "Firebase User registered: $emailStr")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Firebase sign-up error: ${e.localizedMessage}")
-            throw e
+            Log.w(TAG, "Firebase sign-up info: ${e.localizedMessage}")
+            false
         }
     }
 
@@ -148,8 +161,8 @@ object FirebaseService {
             Log.d(TAG, "Firebase User signed in: $emailStr")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Firebase sign-in error: ${e.localizedMessage}")
-            throw e
+            Log.w(TAG, "Firebase sign-in info: ${e.localizedMessage}")
+            false
         }
     }
 
@@ -161,8 +174,8 @@ object FirebaseService {
             Log.d(TAG, "Firebase logged in with Google credential successfully.")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Firebase Google login error: ${e.localizedMessage}")
-            throw e
+            Log.w(TAG, "Firebase Google login info: ${e.localizedMessage}")
+            false
         }
     }
 
@@ -173,8 +186,8 @@ object FirebaseService {
             Log.d(TAG, "Firebase reset email sent to $emailStr")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Firebase password reset error: ${e.localizedMessage}")
-            throw e
+            Log.w(TAG, "Firebase password reset info: ${e.localizedMessage}")
+            false
         }
     }
 
@@ -1132,6 +1145,104 @@ object FirebaseService {
         } catch (e: Exception) {
             Log.e(TAG, "Daily Firestore backup failed: ${e.localizedMessage}")
             return false
+        }
+    }
+
+    /**
+     * Checks student pending dues using Firebase Firestore data and triggers local push notifications
+     * when a student's pending dues reach or exceed the given threshold.
+     */
+    suspend fun checkFirestorePendingDuesAndNotify(context: Context, thresholdAmount: Double = 1000.0): Int = withContext(Dispatchers.IO) {
+        if (!isInitialized) {
+            initialize(context)
+        }
+        val currentDb = db ?: return@withContext 0
+        var notificationsTriggered = 0
+
+        try {
+            // 1. Fetch Firestore collections: students, batches, fees
+            val studentSnapshots = currentDb.collection("students").get().await()
+            val batchSnapshots = currentDb.collection("batches").get().await()
+            val feeSnapshots = currentDb.collection("fees").get().await()
+
+            val batchFeesMap = mutableMapOf<Long, Double>()
+            for (doc in batchSnapshots) {
+                val bId = doc.getLong("id") ?: continue
+                val feeAmt = doc.getDouble("feesAmount") ?: 0.0
+                batchFeesMap[bId] = feeAmt
+            }
+
+            val studentPaidMap = mutableMapOf<Long, Double>()
+            for (doc in feeSnapshots) {
+                val sId = doc.getLong("studentId") ?: continue
+                val amt = doc.getDouble("amountPaid") ?: 0.0
+                val discount = doc.getDouble("discount") ?: 0.0
+                val status = doc.getString("transactionStatus") ?: "SUCCESS"
+                if (status.equals("SUCCESS", ignoreCase = true) || status.isEmpty()) {
+                    studentPaidMap[sId] = (studentPaidMap[sId] ?: 0.0) + amt + discount
+                }
+            }
+
+            for (doc in studentSnapshots) {
+                val isAlumni = doc.getBoolean("isAlumni") ?: false
+                if (isAlumni) continue
+
+                val studentName = doc.getString("name") ?: "Student"
+                val sId = doc.getLong("id") ?: continue
+                val batchId = doc.getLong("batchId") ?: continue
+
+                val batchFee = batchFeesMap[batchId] ?: 0.0
+                val totalPaid = studentPaidMap[sId] ?: 0.0
+
+                val pendingDues = batchFee - totalPaid
+                if (pendingDues >= thresholdAmount) {
+                    Log.d(TAG, "Student $studentName has Firestore pending dues ₹$pendingDues reaching threshold ₹$thresholdAmount")
+                    NotificationHelper.triggerDuesThresholdNotification(
+                        context = context,
+                        studentName = studentName,
+                        totalPending = pendingDues,
+                        threshold = thresholdAmount
+                    )
+                    notificationsTriggered++
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking Firestore pending dues threshold: ${e.localizedMessage}")
+        }
+        return@withContext notificationsTriggered
+    }
+
+    /**
+     * Uploads digital study material PDF / image file to Firebase Storage under study_materials/{grade}/{subject}/
+     * and returns the public Firebase Storage download URL string.
+     */
+    suspend fun uploadStudyMaterialToFirebaseStorage(
+        context: Context,
+        fileUri: android.net.Uri,
+        fileName: String,
+        grade: String,
+        subject: String
+    ): String? = withContext(Dispatchers.IO) {
+        if (!isInitialized) {
+            initialize(context)
+        }
+        val currentStorage = storage ?: return@withContext null
+        return@withContext try {
+            val sanitizeGrade = grade.replace(" ", "_")
+            val sanitizeSubject = subject.replace(" ", "_")
+            val timestamp = System.currentTimeMillis()
+            val storagePath = "study_materials/${sanitizeGrade}/${sanitizeSubject}/${timestamp}_${fileName}"
+            
+            val storageRef = currentStorage.reference.child(storagePath)
+            
+            val inputStream = context.contentResolver.openInputStream(fileUri) ?: return@withContext null
+            val uploadTask = storageRef.putStream(inputStream).await()
+            val downloadUrl = storageRef.downloadUrl.await().toString()
+            Log.d(TAG, "Study material file uploaded to Firebase Storage successfully: $downloadUrl")
+            downloadUrl
+        } catch (e: Exception) {
+            Log.e(TAG, "Firebase Storage study material upload failed: ${e.localizedMessage}")
+            null
         }
     }
 }

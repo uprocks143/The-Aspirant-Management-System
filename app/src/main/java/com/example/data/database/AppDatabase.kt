@@ -13,6 +13,7 @@ import com.example.data.model.*
         Student::class,
         Attendance::class,
         FeePayment::class,
+        PaymentLog::class,
         FinancialTransaction::class,
         StudyMaterial::class,
         MessageTemplate::class,
@@ -26,7 +27,7 @@ import com.example.data.model.*
         ChatMessage::class,
         Assignment::class
     ],
-    version = 15,
+    version = 17,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

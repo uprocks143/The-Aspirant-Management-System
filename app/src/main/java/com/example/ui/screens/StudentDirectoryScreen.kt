@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,6 +30,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.Batch
 import com.example.data.model.Student
+import com.example.security.BiometricSecurityHeaderBanner
+import com.example.security.BiometricSecurityManager
 import com.example.services.FirebaseService
 import com.example.ui.viewmodel.AppViewModel
 import kotlinx.coroutines.launch
@@ -42,17 +45,59 @@ fun StudentDirectoryScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
+    val isProtected by viewModel.isStudentPaymentBiometricProtected.collectAsState()
+    val isUnlocked by viewModel.isStudentAndPaymentBiometricUnlocked.collectAsState()
+
     val students by viewModel.students.collectAsState()
     val batches by viewModel.batches.collectAsState()
+    val feePayments by viewModel.feePayments.collectAsState()
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedGradeFilter by remember { mutableStateOf("All Grades") }
     var selectedStatusFilter by remember { mutableStateOf("All Status") }
+    var selectedPendingDuesFilter by remember { mutableStateOf("ALL") } // "ALL", "HAS_DUES", "PAID_CLEAR"
     var selectedBatchFilter by remember { mutableStateOf<Long?>(null) } // null = All Batches
+    var activeCategoryFilter by remember { mutableStateOf("NONE") } // "NONE", "GRADE", "STATUS", "DUES", "BATCH"
 
     var showAddStudentDialog by remember { mutableStateOf(false) }
     var studentToEditStatus by remember { mutableStateOf<Student?>(null) }
     var isSyncingCloud by remember { mutableStateOf(false) }
+
+    fun runWithBiometricCheck(action: () -> Unit) {
+        if (isProtected && !isUnlocked) {
+            val activity = context as? androidx.fragment.app.FragmentActivity
+            if (activity != null) {
+                BiometricSecurityManager.promptAuthentication(
+                    activity = activity,
+                    title = "Unlock Student Records 🔐",
+                    subtitle = "Scan fingerprint, face recognition, or PIN to view student contacts & actions.",
+                    description = "Confidential student profiles and contact information are protected.",
+                    onSuccess = {
+                        viewModel.setStudentAndPaymentBiometricUnlocked(true)
+                        Toast.makeText(context, "Student records biometrically unlocked!", Toast.LENGTH_SHORT).show()
+                        action()
+                    },
+                    onError = { err ->
+                        Toast.makeText(context, err, Toast.LENGTH_SHORT).show()
+                    }
+                )
+            } else {
+                action()
+            }
+        } else {
+            action()
+        }
+    }
+
+    // Count of students with pending dues
+    val studentsWithPendingDuesCount = remember(students, batches, feePayments) {
+        students.count { student ->
+            val batch = batches.find { it.id == student.batchId }
+            val expectedFee = batch?.feesAmount ?: 0.0
+            val paid = feePayments.filter { it.studentId == student.id }.sumOf { it.amountPaid + it.discount }
+            (expectedFee - paid) > 0.0 && expectedFee > 0.0
+        }
+    }
 
     // List of grade/class options derived dynamically + defaults
     val gradeOptions = remember(students) {
@@ -64,7 +109,7 @@ fun StudentDirectoryScreen(
     val statusOptions = listOf("All Status", "Active", "On-Leave", "Inactive", "Graduated")
 
     // Filter students
-    val filteredStudents = remember(students, searchQuery, selectedGradeFilter, selectedStatusFilter, selectedBatchFilter) {
+    val filteredStudents = remember(students, searchQuery, selectedGradeFilter, selectedStatusFilter, selectedPendingDuesFilter, selectedBatchFilter, batches, feePayments) {
         students.filter { student ->
             // Search match (Name, Roll No, Phone, Parent)
             val matchesSearch = searchQuery.isBlank() ||
@@ -85,7 +130,19 @@ fun StudentDirectoryScreen(
             // Batch match
             val matchesBatch = selectedBatchFilter == null || student.batchId == selectedBatchFilter
 
-            matchesSearch && matchesGrade && matchesStatus && matchesBatch
+            // Pending Dues match
+            val batch = batches.find { it.id == student.batchId }
+            val expectedFee = batch?.feesAmount ?: 0.0
+            val paid = feePayments.filter { it.studentId == student.id }.sumOf { it.amountPaid + it.discount }
+            val hasDues = (expectedFee - paid) > 0.0 && expectedFee > 0.0
+
+            val matchesDues = when (selectedPendingDuesFilter) {
+                "HAS_DUES" -> hasDues
+                "PAID_CLEAR" -> !hasDues
+                else -> true
+            }
+
+            matchesSearch && matchesGrade && matchesStatus && matchesBatch && matchesDues
         }
     }
 
@@ -213,76 +270,299 @@ fun StudentDirectoryScreen(
                 )
             }
 
-            // Search Bar
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Search student name, roll no, phone, parent...") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Clear")
-                        }
-                    }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(12.dp)
+            // Biometric Protection Status Banner
+            BiometricSecurityHeaderBanner(
+                isProtected = isProtected,
+                isUnlocked = isUnlocked,
+                itemLabel = "Student Directory & Contact Info",
+                onUnlockRequest = { runWithBiometricCheck { } },
+                onLockRequest = {
+                    viewModel.setStudentAndPaymentBiometricUnlocked(false)
+                    Toast.makeText(context, "Student records re-locked 🔒", Toast.LENGTH_SHORT).show()
+                }
             )
 
-            // Grade / Class Filter Chips Horizontal Scroll
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("FILTER BY GRADE / CLASS:", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontFamily = FontFamily.Monospace)
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(gradeOptions) { grade ->
-                        FilterChip(
-                            selected = selectedGradeFilter == grade,
-                            onClick = { selectedGradeFilter = grade },
-                            label = { Text(grade, fontSize = 12.sp) },
-                            leadingIcon = if (selectedGradeFilter == grade) {
-                                { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
-                            } else null
-                        )
-                    }
-                }
-            }
-
-            // Enrollment Status Filter Row & Batch Filter
-            Row(
+            // Floating Search Bar & Category Filter Chips Container
+            Card(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             ) {
-                // Enrollment status chips
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.weight(1f)
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(statusOptions) { status ->
-                        val isSel = selectedStatusFilter == status
-                        AssistChip(
-                            onClick = { selectedStatusFilter = status },
-                            label = { Text(status, fontSize = 11.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal) },
-                            colors = AssistChipDefaults.assistChipColors(
-                                containerColor = if (isSel) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-                            )
+                    // Search Input
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Search student name, roll, phone, parent...", fontSize = 13.sp) },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.primary) },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Default.Clear, contentDescription = "Clear")
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        shape = CircleShape,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
                         )
-                    }
-                }
+                    )
 
-                if (selectedStatusFilter != "All Status" || selectedGradeFilter != "All Grades" || searchQuery.isNotEmpty() || selectedBatchFilter != null) {
-                    TextButton(
-                        onClick = {
-                            searchQuery = ""
-                            selectedGradeFilter = "All Grades"
-                            selectedStatusFilter = "All Status"
-                            selectedBatchFilter = null
-                        }
+                    // Category Filter Chips Row
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Reset", fontSize = 11.sp, color = Color.Red)
+                        // Grade Category Chip
+                        item {
+                            val isGradeActive = selectedGradeFilter != "All Grades"
+                            FilterChip(
+                                selected = activeCategoryFilter == "GRADE" || isGradeActive,
+                                onClick = {
+                                    activeCategoryFilter = if (activeCategoryFilter == "GRADE") "NONE" else "GRADE"
+                                },
+                                label = {
+                                    Text(
+                                        text = if (isGradeActive) "Grade: $selectedGradeFilter" else "Grade",
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isGradeActive) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.School, contentDescription = null, modifier = Modifier.size(16.dp))
+                                },
+                                trailingIcon = {
+                                    Icon(
+                                        if (activeCategoryFilter == "GRADE") Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            )
+                        }
+
+                        // Status Category Chip
+                        item {
+                            val isStatusActive = selectedStatusFilter != "All Status"
+                            FilterChip(
+                                selected = activeCategoryFilter == "STATUS" || isStatusActive,
+                                onClick = {
+                                    activeCategoryFilter = if (activeCategoryFilter == "STATUS") "NONE" else "STATUS"
+                                },
+                                label = {
+                                    Text(
+                                        text = if (isStatusActive) "Status: $selectedStatusFilter" else "Status",
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isStatusActive) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.VerifiedUser, contentDescription = null, modifier = Modifier.size(16.dp))
+                                },
+                                trailingIcon = {
+                                    Icon(
+                                        if (activeCategoryFilter == "STATUS") Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            )
+                        }
+
+                        // Pending Dues Category Chip
+                        item {
+                            val isDuesActive = selectedPendingDuesFilter != "ALL"
+                            FilterChip(
+                                selected = activeCategoryFilter == "DUES" || isDuesActive,
+                                onClick = {
+                                    activeCategoryFilter = if (activeCategoryFilter == "DUES") "NONE" else "DUES"
+                                },
+                                label = {
+                                    Text(
+                                        text = when (selectedPendingDuesFilter) {
+                                            "HAS_DUES" -> "Pending Dues ($studentsWithPendingDuesCount)"
+                                            "PAID_CLEAR" -> "Dues: Fully Paid"
+                                            else -> "Pending Dues ($studentsWithPendingDuesCount)"
+                                        },
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isDuesActive) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Payments,
+                                        contentDescription = null,
+                                        tint = if (isDuesActive) Color(0xFFD32F2F) else MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                trailingIcon = {
+                                    Icon(
+                                        if (activeCategoryFilter == "DUES") Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = Color(0xFFFFEBEE),
+                                    selectedLabelColor = Color(0xFFC62828)
+                                )
+                            )
+                        }
+
+                        // Batch Category Chip
+                        item {
+                            val selectedBatch = batches.find { it.id == selectedBatchFilter }
+                            val isBatchActive = selectedBatchFilter != null
+                            FilterChip(
+                                selected = activeCategoryFilter == "BATCH" || isBatchActive,
+                                onClick = {
+                                    activeCategoryFilter = if (activeCategoryFilter == "BATCH") "NONE" else "BATCH"
+                                },
+                                label = {
+                                    Text(
+                                        text = if (isBatchActive) "Batch: ${selectedBatch?.name ?: ""}" else "Batch",
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isBatchActive) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Class, contentDescription = null, modifier = Modifier.size(16.dp))
+                                },
+                                trailingIcon = {
+                                    Icon(
+                                        if (activeCategoryFilter == "BATCH") Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            )
+                        }
+
+                        // Quick Reset All Button
+                        if (searchQuery.isNotEmpty() || selectedGradeFilter != "All Grades" || selectedStatusFilter != "All Status" || selectedPendingDuesFilter != "ALL" || selectedBatchFilter != null) {
+                            item {
+                                AssistChip(
+                                    onClick = {
+                                        searchQuery = ""
+                                        selectedGradeFilter = "All Grades"
+                                        selectedStatusFilter = "All Status"
+                                        selectedPendingDuesFilter = "ALL"
+                                        selectedBatchFilter = null
+                                        activeCategoryFilter = "NONE"
+                                    },
+                                    label = { Text("Reset All", fontSize = 11.sp, color = Color.Red, fontWeight = FontWeight.Bold) },
+                                    leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.Red, modifier = Modifier.size(14.dp)) }
+                                )
+                            }
+                        }
+                    }
+
+                    // Dynamic Sub-Category Selection Options
+                    AnimatedVisibility(visible = activeCategoryFilter != "NONE") {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                when (activeCategoryFilter) {
+                                    "GRADE" -> {
+                                        Text("SELECT GRADE / CLASS:", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            items(gradeOptions) { grade ->
+                                                val isSel = selectedGradeFilter == grade
+                                                FilterChip(
+                                                    selected = isSel,
+                                                    onClick = { selectedGradeFilter = grade },
+                                                    label = { Text(grade, fontSize = 11.sp) },
+                                                    leadingIcon = if (isSel) {
+                                                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(12.dp)) }
+                                                    } else null
+                                                )
+                                            }
+                                        }
+                                    }
+                                    "STATUS" -> {
+                                        Text("SELECT ENROLLMENT STATUS:", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            items(statusOptions) { status ->
+                                                val isSel = selectedStatusFilter == status
+                                                FilterChip(
+                                                    selected = isSel,
+                                                    onClick = { selectedStatusFilter = status },
+                                                    label = { Text(status, fontSize = 11.sp) },
+                                                    leadingIcon = if (isSel) {
+                                                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(12.dp)) }
+                                                    } else null
+                                                )
+                                            }
+                                        }
+                                    }
+                                    "DUES" -> {
+                                        Text("FILTER BY PENDING TUITION DUES:", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            FilterChip(
+                                                selected = selectedPendingDuesFilter == "ALL",
+                                                onClick = { selectedPendingDuesFilter = "ALL" },
+                                                label = { Text("All Dues Status", fontSize = 11.sp) }
+                                            )
+                                            FilterChip(
+                                                selected = selectedPendingDuesFilter == "HAS_DUES",
+                                                onClick = { selectedPendingDuesFilter = "HAS_DUES" },
+                                                label = { Text("🔥 Has Pending Dues ($studentsWithPendingDuesCount)", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                                                colors = FilterChipDefaults.filterChipColors(
+                                                    selectedContainerColor = Color(0xFFFFEBEE),
+                                                    selectedLabelColor = Color(0xFFC62828)
+                                                )
+                                            )
+                                            FilterChip(
+                                                selected = selectedPendingDuesFilter == "PAID_CLEAR",
+                                                onClick = { selectedPendingDuesFilter = "PAID_CLEAR" },
+                                                label = { Text("✅ Dues Fully Paid", fontSize = 11.sp) }
+                                            )
+                                        }
+                                    }
+                                    "BATCH" -> {
+                                        Text("SELECT STUDENT BATCH:", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            item {
+                                                FilterChip(
+                                                    selected = selectedBatchFilter == null,
+                                                    onClick = { selectedBatchFilter = null },
+                                                    label = { Text("All Batches", fontSize = 11.sp) }
+                                                )
+                                            }
+                                            items(batches) { b ->
+                                                val isSel = selectedBatchFilter == b.id
+                                                FilterChip(
+                                                    selected = isSel,
+                                                    onClick = { selectedBatchFilter = b.id },
+                                                    label = { Text(b.name, fontSize = 11.sp) }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -342,25 +622,36 @@ fun StudentDirectoryScreen(
                 ) {
                     items(filteredStudents, key = { it.id }) { student ->
                         val studentBatch = remember(batches, student.batchId) { batches.find { it.id == student.batchId } }
+                        val isLocked = isProtected && !isUnlocked
                         StudentDirectoryCard(
                             student = student,
                             batch = studentBatch,
-                            onStatusClick = { studentToEditStatus = student },
+                            isLocked = isLocked,
+                            onUnlockPrompt = { runWithBiometricCheck { } },
+                            onStatusClick = {
+                                runWithBiometricCheck {
+                                    studentToEditStatus = student
+                                }
+                            },
                             onCall = { phone ->
-                                try {
-                                    val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone"))
-                                    context.startActivity(intent)
-                                } catch (e: Exception) {
-                                    Toast.makeText(context, "Could not launch dialer", Toast.LENGTH_SHORT).show()
+                                runWithBiometricCheck {
+                                    try {
+                                        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone"))
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "Could not launch dialer", Toast.LENGTH_SHORT).show()
+                                    }
                                 }
                             },
                             onWhatsApp = { phone ->
-                                try {
-                                    val cleaned = phone.replace(Regex("[^0-9]"), "")
-                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/91$cleaned"))
-                                    context.startActivity(intent)
-                                } catch (e: Exception) {
-                                    Toast.makeText(context, "WhatsApp not available", Toast.LENGTH_SHORT).show()
+                                runWithBiometricCheck {
+                                    try {
+                                        val cleaned = phone.replace(Regex("[^0-9]"), "")
+                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/91$cleaned"))
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "WhatsApp not available", Toast.LENGTH_SHORT).show()
+                                    }
                                 }
                             }
                         )
@@ -594,6 +885,8 @@ fun StatusBadgeCard(
 fun StudentDirectoryCard(
     student: Student,
     batch: Batch?,
+    isLocked: Boolean = false,
+    onUnlockPrompt: () -> Unit = {},
     onStatusClick: () -> Unit,
     onCall: (String) -> Unit,
     onWhatsApp: (String) -> Unit
@@ -725,12 +1018,22 @@ fun StudentDirectoryCard(
                     }
                 }
 
-                if (student.parentName.isNotBlank() || student.phone.isNotBlank()) {
+                if (student.parentName.isNotBlank() || student.phone.isNotBlank() || student.parentPhone.isNotBlank()) {
                     Spacer(modifier = Modifier.height(2.dp))
+                    val rawPhone = student.parentPhone.ifEmpty { student.phone }
+                    val displayPhone = if (isLocked) {
+                        if (rawPhone.length > 4) rawPhone.take(2) + "••••••" + rawPhone.takeLast(2) + " 🔒"
+                        else "•••••••••• 🔒"
+                    } else rawPhone
+                    val displayParent = if (isLocked && student.parentName.isNotBlank()) {
+                        student.parentName.take(3) + "•••"
+                    } else student.parentName
+
                     Text(
-                        text = "Parent: ${student.parentName} (${student.parentPhone.ifEmpty { student.phone }})",
+                        text = if (displayParent.isNotBlank()) "Parent: $displayParent ($displayPhone)" else "Contact: $displayPhone",
                         fontSize = 11.sp,
-                        color = Color.DarkGray
+                        color = if (isLocked) Color.Gray else Color.DarkGray,
+                        modifier = if (isLocked) Modifier.clickable { onUnlockPrompt() } else Modifier
                     )
                 }
             }
@@ -744,19 +1047,35 @@ fun StudentDirectoryCard(
             ) {
                 if (student.phone.isNotBlank()) {
                     IconButton(
-                        onClick = { onCall(student.phone) },
+                        onClick = {
+                            if (isLocked) onUnlockPrompt()
+                            else onCall(student.phone)
+                        },
                         modifier = Modifier.size(32.dp)
                     ) {
-                        Icon(Icons.Default.Phone, contentDescription = "Call", tint = Color(0xFF1E88E5), modifier = Modifier.size(18.dp))
+                        Icon(
+                            imageVector = if (isLocked) Icons.Default.Lock else Icons.Default.Phone,
+                            contentDescription = if (isLocked) "Biometric Lock" else "Call",
+                            tint = if (isLocked) Color.Gray else Color(0xFF1E88E5),
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                 }
 
                 if (student.parentPhone.isNotBlank() || student.phone.isNotBlank()) {
                     IconButton(
-                        onClick = { onWhatsApp(student.parentPhone.ifEmpty { student.phone }) },
+                        onClick = {
+                            if (isLocked) onUnlockPrompt()
+                            else onWhatsApp(student.parentPhone.ifEmpty { student.phone })
+                        },
                         modifier = Modifier.size(32.dp)
                     ) {
-                        Icon(Icons.Default.Chat, contentDescription = "WhatsApp", tint = Color(0xFF2E7D32), modifier = Modifier.size(18.dp))
+                        Icon(
+                            imageVector = if (isLocked) Icons.Default.Fingerprint else Icons.Default.Chat,
+                            contentDescription = if (isLocked) "Biometric Lock" else "WhatsApp",
+                            tint = if (isLocked) Color.Gray else Color(0xFF2E7D32),
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                 }
             }

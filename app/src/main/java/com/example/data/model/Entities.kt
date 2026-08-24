@@ -106,6 +106,29 @@ data class FeePayment(
     val transactionStatus: String = "SUCCESS"
 )
 
+@Entity(
+    tableName = "payment_logs",
+    foreignKeys = [
+        ForeignKey(
+            entity = Student::class,
+            parentColumns = ["id"],
+            childColumns = ["studentId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index(value = ["studentId"]), Index(value = ["transactionDate"])]
+)
+data class PaymentLog(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val studentId: Long,
+    val studentName: String = "",
+    val amountReceived: Double,
+    val transactionDate: Long = System.currentTimeMillis(),
+    val paymentMode: String = "UPI", // "UPI", "CASH", "CARD", "NET_BANKING"
+    val receiptNo: String = "",
+    val remarks: String = ""
+)
+
 @Entity(tableName = "transactions", indices = [Index(value = ["type"]), Index(value = ["date"])])
 data class FinancialTransaction(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -128,6 +151,9 @@ data class StudyMaterial(
     val content: String, // Plain text content or URL string
     val pdfName: String? = null,
     val youtubeUrl: String? = null,
+    val grade: String = "Grade 10",
+    val subject: String = "General",
+    val storageUrl: String = "",
     val timestamp: Long = System.currentTimeMillis()
 )
 

@@ -152,7 +152,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val defaultSlides = listOf(
             PromoSlide(0, "TAMS Smart Admissions Open", "Enroll today & get offline study kit free!", "ADMISSIONS 2026", "", 0),
             PromoSlide(1, "NDA & SSC Premium Batches", "Regular doubt sessions with personal mentors", "BATCH LIVE", "", 1),
-            PromoSlide(2, "Integrated Silent Library Hub", "Access 10,000+ offline books & high-speed Wi-Fi", "MEMBERSHIP", "", 2),
+            PromoSlide(2, "Curated Digital Study Kit", "Access 10,000+ chapter summaries & test sheets", "RESOURCES", "", 2),
             PromoSlide(3, "All India Offline Test Series", "Solve offline sheets & verify auto-rankings", "MOCK TESTS", "", 3),
             PromoSlide(4, "Need Instant Assistance?", "Tap here to chat with our expert academic counsellors", "HELP DESK", "", 4)
         )
@@ -690,418 +690,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         saveInstitutesList(updated)
     }
 
-    // === Library Subsystem (SaaS Physical Library) ===
-    private val _booksList = MutableStateFlow<List<Book>>(emptyList())
-    val booksList = _booksList.asStateFlow()
-
-    private val _bookLoansList = MutableStateFlow<List<BookLoan>>(emptyList())
-    val bookLoansList = _bookLoansList.asStateFlow()
-
-    private val _librarySeatsList = MutableStateFlow<List<LibrarySeat>>(emptyList())
-    val librarySeatsList = _librarySeatsList.asStateFlow()
-
-    private val _libraryAccounts = MutableStateFlow<List<LibraryAccount>>(emptyList())
-    val libraryAccounts = _libraryAccounts.asStateFlow()
-
-    private val _activeLibraryAccount = MutableStateFlow<LibraryAccount?>(null)
-    val activeLibraryAccount = _activeLibraryAccount.asStateFlow()
-
-    private val _libraryAttendanceLogs = MutableStateFlow<List<LibraryAttendance>>(emptyList())
-    val libraryAttendanceLogs = _libraryAttendanceLogs.asStateFlow()
-
-    private fun loadLibraryData() {
-        // Books
-        val bJson = getSafeString(sharedPrefs, "lib_books_json", "[]")
-        try {
-            val arr = JSONArray(bJson)
-            val list = mutableListOf<Book>()
-            for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-                list.add(
-                    Book(
-                        id = obj.optString("id", UUID.randomUUID().toString()),
-                        title = obj.optString("title", ""),
-                        author = obj.optString("author", ""),
-                        isbn = obj.optString("isbn", ""),
-                        category = obj.optString("category", ""),
-                        shelfLocation = obj.optString("shelfLocation", ""),
-                        totalCopies = obj.optInt("totalCopies", 1),
-                        availableCopies = obj.optInt("availableCopies", 1)
-                    )
-                )
-            }
-            _booksList.value = list
-        } catch (e: Exception) { e.printStackTrace() }
-
-        // Loans
-        val lJson = getSafeString(sharedPrefs, "lib_loans_json", "[]")
-        try {
-            val arr = JSONArray(lJson)
-            val list = mutableListOf<BookLoan>()
-            for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-                list.add(
-                    BookLoan(
-                        id = obj.optString("id", UUID.randomUUID().toString()),
-                        bookId = obj.optString("bookId", ""),
-                        studentId = obj.optLong("studentId", 0L),
-                        studentName = obj.optString("studentName", ""),
-                        issueDate = obj.optString("issueDate", ""),
-                        dueDate = obj.optString("dueDate", ""),
-                        returnDate = if (obj.isNull("returnDate")) null else obj.optString("returnDate"),
-                        fineAmount = obj.optDouble("fineAmount", 0.0)
-                    )
-                )
-            }
-            _bookLoansList.value = list
-        } catch (e: Exception) { e.printStackTrace() }
-
-        // Library Study Cabins/Seats
-        val sJson = getSafeString(sharedPrefs, "lib_seats_json", "[]")
-        try {
-            val arr = JSONArray(sJson)
-            val list = mutableListOf<LibrarySeat>()
-            for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-                list.add(
-                    LibrarySeat(
-                        id = obj.optString("id", UUID.randomUUID().toString()),
-                        seatNumber = obj.optString("seatNumber", ""),
-                        cabinBlock = obj.optString("cabinBlock", "Zone A"),
-                        rentPriceMonthly = obj.optDouble("rentPriceMonthly", 500.0),
-                        isBooked = obj.optBoolean("isBooked", false),
-                        bookedByStudentId = if (obj.isNull("bookedByStudentId")) null else obj.optLong("bookedByStudentId"),
-                        bookedByStudentName = if (obj.isNull("bookedByStudentName")) null else obj.optString("bookedByStudentName"),
-                        bookingStartDate = if (obj.isNull("bookingStartDate")) null else obj.optString("bookingStartDate"),
-                        bookingEndDate = if (obj.isNull("bookingEndDate")) null else obj.optString("bookingEndDate")
-                    )
-                )
-            }
-            if (list.isEmpty()) {
-                // Pre-seed some library seat desks
-                for (i in 1..20) {
-                    list.add(LibrarySeat("${System.currentTimeMillis()}-$i", "Cabin Slot #$i", "Main Quiet Hall", 400.0 + (i % 3) * 100.0, false, null, null, null, null))
-                }
-                saveLibrarySeatsList(list)
-            }
-            _librarySeatsList.value = list
-        } catch (e: Exception) { e.printStackTrace() }
-
-        // Library Accounts
-        val accountsJson = getSafeString(sharedPrefs, "lib_accounts_json", "[]")
-        try {
-            val arr = JSONArray(accountsJson)
-            val list = mutableListOf<LibraryAccount>()
-            for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-                list.add(
-                    LibraryAccount(
-                        rollNumber = obj.optString("rollNumber", ""),
-                        name = obj.optString("name", ""),
-                        phone = obj.optString("phone", ""),
-                        password = obj.optString("password", ""),
-                        isStaff = obj.optBoolean("isStaff", false),
-                        preferredShift = obj.optString("preferredShift", "Morning Shift (6 AM - 12 PM)"),
-                        preferredZone = obj.optString("preferredZone", "All")
-                    )
-                )
-            }
-            if (list.isEmpty()) {
-                // Completely empty - no prefilled accounts
-            }
-            _libraryAccounts.value = list
-        } catch (e: Exception) { e.printStackTrace() }
-
-        // Library Attendance Logs
-        val attJson = getSafeString(sharedPrefs, "lib_attendance_json", "[]")
-        try {
-            val arr = JSONArray(attJson)
-            val list = mutableListOf<LibraryAttendance>()
-            for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-                list.add(
-                    LibraryAttendance(
-                        id = obj.optString("id", UUID.randomUUID().toString()),
-                        studentName = obj.optString("studentName", ""),
-                        rollNumber = obj.optString("rollNumber", ""),
-                        phone = obj.optString("phone", ""),
-                        timestamp = obj.optString("timestamp", ""),
-                        type = obj.optString("type", "CHECK_IN")
-                    )
-                )
-            }
-            if (list.isEmpty()) {
-                saveLibraryAttendanceList(list)
-            }
-            _libraryAttendanceLogs.value = list
-        } catch (e: Exception) { e.printStackTrace() }
-    }
-
-    private fun saveBooksList(list: List<Book>) {
-        val arr = JSONArray()
-        for (b in list) {
-            val obj = JSONObject().apply {
-                put("id", b.id)
-                put("title", b.title)
-                put("author", b.author)
-                put("isbn", b.isbn)
-                put("category", b.category)
-                put("shelfLocation", b.shelfLocation)
-                put("totalCopies", b.totalCopies)
-                put("availableCopies", b.availableCopies)
-            }
-            arr.put(obj)
-        }
-        sharedPrefs.edit().putString("lib_books_json", arr.toString()).apply()
-        _booksList.value = list
-    }
-
-    private fun saveBookLoansList(list: List<BookLoan>) {
-        val arr = JSONArray()
-        for (l in list) {
-            val obj = JSONObject().apply {
-                put("id", l.id)
-                put("bookId", l.bookId)
-                put("studentId", l.studentId)
-                put("studentName", l.studentName)
-                put("issueDate", l.issueDate)
-                put("dueDate", l.dueDate)
-                if (l.returnDate == null) put("returnDate", JSONObject.NULL) else put("returnDate", l.returnDate)
-                put("fineAmount", l.fineAmount)
-            }
-            arr.put(obj)
-        }
-        sharedPrefs.edit().putString("lib_loans_json", arr.toString()).apply()
-        _bookLoansList.value = list
-    }
-
-    private fun saveLibrarySeatsList(list: List<LibrarySeat>) {
-        val arr = JSONArray()
-        for (s in list) {
-            val obj = JSONObject().apply {
-                put("id", s.id)
-                put("seatNumber", s.seatNumber)
-                put("cabinBlock", s.cabinBlock)
-                put("rentPriceMonthly", s.rentPriceMonthly)
-                put("isBooked", s.isBooked)
-                if (s.bookedByStudentId == null) put("bookedByStudentId", JSONObject.NULL) else put("bookedByStudentId", s.bookedByStudentId)
-                if (s.bookedByStudentName == null) put("bookedByStudentName", JSONObject.NULL) else put("bookedByStudentName", s.bookedByStudentName)
-                if (s.bookingStartDate == null) put("bookingStartDate", JSONObject.NULL) else put("bookingStartDate", s.bookingStartDate)
-                if (s.bookingEndDate == null) put("bookingEndDate", JSONObject.NULL) else put("bookingEndDate", s.bookingEndDate)
-            }
-            arr.put(obj)
-        }
-        sharedPrefs.edit().putString("lib_seats_json", arr.toString()).apply()
-        _librarySeatsList.value = list
-    }
-
-    fun addBook(title: String, author: String, isbn: String, category: String, shelfLocation: String, totalCopies: Int) {
-        val list = _booksList.value.toMutableList()
-        list.add(
-            Book(
-                id = UUID.randomUUID().toString(),
-                title = title,
-                author = author,
-                isbn = isbn,
-                category = category,
-                shelfLocation = shelfLocation,
-                totalCopies = totalCopies,
-                availableCopies = totalCopies
-            )
-        )
-        saveBooksList(list)
-    }
-
-    fun updateBook(book: Book) {
-        val updated = _booksList.value.map { if (it.id == book.id) book else it }
-        saveBooksList(updated)
-    }
-
-    fun deleteBook(id: String) {
-        val updated = _booksList.value.filter { it.id != id }
-        saveBooksList(updated)
-    }
-
-    private fun saveLibraryAccountsList(list: List<LibraryAccount>) {
-        val arr = JSONArray()
-        for (a in list) {
-            val obj = JSONObject().apply {
-                put("rollNumber", a.rollNumber)
-                put("name", a.name)
-                put("phone", a.phone)
-                put("password", a.password)
-                put("isStaff", a.isStaff)
-                put("preferredShift", a.preferredShift)
-                put("preferredZone", a.preferredZone)
-            }
-            arr.put(obj)
-        }
-        sharedPrefs.edit().putString("lib_accounts_json", arr.toString()).apply()
-        _libraryAccounts.value = list
-    }
-
-    private fun saveLibraryAttendanceList(list: List<LibraryAttendance>) {
-        val arr = JSONArray()
-        for (att in list) {
-            val obj = JSONObject().apply {
-                put("id", att.id)
-                put("studentName", att.studentName)
-                put("rollNumber", att.rollNumber)
-                put("phone", att.phone)
-                put("timestamp", att.timestamp)
-                put("type", att.type)
-            }
-            arr.put(obj)
-        }
-        sharedPrefs.edit().putString("lib_attendance_json", arr.toString()).apply()
-        _libraryAttendanceLogs.value = list
-    }
-
-    fun registerLibraryAccount(
-        rollNumber: String,
-        name: String,
-        phone: String,
-        pass: String,
-        isStaff: Boolean = false,
-        preferredShift: String = "Morning Shift (6 AM - 12 PM)",
-        preferredZone: String = "All"
-    ): Boolean {
-        val list = _libraryAccounts.value.toMutableList()
-        if (list.any { it.rollNumber.equals(rollNumber, ignoreCase = true) }) {
-            return false // Already exists
-        }
-        val newAcc = LibraryAccount(rollNumber, name, phone, pass, isStaff, preferredShift, preferredZone)
-        list.add(newAcc)
-        saveLibraryAccountsList(list)
-        return true
-    }
-
-    fun loginLibraryAccount(rollNumber: String, pass: String): Boolean {
-        val found = _libraryAccounts.value.find { 
-            it.rollNumber.equals(rollNumber, ignoreCase = true) && it.password == pass 
-        }
-        if (found != null) {
-            _activeLibraryAccount.value = found
-            return true
-        }
-        return false
-    }
-
-    fun logoutLibraryAccount() {
-        _activeLibraryAccount.value = null
-    }
-
-    fun addLibraryAttendance(rollNumber: String, studentName: String, phone: String, type: String): String {
-        val list = _libraryAttendanceLogs.value.toMutableList()
-        val timeFormat = java.text.SimpleDateFormat("yyyy-MM-dd hh:mm a", java.util.Locale.getDefault())
-        val timestampString = timeFormat.format(java.util.Date())
-        val newLog = LibraryAttendance(
-            id = "att_${System.currentTimeMillis()}",
-            studentName = studentName,
-            rollNumber = rollNumber,
-            phone = phone,
-            timestamp = timestampString,
-            type = type
-        )
-        list.add(0, newLog)
-        saveLibraryAttendanceList(list)
-        return timestampString
-    }
-
-    fun issueBook(bookId: String, studentId: Long, studentName: String, issueDate: String, dueDate: String) {
-        val loans = _bookLoansList.value.toMutableList()
-        loans.add(
-            BookLoan(
-                id = UUID.randomUUID().toString(),
-                bookId = bookId,
-                studentId = studentId,
-                studentName = studentName,
-                issueDate = issueDate,
-                dueDate = dueDate,
-                returnDate = null,
-                fineAmount = 0.0
-            )
-        )
-        val books = _booksList.value.map {
-            if (it.id == bookId) it.copy(availableCopies = (it.availableCopies - 1).coerceAtLeast(0)) else it
-        }
-        saveBooksList(books)
-        saveBookLoansList(loans)
-    }
-
-    fun returnBook(loanId: String, returnDate: String, fineAmount: Double) {
-        var bookIdToReplenish: String? = null
-        val updatedLoans = _bookLoansList.value.map {
-            if (it.id == loanId) {
-                bookIdToReplenish = it.bookId
-                it.copy(returnDate = returnDate, fineAmount = fineAmount)
-            } else it
-        }
-        if (bookIdToReplenish != null) {
-            val books = _booksList.value.map {
-                if (it.id == bookIdToReplenish) it.copy(availableCopies = (it.availableCopies + 1).coerceAtLeast(0).coerceAtMost(it.totalCopies)) else it
-            }
-            saveBooksList(books)
-        }
-        saveBookLoansList(updatedLoans)
-    }
-
-    fun addLibrarySeat(seatNumber: String, cabinBlock: String, rentPrice: Double) {
-        val list = _librarySeatsList.value.toMutableList()
-        list.add(
-            LibrarySeat(
-                id = UUID.randomUUID().toString(),
-                seatNumber = seatNumber,
-                cabinBlock = cabinBlock,
-                rentPriceMonthly = rentPrice,
-                isBooked = false,
-                bookedByStudentId = null,
-                bookedByStudentName = null,
-                bookingStartDate = null,
-                bookingEndDate = null
-            )
-        )
-        saveLibrarySeatsList(list)
-    }
-
-    fun bookLibrarySeat(seatId: String, studentId: Long, studentName: String, startDate: String, endDate: String) {
-        val updated = _librarySeatsList.value.map {
-            if (it.id == seatId) {
-                it.copy(
-                    isBooked = true,
-                    bookedByStudentId = studentId,
-                    bookedByStudentName = studentName,
-                    bookingStartDate = startDate,
-                    bookingEndDate = endDate
-                )
-            } else it
-        }
-        saveLibrarySeatsList(updated)
-    }
-
-    fun releaseLibrarySeat(seatId: String) {
-        val updated = _librarySeatsList.value.map {
-            if (it.id == seatId) {
-                it.copy(
-                    isBooked = false,
-                    bookedByStudentId = null,
-                    bookedByStudentName = null,
-                    bookingStartDate = null,
-                    bookingEndDate = null
-                )
-            } else it
-        }
-        saveLibrarySeatsList(updated)
-    }
-
-    fun deleteLibrarySeat(seatId: String) {
-        val updated = _librarySeatsList.value.filter { it.id != seatId }
-        saveLibrarySeatsList(updated)
-    }
-
     // === Device & Safety Settings ===
     private val _isBiometricLocked = MutableStateFlow(getSafeBoolean(sharedPrefs, "biometric_locked", false))
     val isBiometricLocked = _isBiometricLocked.asStateFlow()
+
+    private val _isAppEntryBiometricProtected = MutableStateFlow(getSafeBoolean(sharedPrefs, "app_entry_biometric_protected", true))
+    val isAppEntryBiometricProtected = _isAppEntryBiometricProtected.asStateFlow()
+
+    private val _isAppEntryAuthenticated = MutableStateFlow(false)
+    val isAppEntryAuthenticated = _isAppEntryAuthenticated.asStateFlow()
+
+    fun setAppEntryAuthenticated(authenticated: Boolean) {
+        _isAppEntryAuthenticated.value = authenticated
+    }
+
+    fun setAppEntryBiometricProtected(enabled: Boolean) {
+        sharedPrefs.edit().putBoolean("app_entry_biometric_protected", enabled).apply()
+        _isAppEntryBiometricProtected.value = enabled
+        if (!enabled) {
+            _isAppEntryAuthenticated.value = true
+        }
+    }
 
     private val _isStudentPaymentBiometricProtected = MutableStateFlow(getSafeBoolean(sharedPrefs, "student_payment_biometric_protected", true))
     val isStudentPaymentBiometricProtected = _isStudentPaymentBiometricProtected.asStateFlow()
@@ -1119,9 +728,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val rawBatches = repository.allBatches
     private val rawStudents = repository.allStudents
     private val rawFeePayments = repository.allFeePayments
+    private val rawPaymentLogs = repository.allPaymentLogs
     private val rawTransactions = repository.allTransactions
     private val rawStudyMaterials = repository.allStudyMaterials
     private val rawExams = repository.allExams
+
+    val paymentLogs = rawPaymentLogs.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val batches = combine(rawBatches, _adminEmail, _currentUserRole) { list, email, role ->
         if (role == "ADMIN" || role == "STUDENT" || role == "PARENT" || role == "GUEST" || email.isBlank()) {
@@ -1660,7 +1272,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun seedDefaultChatChannels() {
-        viewModelScope.launch {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             val current = repository.allChatChannels.first()
             if (current.isEmpty()) {
                 val channels = listOf(
@@ -2231,7 +1843,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // === Financial Ledger Logic ===
+    // === Financial Ledger Logic & Payment Logging ===
     fun collectFeePayment(
         studentId: Long,
         amount: Double,
@@ -2260,12 +1872,28 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val paymentId = repository.insertFeePayment(payment)
             val paymentWithId = payment.copy(id = paymentId)
 
+            val studentObj = repository.getStudentById(studentId)
+            val studentName = studentObj?.name ?: "Student #$studentId"
+
+            // Record transaction date, student ID, and amount received in Room PaymentLog
+            repository.insertPaymentLog(
+                PaymentLog(
+                    studentId = studentId,
+                    studentName = studentName,
+                    amountReceived = amount,
+                    transactionDate = datePaid,
+                    paymentMode = mode,
+                    receiptNo = receipt,
+                    remarks = remarks.ifBlank { "$feeType tuition payment for $month" }
+                )
+            )
+
             repository.insertTransaction(
                 FinancialTransaction(
                     type = "INCOME",
                     amount = amount,
                     category = "Fee Payment",
-                    description = "Monthly / Course Tuition fee collected for student id: $studentId",
+                    description = "Monthly / Course Tuition fee collected for student id: $studentId ($studentName)",
                     instituteEmail = _adminEmail.value
                 )
             )
@@ -2280,6 +1908,51 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) {
                 android.util.Log.e("AppViewModel", "Firestore sync failed silently: ${e.localizedMessage}")
             }
+        }
+    }
+
+    fun logPayment(
+        studentId: Long,
+        amount: Double,
+        mode: String = "UPI",
+        remarks: String = "",
+        studentName: String = "",
+        date: Long = System.currentTimeMillis()
+    ) {
+        viewModelScope.launch {
+            val resolvedName = if (studentName.isNotBlank()) {
+                studentName
+            } else {
+                val studentObj = repository.getStudentById(studentId)
+                studentObj?.name ?: "Student #$studentId"
+            }
+            val receipt = "REC-PL-${System.currentTimeMillis() % 100000}"
+            repository.insertPaymentLog(
+                PaymentLog(
+                    studentId = studentId,
+                    studentName = resolvedName,
+                    amountReceived = amount,
+                    transactionDate = date,
+                    paymentMode = mode,
+                    receiptNo = receipt,
+                    remarks = remarks
+                )
+            )
+            repository.insertTransaction(
+                FinancialTransaction(
+                    type = "INCOME",
+                    amount = amount,
+                    category = "Direct Payment Log",
+                    description = "Payment received from student $studentId ($resolvedName) - Mode: $mode",
+                    instituteEmail = _adminEmail.value
+                )
+            )
+        }
+    }
+
+    fun deletePaymentLog(log: PaymentLog) {
+        viewModelScope.launch {
+            repository.deletePaymentLog(log)
         }
     }
 
@@ -2338,8 +2011,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // === Academics & Interactive Study Material ===
-    fun uploadStudyMaterial(batchId: Long, category: String, subCategory: String, title: String, type: String, content: String, pdf: String? = null, tube: String? = null) {
-        viewModelScope.launch {
+    fun uploadStudyMaterial(
+        batchId: Long,
+        category: String,
+        subCategory: String,
+        title: String,
+        type: String,
+        content: String,
+        pdf: String? = null,
+        tube: String? = null,
+        grade: String = "Grade 10",
+        subject: String = "General",
+        storageUrl: String = ""
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
             repository.insertStudyMaterial(
                 StudyMaterial(
                     batchId = batchId,
@@ -2349,10 +2034,67 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     contentType = type,
                     content = content,
                     pdfName = pdf,
-                    youtubeUrl = tube
+                    youtubeUrl = tube,
+                    grade = grade,
+                    subject = subject,
+                    storageUrl = storageUrl
                 )
             )
-            Toast.makeText(context, "Study resources updated for Batch category!", Toast.LENGTH_SHORT).show()
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "Digital study resource added ($grade / $subject)!", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    fun uploadDigitalMaterialWithFirebaseStorage(
+        ctx: Context,
+        fileUri: android.net.Uri,
+        fileName: String,
+        batchId: Long,
+        title: String,
+        grade: String,
+        subject: String,
+        contentType: String = "PDF"
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(ctx, "Uploading file to Firebase Storage...", Toast.LENGTH_SHORT).show()
+            }
+            val downloadUrl = com.example.services.FirebaseService.uploadStudyMaterialToFirebaseStorage(
+                context = ctx,
+                fileUri = fileUri,
+                fileName = fileName,
+                grade = grade,
+                subject = subject
+            ) ?: ""
+
+            repository.insertStudyMaterial(
+                StudyMaterial(
+                    batchId = batchId,
+                    mainCategory = grade,
+                    topicSubCategory = subject,
+                    title = title,
+                    contentType = contentType,
+                    content = downloadUrl.ifEmpty { "Local upload: $fileName" },
+                    pdfName = fileName,
+                    grade = grade,
+                    subject = subject,
+                    storageUrl = downloadUrl
+                )
+            )
+
+            withContext(Dispatchers.Main) {
+                Toast.makeText(ctx, "Study material '$title' uploaded & backed up to Firebase Storage!", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    fun checkFirestoreDuesThreshold(ctx: Context, threshold: Double) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val alerts = com.example.services.FirebaseService.checkFirestorePendingDuesAndNotify(ctx, threshold)
+            withContext(Dispatchers.Main) {
+                Toast.makeText(ctx, "Firestore Dues Check Complete! Triggered $alerts notification(s) for dues ≥ ₹${threshold.toInt()}", Toast.LENGTH_LONG).show()
+            }
         }
     }
 
@@ -2826,7 +2568,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // === Seeding Initial Mock Data (Preserving only functional outreach templates) ===
-    private suspend fun seedInitialTamsData() {
+    private suspend fun seedInitialTamsData() = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         // Seed template outreach options
         repository.insertMessageTemplate(
             MessageTemplate(
@@ -2849,7 +2591,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         try {
             loadInstitutes()
             loadSubscriberTransactions()
-            loadLibraryData()
             loadPromoSlides()
             loadPersonalNotes()
         } catch (e: Exception) {
@@ -2869,7 +2610,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         // Init 3
-        viewModelScope.launch {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
                 batches.first { true }.let { list ->
                     if (list.isEmpty()) {
@@ -2885,7 +2626,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun runBackgroundFeeCheckService(ctx: Context) {
-        viewModelScope.launch {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
                 // Ensure database has had time to load/seed
                 delay(3000)
@@ -3011,59 +2752,6 @@ data class StaffProfile(
     val phone: String,
     val allowedScreens: Set<String>,
     val isActive: Boolean = true
-)
-
-data class Book(
-    val id: String,
-    val title: String,
-    val author: String,
-    val isbn: String,
-    val category: String,
-    val shelfLocation: String,
-    val totalCopies: Int,
-    val availableCopies: Int
-)
-
-data class BookLoan(
-    val id: String,
-    val bookId: String,
-    val studentId: Long,
-    val studentName: String,
-    val issueDate: String,
-    val dueDate: String,
-    val returnDate: String?,
-    val fineAmount: Double
-)
-
-data class LibrarySeat(
-    val id: String,
-    val seatNumber: String,
-    val cabinBlock: String,
-    val rentPriceMonthly: Double,
-    val isBooked: Boolean,
-    val bookedByStudentId: Long?,
-    val bookedByStudentName: String?,
-    val bookingStartDate: String?,
-    val bookingEndDate: String?
-)
-
-data class LibraryAccount(
-    val rollNumber: String,
-    val name: String,
-    val phone: String,
-    val password: String,
-    val isStaff: Boolean = false,
-    val preferredShift: String = "Morning Shift (6 AM - 12 PM)",
-    val preferredZone: String = "All"
-)
-
-data class LibraryAttendance(
-    val id: String,
-    val studentName: String,
-    val rollNumber: String,
-    val phone: String,
-    val timestamp: String,
-    val type: String // "CHECK_IN" or "CHECK_OUT"
 )
 
 data class TeacherAccount(
