@@ -9,6 +9,7 @@ import com.example.data.database.AppDatabase
 import com.example.data.model.*
 import com.example.repository.AppRepository
 import com.example.services.FirebaseService
+import com.example.services.SupabaseService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
@@ -1907,6 +1908,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } catch (e: Exception) {
                 android.util.Log.e("AppViewModel", "Firestore sync failed silently: ${e.localizedMessage}")
+            }
+
+            // Sync with Supabase PostgreSQL cloud table & Local offline queue
+            try {
+                SupabaseService.syncPaymentToSupabase(
+                    context = context,
+                    payment = paymentWithId,
+                    studentName = studentName,
+                    studentPhone = studentObj?.phone ?: ""
+                )
+                android.util.Log.d("AppViewModel", "Payment successfully synced to Supabase for receipt: $receipt")
+            } catch (e: Exception) {
+                android.util.Log.e("AppViewModel", "Supabase sync error: ${e.localizedMessage}")
             }
         }
     }

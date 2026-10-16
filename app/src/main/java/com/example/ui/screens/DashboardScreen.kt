@@ -46,6 +46,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.text.style.TextDecoration
 import com.example.data.model.*
+import com.example.services.SupabaseService
+import com.example.ui.components.*
 import com.example.ui.viewmodel.AppViewModel
 import com.example.ui.viewmodel.InstituteAccount
 import kotlinx.coroutines.delay
@@ -495,7 +497,7 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                                 }
                                                 Spacer(modifier = Modifier.width(16.dp))
                                                 Text(
-                                                    text = "Main Menu",
+                                                    text = "TAMS",
                                                     fontWeight = FontWeight.Bold,
                                                     fontSize = 20.sp,
                                                     color = Color.White,
@@ -547,7 +549,7 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                             }) {
                                                 Icon(
                                                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                                    contentDescription = "Back to Main Menu",
+                                                    contentDescription = "Back to TAMS",
                                                     tint = MaterialTheme.colorScheme.onSurface
                                                 )
                                             }
