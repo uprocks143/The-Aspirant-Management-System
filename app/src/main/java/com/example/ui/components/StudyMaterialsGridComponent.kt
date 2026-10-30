@@ -430,13 +430,13 @@ fun StudyMaterialsGridComponent(
             onAdd = { batchId, category, subCategory, title, type, content, pdfName, youtubeUrl ->
                 viewModel.uploadStudyMaterial(
                     batchId = batchId,
-                    mainCategory = category,
-                    topicSubCategory = subCategory,
+                    category = category,
+                    subCategory = subCategory,
                     title = title,
-                    contentType = type,
+                    type = type,
                     content = content,
-                    pdfName = pdfName,
-                    youtubeUrl = youtubeUrl
+                    pdf = pdfName,
+                    tube = youtubeUrl
                 )
                 showAddMaterialDialog = false
                 Toast.makeText(context, "Digital resource added successfully!", Toast.LENGTH_SHORT).show()

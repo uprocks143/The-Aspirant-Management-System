@@ -804,6 +804,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val notices = repository.allNotices.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        emptyList()
+    )
+
     // === Dynamic Local Selected States ===
     private val _selectedBatchIdForAttendance = MutableStateFlow<Long?>(null)
     val selectedBatchIdForAttendance = _selectedBatchIdForAttendance.asStateFlow()
@@ -984,6 +990,40 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
         repository.startRealtimeFirestoreSync(viewModelScope)
         runDailyFirestoreBackup()
+
+        viewModelScope.launch {
+            try {
+                val existing = repository.allNotices.firstOrNull()
+                if (existing == null || existing.isEmpty()) {
+                    repository.insertNotice(
+                        Notice(
+                            title = "🚨 Urgent: Revised Evening Class Timings",
+                            content = "All batch science & math lab practical sessions will start 30 minutes earlier from tomorrow due to scheduled campus maintenance. Attendance is strictly recorded.",
+                            authorName = "Academic Dean",
+                            category = "URGENT",
+                            targetBatchId = 0L,
+                            isPinned = true,
+                            createdAt = System.currentTimeMillis() - 3600000L
+                        )
+                    )
+                    repository.insertNotice(
+                        Notice(
+                            title = "📅 Term-1 Mock Board Exam Schedule",
+                            content = "Final Mock Examination Timetable:\n• Mathematics: Monday (10:00 AM - 01:00 PM)\n• Physics / Chemistry: Wednesday (10:00 AM - 01:00 PM)\n• Biology / Computer: Friday (10:00 AM - 01:00 PM)\nPlease carry your Student ID Card and stationery.",
+                            authorName = "Examination Controller",
+                            category = "EXAM_SCHEDULE",
+                            targetBatchId = 0L,
+                            isPinned = true,
+                            examDate = "Upcoming Monday",
+                            examTime = "10:00 AM - 01:00 PM",
+                            createdAt = System.currentTimeMillis()
+                        )
+                    )
+                }
+            } catch (e: Exception) {
+                // Ignore initial seeding error if any
+            }
+        }
     }
 
     fun toggleAssignmentCompleted(assignmentId: Long) {
@@ -1354,21 +1394,84 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             .apply()
     }
 
+    fun authenticateStudent(identifier: String): Student? {
+        val clean = identifier.trim()
+        if (clean.isBlank()) return null
+        val normalizedDigits = clean.filter { it.isDigit() }
+        val last10 = if (normalizedDigits.length >= 10) normalizedDigits.takeLast(10) else normalizedDigits
+
+        return students.value.find { student ->
+            val sPhoneDigits = student.phone.filter { it.isDigit() }
+            val sParentPhoneDigits = student.parentPhone.filter { it.isDigit() }
+            val sEmail = student.email.trim()
+            val sCustom1 = student.customField1.trim()
+
+            val matchesEmail = clean.contains("@") && (
+                sEmail.equals(clean, ignoreCase = true) ||
+                sCustom1.equals(clean, ignoreCase = true)
+            )
+
+            val matchesPhone = if (last10.length >= 10) {
+                sPhoneDigits.endsWith(last10) || sParentPhoneDigits.endsWith(last10)
+            } else if (normalizedDigits.isNotEmpty()) {
+                sPhoneDigits == normalizedDigits || sParentPhoneDigits == normalizedDigits
+            } else {
+                false
+            }
+
+            matchesEmail || matchesPhone ||
+            student.phone.trim().equals(clean, ignoreCase = true) ||
+            sEmail.equals(clean, ignoreCase = true) ||
+            sCustom1.equals(clean, ignoreCase = true)
+        }
+    }
+
     fun authenticateStudent(rollNumber: String, phone: String): Student? {
-        val cleanRoll = rollNumber.trim()
-        val cleanPhone = phone.trim()
-        return students.value.find { 
-            it.rollNumber.equals(cleanRoll, ignoreCase = true) && it.phone == cleanPhone
+        val byRollAndPhone = students.value.find { 
+            it.rollNumber.equals(rollNumber.trim(), ignoreCase = true) && it.phone == phone.trim()
+        }
+        return byRollAndPhone ?: authenticateStudent(phone)
+    }
+
+    fun authenticateParent(identifier: String): Student? {
+        val clean = identifier.trim()
+        if (clean.isBlank()) return null
+        val normalizedDigits = clean.filter { it.isDigit() }
+        val last10 = if (normalizedDigits.length >= 10) normalizedDigits.takeLast(10) else normalizedDigits
+
+        return students.value.find { student ->
+            val sParentPhoneDigits = student.parentPhone.filter { it.isDigit() }
+            val sPhoneDigits = student.phone.filter { it.isDigit() }
+            val sEmail = student.email.trim()
+            val sCustom1 = student.customField1.trim()
+
+            val matchesEmail = clean.contains("@") && (
+                sEmail.equals(clean, ignoreCase = true) ||
+                sCustom1.equals(clean, ignoreCase = true)
+            )
+
+            val matchesPhone = if (last10.length >= 10) {
+                sParentPhoneDigits.endsWith(last10) || sPhoneDigits.endsWith(last10)
+            } else if (normalizedDigits.isNotEmpty()) {
+                sParentPhoneDigits == normalizedDigits || sPhoneDigits == normalizedDigits
+            } else {
+                false
+            }
+
+            matchesEmail || matchesPhone ||
+            student.parentPhone.trim().equals(clean, ignoreCase = true) ||
+            student.phone.trim().equals(clean, ignoreCase = true) ||
+            sEmail.equals(clean, ignoreCase = true) ||
+            sCustom1.equals(clean, ignoreCase = true)
         }
     }
 
     fun authenticateParent(childRollNumber: String, parentPhone: String): Student? {
-        val cleanRoll = childRollNumber.trim()
-        val cleanPhone = parentPhone.trim()
-        return students.value.find {
-            it.rollNumber.equals(cleanRoll, ignoreCase = true) && 
-            (it.parentPhone == cleanPhone || it.phone == cleanPhone)
+        val byRollAndPhone = students.value.find {
+            it.rollNumber.equals(childRollNumber.trim(), ignoreCase = true) && 
+            (it.parentPhone == parentPhone.trim() || it.phone == parentPhone.trim())
         }
+        return byRollAndPhone ?: authenticateParent(parentPhone)
     }
 
     fun updateStaffAccess(screens: Set<String>) {
@@ -1619,7 +1722,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         photoPath: String? = null,
         docPath: String? = null,
         startDate: String = "2026-06-14",
-        enrollmentStatus: String = "Active"
+        enrollmentStatus: String = "Active",
+        email: String = ""
     ) {
         viewModelScope.launch {
             // 1. Create student
@@ -1644,7 +1748,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 documentAttachments = docPath,
                 familyId = familyId.ifEmpty { UUID.randomUUID().toString().substring(0, 8) },
                 isAlumni = (enrollmentStatus == "Alumni"),
-                enrollmentStatus = enrollmentStatus
+                enrollmentStatus = enrollmentStatus,
+                email = email
             )
             val studentId = repository.insertStudent(studentToInsert)
             val studentWithId = studentToInsert.copy(id = studentId)
@@ -1660,53 +1765,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 android.util.Log.e("AppViewModel", "Firestore student sync failed: ${e.localizedMessage}")
             }
 
-            // 2. Log initial Admission Fee payment if > 0
-            if (admissionFee > 0.0) {
-                repository.insertFeePayment(
-                    FeePayment(
-                        studentId = studentId,
-                        feeType = feeType,
-                        amountPaid = admissionFee,
-                        receiptNo = "REC-ADM-${System.currentTimeMillis() % 10000}",
-                        monthPaidFor = "Initial Admission",
-                        paymentMode = "CASH",
-                        remarks = "Admission Fee Paid"
-                    )
-                )
-                repository.insertTransaction(
-                    FinancialTransaction(
-                        type = "INCOME",
-                        amount = admissionFee,
-                        category = "Admission Fee",
-                        description = "Admission Fee collected for student: $name",
-                        instituteEmail = _adminEmail.value
-                    )
-                )
-            }
-
-            // 3. Log initial Registration Fee payment if > 0
-            if (regFee > 0.0) {
-                repository.insertFeePayment(
-                    FeePayment(
-                        studentId = studentId,
-                        feeType = feeType,
-                        amountPaid = regFee,
-                        receiptNo = "REC-REG-${System.currentTimeMillis() % 10000}",
-                        monthPaidFor = "Initial Registration",
-                        paymentMode = "CASH",
-                        remarks = "Registration Fee Paid"
-                    )
-                )
-                repository.insertTransaction(
-                    FinancialTransaction(
-                        type = "INCOME",
-                        amount = regFee,
-                        category = "Registration Fee",
-                        description = "Registration Fee collected for student: $name",
-                        instituteEmail = _adminEmail.value
-                    )
-                )
-            }
+            // Note: On registering a student, fees should NOT be deposited automatically.
+            // Any fee deposit entry must be made from the "Tuition Fees" option on the dashboard.
 
             // 4. Auto dispatch simulation or alert trigger (Mock notification channel logs)
             Toast.makeText(context, "Student Registered successfully! Welcome SMS dispatched for $name.", Toast.LENGTH_SHORT).show()
@@ -2144,6 +2204,50 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // === Notice Board & Pinned Student Dashboard Updates ===
+    fun postNotice(
+        title: String,
+        content: String,
+        author: String = "Faculty Admin",
+        category: String = "URGENT",
+        targetBatchId: Long = 0L,
+        isPinned: Boolean = true,
+        examDate: String = "",
+        examTime: String = ""
+    ) {
+        viewModelScope.launch {
+            repository.insertNotice(
+                Notice(
+                    title = title.trim(),
+                    content = content.trim(),
+                    authorName = author.trim().ifEmpty { "Faculty Admin" },
+                    category = category,
+                    targetBatchId = targetBatchId,
+                    isPinned = isPinned,
+                    examDate = examDate.trim(),
+                    examTime = examTime.trim(),
+                    createdAt = System.currentTimeMillis()
+                )
+            )
+            Toast.makeText(context, "📢 Notice posted on Student Dashboard!", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun toggleNoticePinned(noticeId: Long, isPinned: Boolean) {
+        viewModelScope.launch {
+            repository.updateNoticePinnedStatus(noticeId, isPinned)
+            val msg = if (isPinned) "Notice pinned to Student Dashboard" else "Notice unpinned"
+            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun deleteNotice(noticeId: Long) {
+        viewModelScope.launch {
+            repository.deleteNotice(noticeId)
+            Toast.makeText(context, "Notice removed", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     // === Study Material Quizzes & Interactive Assessments ===
     fun getQuizzesForMaterial(studyMaterialId: Long): Flow<List<MaterialQuiz>> {
         return repository.getQuizzesForMaterial(studyMaterialId)
@@ -2490,6 +2594,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun updateGoogleDriveBackupFrequency(freq: String) {
         _googleDriveBackupFrequency.value = freq
         sharedPrefs.edit().putString("google_drive_backup_frequency", freq).apply()
+    }
+
+    val allAttendanceList: kotlinx.coroutines.flow.Flow<List<com.example.data.model.Attendance>> = repository.allAttendanceList
+
+    fun backupToGoogleDrive(onProgress: (String) -> Unit) {
+        triggerGoogleDriveBackup(onProgress)
     }
 
     fun triggerGoogleDriveBackup(onProgress: (String) -> Unit) {

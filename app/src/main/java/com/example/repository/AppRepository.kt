@@ -233,4 +233,12 @@ class AppRepository(private val appDao: AppDao) {
     fun getAssignmentsForBatch(batchId: Long): Flow<List<Assignment>> = appDao.getAssignmentsForBatch(batchId)
     suspend fun insertAssignment(assignment: Assignment): Long = appDao.insertAssignment(assignment)
     suspend fun deleteAssignment(assignment: Assignment) = appDao.deleteAssignment(assignment)
+
+    // === Notice Board ===
+    val allNotices: Flow<List<Notice>> = appDao.getAllNotices()
+    fun getNoticesForBatch(batchId: Long): Flow<List<Notice>> = appDao.getNoticesForBatch(batchId)
+    fun getPinnedNoticesForBatch(batchId: Long): Flow<List<Notice>> = appDao.getPinnedNoticesForBatch(batchId)
+    suspend fun insertNotice(notice: Notice): Long = appDao.insertNotice(notice)
+    suspend fun updateNoticePinnedStatus(noticeId: Long, isPinned: Boolean): Int = appDao.updateNoticePinnedStatus(noticeId, isPinned)
+    suspend fun deleteNotice(noticeId: Long): Int = appDao.deleteNotice(noticeId)
 }

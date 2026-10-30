@@ -61,6 +61,8 @@ fun MonthlyPaymentDashboardScreen(
     val feePayments by viewModel.feePayments.collectAsState()
     val students by viewModel.students.collectAsState()
     val batches by viewModel.batches.collectAsState()
+    val merchantUpiId by viewModel.merchantUpiId.collectAsState()
+    val merchantName by viewModel.merchantName.collectAsState()
 
     val isProtected by viewModel.isStudentPaymentBiometricProtected.collectAsState()
     val isUnlocked by viewModel.isStudentAndPaymentBiometricUnlocked.collectAsState()
@@ -495,15 +497,50 @@ fun MonthlyPaymentDashboardScreen(
                                         if (due > 0) {
                                             Button(
                                                 onClick = {
-                                                    try {
-                                                        val msg = "Dear Parent, this is a reminder regarding pending fee dues of ₹${due.toInt()} for ${st.name} at TAMS Academy. Kindly clear at your earliest."
-                                                        val phone = st.parentPhone.ifEmpty { st.phone }.replace(Regex("[^0-9]"), "")
-                                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/91$phone?text=${Uri.encode(msg)}"))
-                                                        context.startActivity(intent)
-                                                    } catch (e: Exception) {
-                                                        Toast.makeText(context, "Could not launch WhatsApp", Toast.LENGTH_SHORT).show()
-                                                    }
-                                                },
+                                                    val effectiveUpi = merchantUpiId.ifBlank { "smtsharma282.sks@okaxis" }
+                                                        val effectiveAcademyName = merchantName.ifBlank { "TAMS Academy" }
+                                                        val dueAmount = due.toInt()
+                                                        val clickToPayLink = "https://upiqr.in/pay/$effectiveUpi/$dueAmount"
+                                                        val encodedAcademy = Uri.encode(effectiveAcademyName)
+                                                        val encodedStudent = Uri.encode(st.name)
+                                                        val upiDeepLink = "upi://pay?pa=$effectiveUpi&pn=$encodedAcademy&am=$dueAmount&cu=INR&tn=Fee%20Dues%20for%20$encodedStudent"
+
+                                                        val msg = "📢 *FEE PAYMENT REMINDER - $effectiveAcademyName*\n\n" +
+                                                                "Dear Parent,\n" +
+                                                                "This is a gentle reminder that tuition fee dues of *₹$dueAmount* are pending for *${st.name}* (${st.studentClass.ifEmpty { "Class 10th" }}).\n\n" +
+                                                                "👉 *Click here to Pay directly via any UPI App (GPay / PhonePe / Paytm / BHIM):*\n" +
+                                                                "$clickToPayLink\n\n" +
+                                                                "🔗 *Direct UPI Link:*\n$upiDeepLink\n\n" +
+                                                                "💳 *UPI ID:* $effectiveUpi\n\n" +
+                                                                "Kindly clear the dues at your earliest convenience.\n\n" +
+                                                                "Thank you,\n*$effectiveAcademyName*"
+
+                                                        val rawPhone = st.parentPhone.ifEmpty { st.phone }.replace(Regex("[^0-9]"), "")
+                                                        if (rawPhone.isBlank()) {
+                                                            Toast.makeText(context, "No contact number for ${st.name}", Toast.LENGTH_SHORT).show()
+                                                            return@Button
+                                                        }
+                                                        val cleanPhone = when {
+                                                            rawPhone.startsWith("91") && rawPhone.length == 12 -> rawPhone
+                                                            rawPhone.startsWith("0") && rawPhone.length == 11 -> "91" + rawPhone.substring(1)
+                                                            rawPhone.length == 10 -> "91$rawPhone"
+                                                            else -> rawPhone
+                                                        }
+                                                        try {
+                                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$cleanPhone?text=${Uri.encode(msg)}"))
+                                                            context.startActivity(intent)
+                                                        } catch (e: Exception) {
+                                                            try {
+                                                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                                                    type = "text/plain"
+                                                                    putExtra(Intent.EXTRA_TEXT, msg)
+                                                                }
+                                                                context.startActivity(Intent.createChooser(shareIntent, "Share Payment Reminder"))
+                                                            } catch (e2: Exception) {
+                                                                Toast.makeText(context, "Could not launch messaging app", Toast.LENGTH_SHORT).show()
+                                                            }
+                                                        }
+                                                    },
                                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
                                                 shape = RoundedCornerShape(8.dp),
                                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
@@ -673,18 +710,29 @@ fun FinanceStatCard(
     modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = if (onClick != null) modifier.clickable { onClick() } else modifier,
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = container)
+        modifier = if (onClick != null) modifier.clip(RoundedCornerShape(14.dp)).clickable { onClick() } else modifier,
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = container),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.25f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(modifier = Modifier.padding(10.dp)) {
+        Column(modifier = Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                Text(title, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = color)
-                Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
+                Text(title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color)
+                Surface(
+                    shape = CircleShape,
+                    color = color.copy(alpha = 0.12f),
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(14.dp))
+                    }
+                }
             }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(amount, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = color)
-            Text(subtitle, fontSize = 9.sp, color = color.copy(alpha = 0.8f))
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(amount, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = color)
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(subtitle, fontSize = 10.sp, color = color.copy(alpha = 0.85f), fontWeight = FontWeight.Medium)
         }
     }
 }

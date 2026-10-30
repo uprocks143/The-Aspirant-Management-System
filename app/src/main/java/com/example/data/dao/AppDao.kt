@@ -253,4 +253,23 @@ interface AppDao {
 
     @Delete
     fun deleteAssignment(assignment: Assignment): Int
+
+    // === Notice Board ===
+    @Query("SELECT * FROM notice_board ORDER BY isPinned DESC, createdAt DESC")
+    fun getAllNotices(): Flow<List<Notice>>
+
+    @Query("SELECT * FROM notice_board WHERE targetBatchId = 0 OR targetBatchId = :batchId ORDER BY isPinned DESC, createdAt DESC")
+    fun getNoticesForBatch(batchId: Long): Flow<List<Notice>>
+
+    @Query("SELECT * FROM notice_board WHERE isPinned = 1 AND (targetBatchId = 0 OR targetBatchId = :batchId) ORDER BY createdAt DESC")
+    fun getPinnedNoticesForBatch(batchId: Long): Flow<List<Notice>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun insertNotice(notice: Notice): Long
+
+    @Query("UPDATE notice_board SET isPinned = :isPinned WHERE id = :noticeId")
+    fun updateNoticePinnedStatus(noticeId: Long, isPinned: Boolean): Int
+
+    @Query("DELETE FROM notice_board WHERE id = :noticeId")
+    fun deleteNotice(noticeId: Long): Int
 }

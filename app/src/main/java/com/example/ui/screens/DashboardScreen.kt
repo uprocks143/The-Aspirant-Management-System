@@ -219,11 +219,12 @@ fun DashboardScreen(viewModel: AppViewModel) {
     var activeAdminTab by remember { mutableStateOf("Dashboard") }
     var activeStaffTab by remember { mutableStateOf("Attendance") }
     var activeStudentTab by remember { mutableStateOf("Home Workspace") }
+    var showTeacherNoticeBoardDialog by remember { mutableStateOf(false) }
 
     // Navigation lists
-    val adminTabs = listOf("Dashboard", "Student Directory", "Payment Dashboard", "Admission Form", "Batches Setup", "Tuition Fees", "Ledger Accounts", "Database Backups", "Outreach Engine")
-    val staffTabs = listOf("Attendance", "Study Materials")
-    val studentTabs = listOf("Home Workspace", "Academic Resources", "Practice exams", "Fees & Payments")
+    val adminTabs = listOf("Dashboard", "Notice Board", "Student Directory", "Payment Dashboard", "Admission Form", "Batches Setup", "Tuition Fees", "Ledger Accounts", "Database Backups", "Outreach Engine")
+    val staffTabs = listOf("Attendance", "Notice Board", "Study Materials")
+    val studentTabs = listOf("Home Workspace", "Notice Board", "Academic Resources", "Practice exams", "Fees & Payments")
 
     // State controlling dialog overlays / sub-flows for 16 shortcuts
     var showAddBatchDialog by remember { mutableStateOf(false) }
@@ -250,6 +251,15 @@ fun DashboardScreen(viewModel: AppViewModel) {
     var showEnrollmentForm by remember { mutableStateOf(false) }
     var showSettingsPanel by remember { mutableStateOf(false) }
     var showExamSchedulerDialog by remember { mutableStateOf(false) }
+
+    // TCMS (InvoTech) Feature Dialog States
+    var showAllBirthdaysDialog by remember { mutableStateOf(false) }
+    var showCourseCompletionDialog by remember { mutableStateOf(false) }
+    var showStudentRegistrationSlipDialog by remember { mutableStateOf(false) }
+    var showBatchBroadcasterDialog by remember { mutableStateOf(false) }
+    var showGoogleDriveBackupCenterDialog by remember { mutableStateOf(false) }
+    var showStudentIdCardGeneratorDialog by remember { mutableStateOf(false) }
+    var showDailyAbsenteeAlertDialog by remember { mutableStateOf(false) }
 
     // Next-Gen Feature Dialog States
     var showNextGenCabinetInline by remember { mutableStateOf(false) }
@@ -296,6 +306,13 @@ fun DashboardScreen(viewModel: AppViewModel) {
                 else if (showTodoTaskDialog) { showTodoTaskDialog = false }
                 else if (showPaperGeneratorDialog) { showPaperGeneratorDialog = false }
                 else if (showNotificationsDialog) { showNotificationsDialog = false }
+                else if (showAllBirthdaysDialog) { showAllBirthdaysDialog = false }
+                else if (showCourseCompletionDialog) { showCourseCompletionDialog = false }
+                else if (showStudentRegistrationSlipDialog) { showStudentRegistrationSlipDialog = false }
+                else if (showBatchBroadcasterDialog) { showBatchBroadcasterDialog = false }
+                else if (showGoogleDriveBackupCenterDialog) { showGoogleDriveBackupCenterDialog = false }
+                else if (showStudentIdCardGeneratorDialog) { showStudentIdCardGeneratorDialog = false }
+                else if (showDailyAbsenteeAlertDialog) { showDailyAbsenteeAlertDialog = false }
                 else if (activeBottomNavTab != "DASHBOARD") {
                     activeBottomNavTab = "DASHBOARD"
                 }
@@ -475,7 +492,10 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                                 .fillMaxWidth()
                                                 .background(
                                                     Brush.horizontalGradient(
-                                                        colors = listOf(Color(0xFF29B6F6), Color(0xFF00E5FF))
+                                                        colors = listOf(
+                                                            MaterialTheme.colorScheme.primary,
+                                                            MaterialTheme.colorScheme.tertiary
+                                                        )
                                                     )
                                                 )
                                         ) {
@@ -585,47 +605,98 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
+                                    .navigationBarsPadding()
                             ) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .navigationBarsPadding()
-                                        .height(76.dp)
-                                        .padding(horizontal = 8.dp),
+                                        .height(64.dp)
+                                        .padding(horizontal = 4.dp),
                                     horizontalArrangement = Arrangement.SpaceAround,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    // Left: Dashboard tab
+                                    // 1. Dashboard Tab
+                                    val isDashActive = activeBottomNavTab == "DASHBOARD" && (activeAdminTab == "Dashboard" || activeAdminTab.isEmpty())
                                     Column(
                                         modifier = Modifier
                                             .weight(1f)
-                                            .clickable { activeBottomNavTab = "DASHBOARD" }
-                                            .padding(vertical = 8.dp),
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable {
+                                                activeBottomNavTab = "DASHBOARD"
+                                                activeAdminTab = "Dashboard"
+                                            }
+                                            .padding(vertical = 6.dp),
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                         verticalArrangement = Arrangement.Center
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Dashboard,
-                                            contentDescription = "Dashboard",
-                                            tint = if (activeBottomNavTab == "DASHBOARD") MaterialTheme.colorScheme.primary else Color.Gray,
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = if (isDashActive) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                                            modifier = Modifier.padding(horizontal = 4.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Dashboard,
+                                                contentDescription = "Dashboard",
+                                                tint = if (isDashActive) MaterialTheme.colorScheme.primary else Color.Gray,
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp).size(22.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(2.dp))
                                         Text(
-                                            text = "Dashboard",
-                                            fontSize = 12.sp,
-                                            fontWeight = if (activeBottomNavTab == "DASHBOARD") FontWeight.Bold else FontWeight.Medium,
-                                            color = if (activeBottomNavTab == "DASHBOARD") MaterialTheme.colorScheme.primary else Color.Gray
+                                            text = "Home",
+                                            fontSize = 10.sp,
+                                            fontWeight = if (isDashActive) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isDashActive) MaterialTheme.colorScheme.primary else Color.Gray
                                         )
                                     }
 
-                                    // Center floating Action Button for Instant QR Scanner Check-in
+                                    // 2. Fees Tab
+                                    val isFeesActive = activeBottomNavTab == "DASHBOARD" && activeAdminTab == "Tuition Fees"
+                                    Column(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable {
+                                                activeBottomNavTab = "DASHBOARD"
+                                                activeAdminTab = "Tuition Fees"
+                                            }
+                                            .padding(vertical = 6.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = if (isFeesActive) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                                            modifier = Modifier.padding(horizontal = 4.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Payments,
+                                                contentDescription = "Tuition Fees",
+                                                tint = if (isFeesActive) MaterialTheme.colorScheme.primary else Color.Gray,
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp).size(22.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = "Fees",
+                                            fontSize = 10.sp,
+                                            fontWeight = if (isFeesActive) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isFeesActive) MaterialTheme.colorScheme.primary else Color.Gray
+                                        )
+                                    }
+
+                                    // 3. Center Elevated FAB: QR Attendance Check-In
                                     Box(
                                         modifier = Modifier
-                                            .size(56.dp)
-                                            .offset(y = (-12).dp)
-                                            .background(Color(0xFF0D47A1), CircleShape)
-                                            .border(4.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                                            .size(52.dp)
+                                            .offset(y = (-10).dp)
+                                            .background(
+                                                Brush.linearGradient(
+                                                    listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary)
+                                                ),
+                                                CircleShape
+                                            )
+                                            .border(3.dp, MaterialTheme.colorScheme.surface, CircleShape)
                                             .clickable { showQrAttendanceScanner = true },
                                         contentAlignment = Alignment.Center
                                     ) {
@@ -633,31 +704,74 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                             imageVector = Icons.Default.QrCodeScanner,
                                             contentDescription = "QR Attendance",
                                             tint = Color.White,
-                                            modifier = Modifier.size(26.dp)
+                                            modifier = Modifier.size(24.dp)
                                         )
                                     }
 
-                                    // Right: My Account tab
+                                    // 4. Students Tab
+                                    val isStudentsActive = activeBottomNavTab == "DASHBOARD" && activeAdminTab == "Admission Form"
                                     Column(
                                         modifier = Modifier
                                             .weight(1f)
-                                            .clickable { activeBottomNavTab = "MY_ACCOUNT" }
-                                            .padding(vertical = 8.dp),
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable {
+                                                activeBottomNavTab = "DASHBOARD"
+                                                activeAdminTab = "Admission Form"
+                                            }
+                                            .padding(vertical = 6.dp),
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                         verticalArrangement = Arrangement.Center
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Person,
-                                            contentDescription = "My Account",
-                                            tint = if (activeBottomNavTab == "MY_ACCOUNT") MaterialTheme.colorScheme.primary else Color.Gray,
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = if (isStudentsActive) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                                            modifier = Modifier.padding(horizontal = 4.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.People,
+                                                contentDescription = "Students",
+                                                tint = if (isStudentsActive) MaterialTheme.colorScheme.primary else Color.Gray,
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp).size(22.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(2.dp))
                                         Text(
-                                            text = "My Account",
-                                            fontSize = 12.sp,
-                                            fontWeight = if (activeBottomNavTab == "MY_ACCOUNT") FontWeight.Bold else FontWeight.Medium,
-                                            color = if (activeBottomNavTab == "MY_ACCOUNT") MaterialTheme.colorScheme.primary else Color.Gray
+                                            text = "Students",
+                                            fontSize = 10.sp,
+                                            fontWeight = if (isStudentsActive) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isStudentsActive) MaterialTheme.colorScheme.primary else Color.Gray
+                                        )
+                                    }
+
+                                    // 5. Account Tab
+                                    val isAccountActive = activeBottomNavTab == "MY_ACCOUNT"
+                                    Column(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable { activeBottomNavTab = "MY_ACCOUNT" }
+                                            .padding(vertical = 6.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = if (isAccountActive) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                                            modifier = Modifier.padding(horizontal = 4.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Person,
+                                                contentDescription = "My Account",
+                                                tint = if (isAccountActive) MaterialTheme.colorScheme.primary else Color.Gray,
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp).size(22.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = "Account",
+                                            fontSize = 10.sp,
+                                            fontWeight = if (isAccountActive) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isAccountActive) MaterialTheme.colorScheme.primary else Color.Gray
                                         )
                                     }
                                 }
@@ -887,8 +1001,42 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                                     )
                                                 }
 
+                                                // TCMS Automated Student Birthday Alerts Banner
+                                                item {
+                                                    com.example.ui.components.DashboardBirthdayAlertBanner(
+                                                        students = studentsList,
+                                                        batches = batchesList,
+                                                        instituteName = academyNameState,
+                                                        onOpenAllBirthdays = { showAllBirthdaysDialog = true }
+                                                    )
+                                                }
+
                                                 item {
                                                     val dashboardShortcutsRaw = listOf(
+                                                        ShortcutItem("Birthday Alerts", Icons.Default.Cake, Color(0xFFE91E63)) {
+                                                            showAllBirthdaysDialog = true
+                                                        },
+                                                        ShortcutItem("Course Completion", Icons.Default.WorkspacePremium, Color(0xFF673AB7)) {
+                                                            checkAccessAndRun("Course Completion", listOf("ADMIN", "STAFF")) { showCourseCompletionDialog = true }
+                                                        },
+                                                        ShortcutItem("Admission Slips", Icons.Default.Badge, Color(0xFF0D9488)) {
+                                                            checkAccessAndRun("Admission Slips", listOf("ADMIN", "STAFF")) { showStudentRegistrationSlipDialog = true }
+                                                        },
+                                                        ShortcutItem("Batch Broadcast", Icons.Default.Campaign, Color(0xFFEA580C)) {
+                                                            checkAccessAndRun("Batch Broadcast", listOf("ADMIN", "STAFF")) { showBatchBroadcasterDialog = true }
+                                                        },
+                                                        ShortcutItem("Notice Board", Icons.Default.Campaign, Color(0xFFF97316)) {
+                                                            checkAccessAndRun("Notice Board", listOf("ADMIN", "STAFF")) { showTeacherNoticeBoardDialog = true }
+                                                        },
+                                                        ShortcutItem("Drive Backup", Icons.Default.CloudUpload, Color(0xFF1A73E8)) {
+                                                            checkAccessAndRun("Database Backups", listOf("ADMIN", "STAFF")) { showGoogleDriveBackupCenterDialog = true }
+                                                        },
+                                                        ShortcutItem("ID Cards", Icons.Default.ContactPage, Color(0xFF2563EB)) {
+                                                            checkAccessAndRun("Admission Slips", listOf("ADMIN", "STAFF")) { showStudentIdCardGeneratorDialog = true }
+                                                        },
+                                                        ShortcutItem("Absent Alerts", Icons.Default.NotificationImportant, Color(0xFFDC2626)) {
+                                                            checkAccessAndRun("Attendance Scanner", listOf("ADMIN", "STAFF")) { showDailyAbsenteeAlertDialog = true }
+                                                        },
                                                         ShortcutItem("Batches", Icons.Default.CoPresent, Color(0xFF3BACF0)) {
                                                             checkAccessAndRun("Batches Setup", listOf("ADMIN", "STAFF")) { activeAdminTab = "Batches Setup" }
                                                         },
@@ -1654,7 +1802,18 @@ fun DashboardScreen(viewModel: AppViewModel) {
                                                         }
                                                     )
                                                 }
-                                                activeStudentTab == "Home Workspace" || activeStudentTab == "Academic Resources" || activeStudentTab == "Practice exams" || activeStudentTab == "Fees & Payments" -> {
+                                                activeAdminTab == "Notice Board" || activeStaffTab == "Notice Board" || showTeacherNoticeBoardDialog -> {
+                                                    com.example.ui.components.TeacherNoticeBoardManagementDialog(
+                                                        viewModel = viewModel,
+                                                        batches = batchesList,
+                                                        onDismiss = {
+                                                            showTeacherNoticeBoardDialog = false
+                                                            if (activeAdminTab == "Notice Board") activeAdminTab = "Dashboard"
+                                                            if (activeStaffTab == "Notice Board") activeStaffTab = "Attendance"
+                                                        }
+                                                    )
+                                                }
+                                                activeStudentTab == "Home Workspace" || activeStudentTab == "Notice Board" || activeStudentTab == "Academic Resources" || activeStudentTab == "Practice exams" || activeStudentTab == "Fees & Payments" -> {
                                                     StudentWorkspace(
                                                         activeStudentTab = activeStudentTab,
                                                         onSelectStudentTab = { activeStudentTab = it },
@@ -1756,6 +1915,70 @@ fun DashboardScreen(viewModel: AppViewModel) {
 
             if (showHelpSupportDialog) {
                 com.example.ui.screens.HelpSupportOverlay(onClose = { showHelpSupportDialog = false })
+            }
+
+            // TCMS Feature Dialogs
+            if (showAllBirthdaysDialog) {
+                com.example.ui.components.AllBirthdaysHubDialog(
+                    students = studentsList,
+                    batches = batchesList,
+                    instituteName = academyNameState,
+                    onDismiss = { showAllBirthdaysDialog = false }
+                )
+            }
+
+            if (showCourseCompletionDialog) {
+                com.example.ui.components.CourseCompletionTrackerDialog(
+                    students = studentsList,
+                    batches = batchesList,
+                    academyName = academyNameState,
+                    onDismiss = { showCourseCompletionDialog = false }
+                )
+            }
+
+            if (showStudentRegistrationSlipDialog) {
+                com.example.ui.components.StudentRegistrationSlipDialog(
+                    students = studentsList,
+                    batches = batchesList,
+                    academyName = academyNameState,
+                    onDismiss = { showStudentRegistrationSlipDialog = false }
+                )
+            }
+
+            if (showBatchBroadcasterDialog) {
+                com.example.ui.components.BatchMessageBroadcasterDialog(
+                    students = studentsList,
+                    batches = batchesList,
+                    academyName = academyNameState,
+                    onDismiss = { showBatchBroadcasterDialog = false }
+                )
+            }
+
+            if (showGoogleDriveBackupCenterDialog) {
+                com.example.ui.components.GoogleDriveCloudBackupCenterDialog(
+                    viewModel = viewModel,
+                    onDismiss = { showGoogleDriveBackupCenterDialog = false }
+                )
+            }
+
+            if (showStudentIdCardGeneratorDialog) {
+                com.example.ui.components.StudentIdCardGeneratorDialog(
+                    students = studentsList,
+                    batches = batchesList,
+                    academyName = academyNameState,
+                    onDismiss = { showStudentIdCardGeneratorDialog = false }
+                )
+            }
+
+            if (showDailyAbsenteeAlertDialog) {
+                val allAttendance by viewModel.allAttendanceList.collectAsState(initial = emptyList())
+                com.example.ui.components.DailyAbsenteeAlertBroadcasterDialog(
+                    students = studentsList,
+                    batches = batchesList,
+                    attendanceList = allAttendance,
+                    academyName = academyNameState,
+                    onDismiss = { showDailyAbsenteeAlertDialog = false }
+                )
             }
 
             if (showReportsConsoleDialog) {
@@ -3476,7 +3699,12 @@ fun AdminWorkspace(
                 }
 
                 item {
-                    TuitionFeesModule(payments = payments, students = students, batches = batches, viewModel = viewModel)
+                    com.example.ui.components.TcmsTuitionFeesConsole(
+                        payments = payments,
+                        students = students,
+                        batches = batches,
+                        viewModel = viewModel
+                    )
                 }
             }
 
@@ -3651,6 +3879,7 @@ fun StudentWorkspace(
     val favoritedIds by viewModel.favoritedMaterialIds.collectAsState()
     val personalNotesMap by viewModel.personalNotesMap.collectAsState()
     val feePaymentsList by viewModel.feePayments.collectAsState()
+    val notices by viewModel.notices.collectAsState()
     val studentPayments = remember(feePaymentsList, activeStudent) {
         if (activeStudent != null) {
             feePaymentsList.filter { it.studentId == activeStudent.id }
@@ -3669,9 +3898,10 @@ fun StudentWorkspace(
         ScrollableTabRow(
             selectedTabIndex = when (activeStudentTab) {
                 "Home Workspace" -> 0
-                "Academic Resources" -> 1
-                "Practice exams" -> 2
-                "Fees & Payments" -> 3
+                "Notice Board" -> 1
+                "Academic Resources" -> 2
+                "Practice exams" -> 3
+                "Fees & Payments" -> 4
                 else -> 0
             },
             edgePadding = 8.dp,
@@ -3680,6 +3910,7 @@ fun StudentWorkspace(
         ) {
             val tabs = listOf(
                 Triple("Home Workspace", Icons.Default.Home, "Home Workspace"),
+                Triple("Notice Board", Icons.Default.Campaign, "Notice Board"),
                 Triple("Academic Resources", Icons.Default.LibraryBooks, "Academic Resources"),
                 Triple("Practice exams", Icons.Default.Computer, "Practice exams"),
                 Triple("Fees & Payments", Icons.Default.Paid, "Fees & Payments")
@@ -3847,6 +4078,15 @@ fun StudentWorkspace(
             }
         }
 
+        // Pinned Urgent Updates & Exam Schedules Notice Board
+        item {
+            com.example.ui.components.PinnedNoticeBanner(
+                notices = notices,
+                studentBatchId = activeStudent.batchId,
+                onViewAllClick = { onSelectStudentTab("Notice Board") }
+            )
+        }
+
         // 100% Free Student Promotion Sharing Campaign Card
         item {
             val promoShareCount by viewModel.promoShareCount.collectAsState()
@@ -3988,6 +4228,16 @@ fun StudentWorkspace(
         }
 
         when (activeStudentTab) {
+            "Notice Board" -> {
+                item {
+                    com.example.ui.components.StudentNoticeBoardScreen(
+                        notices = notices,
+                        studentBatchId = activeStudent.batchId,
+                        batches = batches,
+                        modifier = Modifier.fillMaxWidth().height(600.dp)
+                    )
+                }
+            }
             "Home Workspace" -> {
                 item {
                     Text("ACTIVE ASSIGNMENTS & DUE DATES", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary, fontFamily = FontFamily.Monospace)
@@ -5475,15 +5725,39 @@ fun UPIQRCodeCard(
             ) {
                 Button(
                     onClick = {
-                        val whatsappMsg = "$merchantName: Hello Parent! Standard coaching tuition fees due for your child $studentName is ₹$amount. Please click on the link below to pay directly via UPI: \n\n$upiUri\n\nThank you!"
+                        val effectiveUpi = upiId.ifBlank { "smtsharma282.sks@okaxis" }
+                        val payLink = "https://upiqr.in/pay/$effectiveUpi/${amount.toInt()}"
+                        val whatsappMsg = "📢 *$merchantName - Fee Payment Reminder*\n\n" +
+                                "Dear Parent, coaching tuition fee due for *${studentName}* is *₹${amount.toInt()}*.\n\n" +
+                                "👉 *Click here to Pay via any UPI App (GPay / PhonePe / Paytm / BHIM):*\n" +
+                                "$payLink\n\n" +
+                                "🔗 *Direct UPI Link:* $upiUri\n" +
+                                "💳 *UPI ID:* $effectiveUpi\n\n" +
+                                "Thank you!\n*$merchantName*"
+                        val raw = parentPhone.replace(Regex("[^0-9]"), "")
+                        val cleanPhone = when {
+                            raw.startsWith("91") && raw.length == 12 -> raw
+                            raw.startsWith("0") && raw.length == 11 -> "91" + raw.substring(1)
+                            raw.length == 10 -> "91$raw"
+                            else -> raw
+                        }
                         try {
                             val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                                data = android.net.Uri.parse("https://api.whatsapp.com/send?phone=$parentPhone&text=${android.net.Uri.encode(whatsappMsg)}")
+                                data = android.net.Uri.parse("https://api.whatsapp.com/send?phone=$cleanPhone&text=${android.net.Uri.encode(whatsappMsg)}")
                             }
                             context.startActivity(intent)
                             onWhatsAppSent()
                         } catch (e: Exception) {
-                            Toast.makeText(context, "WhatsApp is not installed on this device.", Toast.LENGTH_SHORT).show()
+                            try {
+                                val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(android.content.Intent.EXTRA_TEXT, whatsappMsg)
+                                }
+                                context.startActivity(android.content.Intent.createChooser(sendIntent, "Share Payment Reminder"))
+                                onWhatsAppSent()
+                            } catch (e2: Exception) {
+                                Toast.makeText(context, "Could not launch messaging app.", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     },
                     modifier = Modifier.weight(1f).testTag("share_whatsapp_upi_btn"),
@@ -5592,6 +5866,7 @@ fun RegistrationIntakeForm(
     var dateOfAdmission by remember { mutableStateOf(todayDate) }
     var phone by remember { mutableStateOf("+91") }
     var parentPhone by remember { mutableStateOf("+91") }
+    var studentEmail by remember { mutableStateOf("") }
     var gender by remember { mutableStateOf("Male") }
     var address by remember { mutableStateOf("") }
     var studentClass by remember { mutableStateOf("Class 8") }
@@ -5666,6 +5941,14 @@ fun RegistrationIntakeForm(
                 onValueChange = { parentPhone = it },
                 label = { Text("Parent Active WhatsApp Phone") },
                 modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = studentEmail,
+                onValueChange = { studentEmail = it },
+                label = { Text("Student Email ID (Optional, for Student Login)") },
+                leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                modifier = Modifier.fillMaxWidth().testTag("admission_email_input"),
+                placeholder = { Text("e.g. student@tams.com") }
             )
             
             // Choose batch track
@@ -5791,14 +6074,40 @@ fun RegistrationIntakeForm(
                     value = admissionFee,
                     onValueChange = { admissionFee = it },
                     label = { Text("Initial Admission (₹)") },
+                    supportingText = { Text("Deposit via Tuition Fees") },
                     modifier = Modifier.weight(1f)
                 )
                 OutlinedTextField(
                     value = regFee,
                     onValueChange = { regFee = it },
                     label = { Text("Registration (₹)") },
+                    supportingText = { Text("Deposit via Tuition Fees") },
                     modifier = Modifier.weight(1f)
                 )
+            }
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Payments,
+                        contentDescription = "Fee Notice",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Fees will not be deposited automatically upon registration. Please record all fee deposit entries from the 'Tuition Fees' option at the dashboard.",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
             }
 
             Button(
@@ -5833,7 +6142,8 @@ fun RegistrationIntakeForm(
                         photoPath = "res/drawable/avatar_placeholder.xml",
                         docPath = null,
                         startDate = dateOfAdmission,
-                        enrollmentStatus = enrollmentStatus
+                        enrollmentStatus = enrollmentStatus,
+                        email = studentEmail
                     )
 
                     // Pass student data frame back to show visual overlay card
@@ -5849,7 +6159,8 @@ fun RegistrationIntakeForm(
                         startDate = dateOfAdmission,
                         familyId = familyId.ifEmpty { "FAM-GEN" },
                         isAlumni = (enrollmentStatus == "Alumni"),
-                        enrollmentStatus = enrollmentStatus
+                        enrollmentStatus = enrollmentStatus,
+                        email = studentEmail
                     )
                     onShowConfirm(previewStudent)
                 },
@@ -9988,6 +10299,15 @@ fun DrawerNavigationItems(
             onClick = { onSelectBottomTab("MY_ACCOUNT") }
         )
         DrawerItem(
+            label = "Notice Board 📢",
+            icon = Icons.Default.Campaign,
+            selected = activeAdminTab == "Notice Board" || activeStudentTab == "Notice Board",
+            onClick = {
+                onSelectAdminTab("Notice Board")
+                onSelectStudentTab("Notice Board")
+            }
+        )
+        DrawerItem(
             label = "Motivational Post",
             icon = Icons.Default.SentimentSatisfied,
             selected = false,
@@ -12254,22 +12574,28 @@ fun TuitionFeesModule(
         val academyTitle = merchantName.ifEmpty { "TAMS Academy" }
         val courseName = batch?.name ?: "Preparatory"
 
+        val effectiveUpi = merchantUpiId.ifBlank { "smtsharma282.sks@okaxis" }
+        val dueAmt = remainingDue.toInt()
+        val clickToPayLink = "https://upiqr.in/pay/$effectiveUpi/$dueAmt"
+        val upiIntentUri = "upi://pay?pa=$effectiveUpi&pn=${android.net.Uri.encode(academyTitle)}&am=$dueAmt&cu=INR&tn=${android.net.Uri.encode("Tuition Fee for ${student.name}")}"
+        val paymentBlock = "\n\n👉 Click to Pay via any UPI app (GPay / PhonePe / Paytm / BHIM):\n$clickToPayLink\n\n🔗 Direct UPI: $upiIntentUri\n💳 UPI ID: $effectiveUpi"
+
         val templateOptions = listOf(
             Pair(
-                "Formal Alert",
-                "Dear $parentName, this is a formal notification that the tuition fee of ₹${remainingDue.toInt()} for your child ${student.name} is outstanding for the current term at $academyTitle. Please arrange to clear the payment at your earliest convenience. Thank you."
+                "Direct UPI Pay",
+                "📢 Fee Reminder - $academyTitle\n\nPlease pay ₹$dueAmt for ${student.name}'s tuition fee.$paymentBlock\n\nThank you!"
             ),
             Pair(
-                "Direct UPI Pay",
-                "Fee Reminder: Please pay ₹${remainingDue.toInt()} for ${student.name}'s academic term at $academyTitle. You can pay instantly using UPI: upi://pay?pa=$merchantUpiId&pn=${android.net.Uri.encode(academyTitle)}&am=${remainingDue.toInt()}&cu=INR. Thank you!"
+                "Formal Alert",
+                "Dear $parentName, this is a formal notification that the tuition fee of ₹$dueAmt for your child ${student.name} is outstanding for the current term at $academyTitle.$paymentBlock\n\nPlease arrange to clear the payment at your earliest convenience. Thank you."
             ),
             Pair(
                 "Academic Care",
-                "Dear $parentName, we are dedicated to providing the best learning experience for ${student.name} in $courseName. Kindly clear the pending tuition dues of ₹${remainingDue.toInt()} to keep their classroom access and learning materials seamless. Warm regards, $academyTitle."
+                "Dear $parentName, we are dedicated to providing the best learning experience for ${student.name} in $courseName. Kindly clear the pending tuition dues of ₹$dueAmt to keep their classroom access and learning materials seamless.$paymentBlock\n\nWarm regards, $academyTitle."
             ),
             Pair(
                 "Soft Reminder",
-                "Hi $parentName, this is a friendly reminder that the pending tuition installment of ₹${remainingDue.toInt()} is overdue for ${student.name}. Please clear it online or at the academy's cash ledger desk. Thanks!"
+                "Hi $parentName, this is a friendly reminder that the pending tuition installment of ₹$dueAmt is overdue for ${student.name}.$paymentBlock\n\nThank you!"
             )
         )
 

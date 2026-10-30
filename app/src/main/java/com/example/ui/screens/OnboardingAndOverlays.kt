@@ -347,8 +347,7 @@ fun StudentParentLoginScreen(
     val context = LocalContext.current
     var selectedTab by remember { mutableStateOf(initialTab) } // "STUDENT" vs "PARENT"
     
-    var rollNumber by remember { mutableStateOf("") }
-    var phoneNumber by remember { mutableStateOf("") }
+    var loginIdentifier by remember { mutableStateOf("") }
     
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
 
@@ -477,28 +476,42 @@ fun StudentParentLoginScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Form Input fields
+                    // Form Input field (Mobile Number or Email ID only - no roll number)
                     OutlinedTextField(
-                        value = rollNumber,
-                        onValueChange = { rollNumber = it },
-                        label = { Text(if (selectedTab == "STUDENT") "Student Roll Number" else "Child's Roll Number") },
-                        leadingIcon = { Icon(Icons.Default.Pin, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                        modifier = Modifier.fillMaxWidth().testTag("auth_roll_number_input"),
+                        value = loginIdentifier,
+                        onValueChange = { loginIdentifier = it },
+                        label = {
+                            Text(
+                                if (selectedTab == "STUDENT") "Student Mobile Number or Email ID"
+                                else "Parent Mobile Number or Email ID"
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = if (loginIdentifier.contains("@")) Icons.Default.Email else Icons.Default.Phone,
+                                contentDescription = "Mobile or Email",
+                                tint = if (selectedTab == "STUDENT") Color(0xFF0D47A1) else Color(0xFF1B5E20),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        },
+                        trailingIcon = {
+                            if (loginIdentifier.isNotEmpty()) {
+                                IconButton(onClick = { loginIdentifier = "" }) {
+                                    Icon(Icons.Default.Clear, contentDescription = "Clear")
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("auth_phone_number_input"),
                         shape = RoundedCornerShape(12.dp),
                         singleLine = true,
-                        placeholder = { Text("e.g. STUDENT101") }
-                    )
-
-                    OutlinedTextField(
-                        value = phoneNumber,
-                        onValueChange = { phoneNumber = it },
-                        label = { Text(if (selectedTab == "STUDENT") "Registered Mobile Number" else "Parent Mobile Number") },
-                        leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                        modifier = Modifier.fillMaxWidth().testTag("auth_phone_number_input"),
-                        shape = RoundedCornerShape(12.dp),
-                        singleLine = true,
-                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone),
-                        placeholder = { Text(if (selectedTab == "STUDENT") "e.g. 9876543210" else "e.g. 9876543211") }
+                        placeholder = {
+                            Text(
+                                if (selectedTab == "STUDENT") "e.g. 9876543210 or student@tams.com"
+                                else "e.g. 9876543211 or parent@tams.com"
+                            )
+                        }
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -524,9 +537,9 @@ fun StudentParentLoginScreen(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = if (selectedTab == "STUDENT") {
-                                    "Log in with any student credentials registered via the Institute Owner portal."
+                                    "Log in directly with your registered Mobile Number or Email ID. No Roll Number required."
                                 } else {
-                                    "Log in with the registered student roll number and parent mobile number."
+                                    "Log in directly with the registered Parent Mobile Number or Email ID."
                                 },
                                 fontSize = 10.sp,
                                 color = Color.DarkGray,
@@ -541,25 +554,26 @@ fun StudentParentLoginScreen(
             Button(
                 onClick = {
                     focusManager.clearFocus()
-                    if (rollNumber.isBlank() || phoneNumber.isBlank()) {
-                        Toast.makeText(context, "Please fill in all details!", Toast.LENGTH_SHORT).show()
+                    val cleanInput = loginIdentifier.trim()
+                    if (cleanInput.isBlank()) {
+                        Toast.makeText(context, "Please enter your Mobile Number or Email ID!", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
                     if (selectedTab == "STUDENT") {
-                        val student = viewModel.authenticateStudent(rollNumber, phoneNumber)
+                        val student = viewModel.authenticateStudent(cleanInput)
                         if (student != null) {
                             Toast.makeText(context, "Welcome back, ${student.name}! Access Authorized.", Toast.LENGTH_LONG).show()
                             onLoginSuccess(student.id, "STUDENT")
                         } else {
-                            Toast.makeText(context, "No matching student found! Please check roll and phone or contact administrator.", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "No matching student found! Please check mobile number or email ID, or contact administrator.", Toast.LENGTH_LONG).show()
                         }
                     } else {
-                        val student = viewModel.authenticateParent(rollNumber, phoneNumber)
+                        val student = viewModel.authenticateParent(cleanInput)
                         if (student != null) {
                             Toast.makeText(context, "Guardian Authorized for: ${student.name}!", Toast.LENGTH_LONG).show()
                             onLoginSuccess(student.id, "PARENT")
                         } else {
-                            Toast.makeText(context, "No child record found matching this parent phone and child roll combination!", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "No student record found matching this parent mobile number or email ID!", Toast.LENGTH_LONG).show()
                         }
                     }
                 },
@@ -2985,64 +2999,11 @@ fun ProfileActionButton(title: String, onClick: () -> Unit) {
 // TUITION CLASS LOGO (Image 6 & 7 stylized figures on circle)
 @Composable
 fun TuitionClassLogo(modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier) {
-        val w = size.width
-        val h = size.height
-
-        // 1. Soft blue gradient circle
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(Color(0xFF4FC3F7), Color(0xFF0288D1))
-            ),
-            radius = w * 0.45f
-        )
-
-        // 2. Beautiful white ring border
-        drawCircle(
-            color = Color.White,
-            radius = w * 0.43f,
-            style = Stroke(width = w * 0.04f)
-        )
-
-        // 3. Draw dual stylized figures reaching up
-        // Figure 1 (Large left figure)
-        val path1 = Path().apply {
-            moveTo(w * 0.25f, h * 0.75f)
-            quadraticTo(w * 0.35f, h * 0.45f, w * 0.45f, h * 0.45f)
-            quadraticTo(w * 0.45f, h * 0.65f, w * 0.25f, h * 0.75f)
-            close()
-        }
-        drawPath(path1, Color.White)
-        drawCircle(Color.White, radius = w * 0.08f, center = androidx.compose.ui.geometry.Offset(w * 0.48f, h * 0.38f))
-
-        // Small cap on left figure
-        val cap1 = Path().apply {
-            moveTo(w * 0.42f, h * 0.32f)
-            lineTo(w * 0.54f, h * 0.32f)
-            lineTo(w * 0.48f, h * 0.26f)
-            close()
-        }
-        drawPath(cap1, Color(0xFF0D47A1))
-
-        // Figure 2 (Smaller center right figure)
-        val path2 = Path().apply {
-            moveTo(w * 0.45f, h * 0.72f)
-            quadraticTo(w * 0.55f, h * 0.52f, w * 0.63f, h * 0.52f)
-            quadraticTo(w * 0.63f, h * 0.68f, w * 0.45f, h * 0.72f)
-            close()
-        }
-        drawPath(path2, Color(0xFFB3E5FC))
-        drawCircle(Color(0xFFB3E5FC), radius = w * 0.06f, center = androidx.compose.ui.geometry.Offset(w * 0.65f, h * 0.46f))
-
-        // Cap on center figure
-        val cap2 = Path().apply {
-            moveTo(w * 0.61f, h * 0.42f)
-            lineTo(w * 0.69f, h * 0.42f)
-            lineTo(w * 0.65f, h * 0.38f)
-            close()
-        }
-        drawPath(cap2, Color(0xFF0D47A1))
-    }
+    androidx.compose.foundation.Image(
+        painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_launcher_asset),
+        contentDescription = "TAMS Academy Logo",
+        modifier = modifier.clip(CircleShape)
+    )
 }
 
 // THE ASPIRANT CLASSES (TAC) LOGO (Image 4 Gold book, scale columns, graduate cap)

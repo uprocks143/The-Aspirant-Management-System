@@ -55,7 +55,8 @@ data class Student(
     val documentAttachments: String? = null, // Path or comma-separated list of local URIs
     val familyId: String = "", // Linking mechanism to group siblings together
     val isAlumni: Boolean = false,
-    val enrollmentStatus: String = "Active"
+    val enrollmentStatus: String = "Active",
+    val email: String = ""
 )
 
 @Entity(
@@ -371,6 +372,23 @@ data class Assignment(
     val description: String,
     val dueDate: String = "", // e.g., "Tomorrow" or a date string
     val dueDateMillis: Long = System.currentTimeMillis() + 24 * 60 * 60 * 1000L, // 1 day default
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+@Entity(
+    tableName = "notice_board",
+    indices = [Index(value = ["targetBatchId"]), Index(value = ["isPinned"])]
+)
+data class Notice(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val title: String,
+    val content: String,
+    val authorName: String = "Faculty / Administration",
+    val category: String = "URGENT", // "URGENT", "EXAM_SCHEDULE", "GENERAL", "HOLIDAY"
+    val targetBatchId: Long = 0L, // 0L means All Batches
+    val isPinned: Boolean = true,
+    val examDate: String = "",
+    val examTime: String = "",
     val createdAt: Long = System.currentTimeMillis()
 )
 

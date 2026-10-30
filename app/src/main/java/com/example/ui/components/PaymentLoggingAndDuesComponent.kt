@@ -1,6 +1,8 @@
 package com.example.ui.components
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
@@ -72,10 +74,9 @@ fun computeStudentDues(
 
     return students.map { student ->
         val batch = batchMap[student.batchId]
-        // Determine expected monthly fee from student custom fee or batch fee
+        // Determine expected monthly fee from batch fee
         val expectedFee = when {
-            student.monthlyFee > 0 -> student.monthlyFee
-            batch != null && batch.feeAmount > 0 -> batch.feeAmount
+            batch != null && batch.feesAmount > 0 -> batch.feesAmount
             else -> 1200.0 // Default institute monthly standard fee
         }
 
@@ -178,8 +179,12 @@ fun PaymentLoggingAndDuesConsole(
 
     // Dialog controllers
     var studentToLogPaymentFor by remember { mutableStateOf<StudentDuesInfo?>(null) }
+    var studentToRemind by remember { mutableStateOf<StudentDuesInfo?>(null) }
     var showSupabaseConfigDialog by remember { mutableStateOf(false) }
     var isSyncingSupabase by remember { mutableStateOf(false) }
+
+    val merchantUpiId by viewModel.merchantUpiId.collectAsState()
+    val merchantName by viewModel.merchantName.collectAsState()
 
     val duesList = remember(students, batches, payments, selectedMonth) {
         computeStudentDues(students, batches, payments, selectedMonth)
@@ -317,39 +322,51 @@ fun PaymentLoggingAndDuesConsole(
             // Expected
             Card(
                 modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
-                Column(modifier = Modifier.padding(10.dp)) {
-                    Text("Total Due", fontSize = 10.sp, color = Color.Gray)
-                    Text("₹${totalExpected.toInt()}", fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text("${students.size} students", fontSize = 9.sp, color = Color.Gray)
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("Total Due", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("₹${totalExpected.toInt()}", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text("${students.size} students", fontSize = 10.sp, color = Color.Gray)
                 }
             }
 
             // Collected
             Card(
                 modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9))
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+                border = BorderStroke(1.dp, Color(0xFF81C784).copy(alpha = 0.4f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
-                Column(modifier = Modifier.padding(10.dp)) {
-                    Text("Collected", fontSize = 10.sp, color = Color(0xFF2E7D32))
-                    Text("₹${totalCollected.toInt()}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1B5E20))
-                    Text("$paidCount paid", fontSize = 9.sp, color = Color(0xFF2E7D32))
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("Collected", fontSize = 11.sp, color = Color(0xFF2E7D32), fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("₹${totalCollected.toInt()}", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF1B5E20))
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text("$paidCount paid", fontSize = 10.sp, color = Color(0xFF2E7D32), fontWeight = FontWeight.Medium)
                 }
             }
 
             // Pending
             Card(
                 modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE))
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
+                border = BorderStroke(1.dp, Color(0xFFE57373).copy(alpha = 0.4f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
-                Column(modifier = Modifier.padding(10.dp)) {
-                    Text("Pending Dues", fontSize = 10.sp, color = Color(0xFFC62828))
-                    Text("₹${totalPending.toInt()}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFFB71C1C))
-                    Text("$pendingCount pending", fontSize = 9.sp, color = Color(0xFFC62828))
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("Pending Dues", fontSize = 11.sp, color = Color(0xFFC62828), fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("₹${totalPending.toInt()}", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFB71C1C))
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text("$pendingCount pending", fontSize = 10.sp, color = Color(0xFFC62828), fontWeight = FontWeight.Medium)
                 }
             }
         }
@@ -466,7 +483,11 @@ fun PaymentLoggingAndDuesConsole(
                         duesInfo = item,
                         onLogPaymentClick = { studentToLogPaymentFor = item },
                         onReminderClick = {
-                            onDirectSmsReminder?.invoke(item.student, item.pendingAmount)
+                            if (onDirectSmsReminder != null) {
+                                onDirectSmsReminder.invoke(item.student, item.pendingAmount)
+                            } else {
+                                studentToRemind = item
+                            }
                         }
                     )
                 }
@@ -481,16 +502,14 @@ fun PaymentLoggingAndDuesConsole(
             targetMonth = selectedMonth,
             onDismiss = { studentToLogPaymentFor = null },
             onConfirmPayment = { amount, discount, mode, month, remarks ->
-                viewModel.recordFeePayment(
+                viewModel.collectFeePayment(
                     studentId = duesInfo.student.id,
-                    feeType = "Monthly-based",
                     amount = amount,
                     discount = discount,
-                    mode = mode,
-                    remarks = remarks,
-                    receipt = "REC-${System.currentTimeMillis() % 100000}",
+                    feeType = "Monthly-based",
                     month = month,
-                    context = context
+                    mode = mode,
+                    remarks = remarks
                 )
 
                 // Trigger Supabase asynchronous dual-storage persistence
@@ -516,6 +535,128 @@ fun PaymentLoggingAndDuesConsole(
 
                 studentToLogPaymentFor = null
                 Toast.makeText(context, "Payment of ₹${amount.toInt()} logged & stored in Local DB + Supabase!", Toast.LENGTH_LONG).show()
+            }
+        )
+    }
+
+    // Modal: Send WhatsApp Payment Reminder with Direct UPI Link
+    studentToRemind?.let { duesInfo ->
+        val effectiveUpi = merchantUpiId.ifBlank { "smtsharma282.sks@okaxis" }
+        val effectiveAcademyName = merchantName.ifBlank { "TAMS Academy" }
+        val dueAmount = duesInfo.pendingAmount.toInt()
+        val clickToPayLink = "https://upiqr.in/pay/$effectiveUpi/$dueAmount"
+        val encodedAcademy = Uri.encode(effectiveAcademyName)
+        val encodedStudent = Uri.encode(duesInfo.student.name)
+        val upiDeepLink = "upi://pay?pa=$effectiveUpi&pn=$encodedAcademy&am=$dueAmount&cu=INR&tn=Fee%20Dues%20for%20$encodedStudent"
+
+        val msg = "📢 *FEE PAYMENT REMINDER - $effectiveAcademyName*\n\n" +
+                "Dear Parent,\n" +
+                "This is a gentle reminder that tuition fee dues of *₹$dueAmount* are pending for *${duesInfo.student.name}* (${duesInfo.batch?.name ?: "Tuition Batch"}).\n\n" +
+                "👉 *Click here to Pay directly via any UPI App (GPay / PhonePe / Paytm / BHIM):*\n" +
+                "$clickToPayLink\n\n" +
+                "🔗 *Direct UPI Link:*\n$upiDeepLink\n\n" +
+                "💳 *UPI ID:* $effectiveUpi\n\n" +
+                "Kindly clear the dues at your earliest convenience.\n\n" +
+                "Thank you,\n*$effectiveAcademyName*"
+
+        AlertDialog(
+            onDismissRequest = { studentToRemind = null },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = Color(0xFFC62828))
+                    Text("Send Payment Notice", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Recipient: ${duesInfo.student.name} • Due: ₹$dueAmount",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    OutlinedTextField(
+                        value = msg,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Message with UPI Pay Link") },
+                        modifier = Modifier.fillMaxWidth().height(150.dp),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            val rawPhone = duesInfo.student.parentPhone.ifEmpty { duesInfo.student.phone }.replace(Regex("[^0-9]"), "")
+                            if (rawPhone.isBlank()) {
+                                Toast.makeText(context, "No contact number for ${duesInfo.student.name}", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+                            val cleanPhone = when {
+                                rawPhone.startsWith("91") && rawPhone.length == 12 -> rawPhone
+                                rawPhone.startsWith("0") && rawPhone.length == 11 -> "91" + rawPhone.substring(1)
+                                rawPhone.length == 10 -> "91$rawPhone"
+                                else -> rawPhone
+                            }
+                            try {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$cleanPhone?text=${Uri.encode(msg)}"))
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                try {
+                                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_TEXT, msg)
+                                    }
+                                    context.startActivity(Intent.createChooser(shareIntent, "Share Payment Reminder"))
+                                } catch (e2: Exception) {
+                                    Toast.makeText(context, "Could not launch messaging app", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                            studentToRemind = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                    ) {
+                        Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("WhatsApp", fontSize = 12.sp)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            val rawPhone = duesInfo.student.parentPhone.ifEmpty { duesInfo.student.phone }.replace(Regex("[^0-9]"), "")
+                            if (rawPhone.isBlank()) {
+                                Toast.makeText(context, "No contact number for ${duesInfo.student.name}", Toast.LENGTH_SHORT).show()
+                                return@OutlinedButton
+                            }
+                            try {
+                                val smsIntent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$rawPhone")).apply {
+                                    putExtra("sms_body", msg)
+                                }
+                                context.startActivity(smsIntent)
+                            } catch (e: Exception) {
+                                try {
+                                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_TEXT, msg)
+                                    }
+                                    context.startActivity(Intent.createChooser(shareIntent, "Send SMS"))
+                                } catch (e2: Exception) {
+                                    Toast.makeText(context, "Could not open SMS app", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                            studentToRemind = null
+                        }
+                    ) {
+                        Text("SMS", fontSize = 12.sp)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { studentToRemind = null }) {
+                    Text("Cancel")
+                }
             }
         )
     }

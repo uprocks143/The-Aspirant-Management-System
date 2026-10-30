@@ -602,17 +602,66 @@ fun StudentDirectoryScreen(
 
             // Student Cards List
             if (filteredStudents.isEmpty()) {
-                Box(
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 40.dp),
-                    contentAlignment = Alignment.Center
+                        .padding(top = 24.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(48.dp), tint = Color.Gray)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("No students found matching your criteria.", fontWeight = FontWeight.Medium, color = Color.Gray)
-                        Text("Try adjusting your grade or enrollment status filter.", fontSize = 12.sp, color = Color.Gray)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                            modifier = Modifier.size(56.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Default.PeopleOutline,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(28.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "No students match the criteria",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Try clearing your search query or adjusting your filters.",
+                            fontSize = 12.sp,
+                            color = Color.Gray,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        if (searchQuery.isNotBlank() || selectedGradeFilter != "All Grades" || selectedStatusFilter != "All Status" || selectedPendingDuesFilter != "ALL" || selectedBatchFilter != null) {
+                            Spacer(modifier = Modifier.height(14.dp))
+                            OutlinedButton(
+                                onClick = {
+                                    searchQuery = ""
+                                    selectedGradeFilter = "All Grades"
+                                    selectedStatusFilter = "All Status"
+                                    selectedPendingDuesFilter = "ALL"
+                                    selectedBatchFilter = null
+                                    activeCategoryFilter = "NONE"
+                                },
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(Icons.Default.FilterAltOff, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Reset All Filters", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
                     }
                 }
             } else {
@@ -645,12 +694,30 @@ fun StudentDirectoryScreen(
                             },
                             onWhatsApp = { phone ->
                                 runWithBiometricCheck {
+                                    val raw = phone.replace(Regex("[^0-9]"), "")
+                                    if (raw.isBlank()) {
+                                        Toast.makeText(context, "No contact number registered", Toast.LENGTH_SHORT).show()
+                                        return@runWithBiometricCheck
+                                    }
+                                    val cleanPhone = when {
+                                        raw.startsWith("91") && raw.length == 12 -> raw
+                                        raw.startsWith("0") && raw.length == 11 -> "91" + raw.substring(1)
+                                        raw.length == 10 -> "91$raw"
+                                        else -> raw
+                                    }
                                     try {
-                                        val cleaned = phone.replace(Regex("[^0-9]"), "")
-                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/91$cleaned"))
+                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$cleanPhone"))
                                         context.startActivity(intent)
                                     } catch (e: Exception) {
-                                        Toast.makeText(context, "WhatsApp not available", Toast.LENGTH_SHORT).show()
+                                        try {
+                                            val chooser = Intent.createChooser(
+                                                Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$cleanPhone")),
+                                                "Open WhatsApp"
+                                            )
+                                            context.startActivity(chooser)
+                                        } catch (e2: Exception) {
+                                            Toast.makeText(context, "WhatsApp not available", Toast.LENGTH_SHORT).show()
+                                        }
                                     }
                                 }
                             }
